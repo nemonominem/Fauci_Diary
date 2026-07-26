@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tony's Diary Search</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column;
+}
+/* Header */
+.header {
+  background: #16213e; padding: 10px 16px; border-bottom: 2px solid #0f3460;
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+}
+.header h1 { font-size: 18px; color: #e94560; white-space: nowrap; }
+.header .subtitle { font-size: 12px; color: #888; white-space: nowrap; }
+.search-bar { flex: 1; display: flex; gap: 8px; max-width: 600px; margin-left: 20px; }
+#searchInput {
+  flex: 1; padding: 8px 12px; background: #0f3460; border: 1px solid #1a1a4e;
+  color: #fff; border-radius: 4px; font-size: 14px; outline: none;
+}
+#searchInput:focus { border-color: #e94560; }
+#searchBtn, #clearBtn {
+  padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;
+  font-size: 13px; font-weight: 600;
+}
+#searchBtn { background: #e94560; color: #fff; }
+#searchBtn:hover { background: #c81e4a; }
+#clearBtn { background: #333; color: #ccc; }
+#clearBtn:hover { background: #444; }
+
+/* Timeline section (always visible) */
+.timeline-section {
+  background: #16213e; border-bottom: 2px solid #0f3460; padding: 6px 16px 8px;
+  flex-shrink: 0;
+}
+.timeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.timeline-header h2 { font-size: 12px; color: #aaa; }
+.timeline-stats { font-size: 11px; color: #666; }
+.timeline-container { height: 48px; position: relative; }
+
+/* Chart section */
+.chart-section {
+  background: #16213e; border-bottom: 2px solid #0f3460; padding: 10px 16px;
+  flex-shrink: 0; display: none;
+}
+.chart-section.visible { display: block; }
+.chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.chart-header h2 { font-size: 14px; color: #aaa; }
+.chart-stats { font-size: 12px; color: #888; }
+.chart-container { height: 140px; position: relative; }
+
+/* Main content area */
+.content-area { flex: 1; display: flex; overflow: hidden; }
+
+/* Results panel (left) */
+.results-panel {
+  flex: 1; overflow-y: auto; padding: 12px;
+}
+.results-panel::-webkit-scrollbar { width: 8px; }
+.results-panel::-webkit-scrollbar-track { background: #16213e; }
+.results-panel::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 4px; }
+
+.result-entry {
+  background: #16213e; margin-bottom: 12px; border-radius: 8px;
+  border: 1px solid #0f3460; overflow: hidden; cursor: pointer;
+  transition: border-color 0.2s;
+}
+.result-entry:hover { border-color: #e94560; }
+.result-entry.active { border-color: #e94560; box-shadow: 0 0 10px rgba(233,69,96,0.3); }
+
+.result-header {
+  padding: 8px 14px; background: #0f3460; display: flex;
+  justify-content: space-between; align-items: center;
+}
+.result-date { font-size: 15px; font-weight: 700; color: #e94560; }
+.result-raw-date { font-size: 11px; color: #888; margin-left: 8px; }
+.result-hits {
+  font-size: 12px; color: #4ecca3; font-weight: 600;
+  background: rgba(78,204,163,0.15); padding: 2px 8px; border-radius: 12px;
+}
+.result-page-link {
+  font-size: 11px; color: #6c9ff2; margin-left: 8px; cursor: pointer;
+}
+.result-note {
+  font-size: 11px; color: #ffaa00; margin-top: 4px; font-style: italic;
+}
+.result-content {
+  padding: 10px 14px; font-size: 13px; line-height: 1.6; color: #ccc;
+  max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;
+}
+.result-content::-webkit-scrollbar { width: 6px; }
+.result-content::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+mark {
+  background: #ffcc00; color: #000; padding: 1px 2px; border-radius: 2px;
+  font-weight: 600;
+}
+
+/* PDF panel (right) */
+.pdf-panel {
+  width: 42%; min-width: 400px; border-left: 2px solid #0f3460;
+  display: flex; flex-direction: column; background: #1a1a2e;
+}
+.pdf-toolbar {
+  padding: 8px 12px; background: #16213e; border-bottom: 1px solid #0f3460;
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+.pdf-toolbar button {
+  background: #0f3460; color: #fff; border: none; padding: 6px 12px;
+  border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600;
+}
+.pdf-toolbar button:hover { background: #1a5a80; }
+.pdf-toolbar button:disabled { opacity: 0.4; cursor: default; }
+.pdf-page-input {
+  width: 60px; text-align: center; background: #0f3460; color: #fff;
+  border: 1px solid #1a1a4e; border-radius: 4px; padding: 5px; font-size: 14px;
+}
+.pdf-page-label { font-size: 13px; color: #888; }
+.pdf-zoom-label { font-size: 12px; color: #888; margin-left: auto; }
+
+.pdf-viewer-container {
+  flex: 1; overflow: auto; display: flex; justify-content: center;
+  padding: 12px; background: #2a2a2a;
+}
+.pdf-viewer-container::-webkit-scrollbar { width: 8px; height: 8px; }
+.pdf-viewer-container::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+#pdfCanvas {
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  background: #fff;
+}
+.pdf-loading {
+  color: #888; font-size: 14px; text-align: center; padding: 40px;
+}
+.pdf-loading .spinner {
+  display: inline-block; width: 24px; height: 24px;
+  border: 3px solid #0f3460; border-top-color: #e94560;
+  border-radius: 50%; animation: spin 1s linear infinite;
+  margin-bottom: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Placeholder */
+.placeholder {
+  text-align: center; padding: 60px 20px; color: #555;
+}
+.placeholder h2 { font-size: 18px; margin-bottom: 10px; color: #666; }
+.placeholder p { font-size: 13px; line-height: 1.8; max-width: 400px; margin: 0 auto; }
+.placeholder .stats { margin-top: 20px; font-size: 14px; color: #4ecca3; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📖 Tony's Diary Search</h1>
+  <span class="subtitle">Fauchi Congressional Release · 860 entries · Dec 2019 – Dec 2022</span>
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="Search diary text (e.g. 'lab leak', 'PEPFAR', 'Wuhan', 'Rand Paul')..." onkeydown="if(event.key==='Enter')doSearch()">
+    <button id="searchBtn" onclick="doSearch()">Search</button>
+    <button id="clearBtn" onclick="clearSearch()">Clear</button>
+  </div>
+</div>
+
+<div class="timeline-section">
+  <div class="timeline-header">
+    <h2>Entries over time <span style="color:#555;font-weight:normal">(gaps = days with no diary entry)</span></h2>
+    <div class="timeline-stats" id="timelineStats"></div>
+  </div>
+  <div class="timeline-container"><canvas id="timelineChart"></canvas></div>
+</div>
+
+<div class="chart-section" id="chartSection">
+  <div class="chart-header">
+    <h2>Hits per diary day</h2>
+    <div class="chart-stats" id="chartStats"></div>
+  </div>
+  <div class="chart-container"><canvas id="hitsChart"></canvas></div>
+</div>
+
+<div class="content-area">
+  <div class="results-panel" id="resultsPanel">
+    <div class="placeholder">
+      <h2>Search Tony's Diary</h2>
+      <p>Enter a search term above to find mentions across all 860 diary entries.
+      Results will show a chart of hits per day, the matching JSON text, and the
+      corresponding PDF page side-by-side.</p>
+      <div class="stats" id="entryStats"></div>
+    </div>
+  </div>
+
+  <div class="pdf-panel">
+    <div class="pdf-toolbar">
+      <button id="pdfPrev" onclick="pdfPrevPage()">◀ Prev</button>
+      <input type="number" class="pdf-page-input" id="pdfPageInput" value="1" min="1" max="1141" onchange="pdfGoToPage(this.value)">
+      <span class="pdf-page-label">/ <span id="pdfTotalPages">1141</span></span>
+      <button id="pdfNext" onclick="pdfNextPage()">Next ▶</button>
+      <span class="pdf-zoom-label" id="pdfZoomLabel">100%</span>
+      <button onclick="pdfZoom(-0.2)" style="font-size:12px;padding:4px 8px">−</button>
+      <button onclick="pdfZoom(0.2)" style="font-size:12px;padding:4px 8px">+</button>
+    </div>
+    <div class="pdf-viewer-container" id="pdfViewerContainer">
+      <div class="pdf-loading" id="pdfLoading">
+        <div class="spinner"></div>
+        <div>Loading PDF...</div>
+      </div>
+      <canvas id="pdfCanvas" style="display:none"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Config & State
+// ============================================================
+const JSON_URL = '2026.07.24_Tonys-Diary-Package.json';
+const PAGE_MAP_URL = 'page_map.json';
+const PDF_URL = 'diary.pdf';
+
+let diaryData = null;
+let pageMap = {};
+let pdfDoc = null;
+let currentPage = 1;
+let pdfScale = 1.2;
+let isRendering = false;
+let pendingPage = null;
+let hitsChart = null;
+let timelineChart = null;
+let activeResultIdx = -1;
+
+// ============================================================
+// PDF.js setup
+// ============================================================
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+// ============================================================
+// Load data
+// ============================================================
+async function loadData() {
+  try {
+    const resp = await fetch(JSON_URL);
+    diaryData = await resp.json();
+    document.getElementById('entryStats').textContent =
+      diaryData.total_entries + ' entries · ' + diaryData.date_range.start + ' to ' + diaryData.date_range.end;
+
+    // Draw the timeline (entries over time) immediately
+    drawTimeline();
+
+    const pmResp = await fetch(PAGE_MAP_URL);
+    pageMap = await pmResp.json();
+
+    // Load PDF
+    const loadingTask = pdfjsLib.getDocument(PDF_URL);
+    pdfDoc = await loadingTask.promise;
+    document.getElementById('pdfTotalPages').textContent = pdfDoc.numPages;
+    document.getElementById('pdfLoading').style.display = 'none';
+    document.getElementById('pdfCanvas').style.display = 'block';
+    renderPdfPage(1);
+  } catch (err) {
+    console.error('Load error:', err);
+    document.getElementById('pdfLoading').innerHTML =
+      '<div style="color:#e94560">Error loading: ' + err.message + '<br>Make sure serve.py is running.</div>';
+  }
+}
+
+// ============================================================
+// PDF rendering
+// ============================================================
+async function renderPdfPage(pageNum) {
+  if (!pdfDoc || isRendering) {
+    pendingPage = pageNum;
+    return;
+  }
+  isRendering = true;
+  currentPage = pageNum;
+  document.getElementById('pdfPageInput').value = pageNum;
+
+  try {
+    const page = await pdfDoc.getPage(pageNum);
+    const viewport = page.getViewport({ scale: pdfScale });
+    const canvas = document.getElementById('pdfCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.width = viewport.width + 'px';
+    canvas.style.height = viewport.height + 'px';
+
+    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+  } catch (err) {
+    console.error('Render error:', err);
+  }
+  isRendering = false;
+  if (pendingPage !== null) {
+    const p = pendingPage;
+    pendingPage = null;
+    renderPdfPage(p);
+  }
+}
+
+function pdfPrevPage() {
+  if (currentPage > 1) renderPdfPage(currentPage - 1);
+}
+function pdfNextPage() {
+  if (pdfDoc && currentPage < pdfDoc.numPages) renderPdfPage(currentPage + 1);
+}
+function pdfGoToPage(pageStr) {
+  const p = parseInt(pageStr);
+  if (p >= 1 && pdfDoc && p <= pdfDoc.numPages) renderPdfPage(p);
+}
+function pdfZoom(delta) {
+  pdfScale = Math.max(0.4, Math.min(3.0, pdfScale + delta));
+  document.getElementById('pdfZoomLabel').textContent = Math.round(pdfScale * 100) + '%';
+  renderPdfPage(currentPage);
+}
+
+// ============================================================
+// Timeline chart (entries over time — always visible)
+// ============================================================
+function drawTimeline(hitDates) {
+  // hitDates: optional Set of 'YYYY-MM-DD' strings to highlight
+  const entries = diaryData.entries;
+  if (!entries || entries.length === 0) return;
+
+  // Build a map: date -> count of entries
+  const dateCounts = {};
+  for (const e of entries) {
+    dateCounts[e.date] = (dateCounts[e.date] || 0) + 1;
+  }
+
+  // Generate all dates from start to end (inclusive) so gaps are visible
+  const startDate = diaryData.date_range.start;
+  const endDate = diaryData.date_range.end;
+  const allDates = [];
+  const allCounts = [];
+  const allColors = [];
+
+  // Year colors
+  const yearColors = {
+    '2019': 'rgba(120, 130, 200, 0.75)',
+    '2020': 'rgba(233, 69, 96, 0.75)',
+    '2021': 'rgba(78, 204, 163, 0.75)',
+    '2022': 'rgba(255, 170, 0, 0.75)',
+  };
+  const hitColor = 'rgba(255, 204, 0, 0.95)';
+  const hitBorder = 'rgba(255, 204, 0, 1)';
+
+  let d = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+  let totalDays = 0;
+  let entryDays = 0;
+
+  while (d <= end) {
+    const iso = d.toISOString().slice(0, 10);
+    const count = dateCounts[iso] || 0;
+    const year = iso.slice(0, 4);
+    allDates.push(iso);
+    allCounts.push(count);
+    totalDays++;
+    if (count > 0) entryDays++;
+
+    // Color logic
+    if (hitDates && hitDates.has(iso)) {
+      allColors.push(hitColor);
+    } else if (count > 0) {
+      allColors.push(yearColors[year] || 'rgba(100,100,100,0.6)');
+    } else {
+      allColors.push('rgba(40, 40, 60, 0.3)'); // gap — barely visible
+    }
+
+    d.setDate(d.getDate() + 1);
+  }
+
+  document.getElementById('timelineStats').textContent =
+    entryDays + ' entry-days / ' + totalDays + ' total days · ' +
+    (totalDays - entryDays) + ' gap days';
+
+  if (timelineChart) timelineChart.destroy();
+
+  const ctx = document.getElementById('timelineChart').getContext('2d');
+  timelineChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: allDates,
+      datasets: [{
+        label: 'Entries',
+        data: allCounts,
+        backgroundColor: allColors,
+        borderColor: allColors.map(c => c.replace('0.75)', '0.9)').replace('0.3)', '0.5)').replace('0.95)', '1)')),
+        borderWidth: function(ctx) {
+          const idx = ctx.dataIndex;
+          if (hitDates && hitDates.has(allDates[idx])) return 1.5;
+          return 0.5;
+        },
+        barPercentage: 1.0,
+        categoryPercentage: 1.0,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          filter: function(item) { return item.parsed.y > 0; },
+          callbacks: {
+            title: function(items) { return items[0].label; },
+            label: function(item) {
+              return item.parsed.y + (item.parsed.y === 1 ? ' entry' : ' entries');
+            }
+          },
+          backgroundColor: '#16213e',
+          titleColor: '#e94560',
+          bodyColor: '#e0e0e0',
+          borderColor: '#0f3460',
+          borderWidth: 1,
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: '#555',
+            maxRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 12,
+            font: { size: 9 },
+            callback: function(val, idx) {
+              // Show year-month labels
+              const label = this.getLabelForValue(val);
+              if (label && label.endsWith('-01')) return label.slice(0, 7);
+              if (label && label.slice(8) === '01') return label.slice(0, 7);
+              return '';
+            }
+          },
+          grid: { display: false }
+        },
+        y: {
+          beginAtZero: true,
+          max: 4,
+          ticks: { color: '#555', stepSize: 1, font: { size: 9 } },
+          grid: { color: '#1a1a2e' }
+        }
+      },
+      onClick: function(evt, elements) {
+        if (elements.length > 0) {
+          const idx = elements[0].index;
+          const date = allDates[idx];
+          const count = allCounts[idx];
+          if (count > 0) {
+            // Jump to that date's PDF page
+            for (const e of entries) {
+              if (e.date === date) {
+                const mapKey = e.date + '|' + e.raw_date;
+                const pg = pageMap[mapKey];
+                if (pg) renderPdfPage(pg);
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+
+function doSearch() {
+  const query = document.getElementById('searchInput').value.trim();
+  if (!query || !diaryData) return;
+
+  const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+  const results = [];
+
+  for (let i = 0; i < diaryData.entries.length; i++) {
+    const entry = diaryData.entries[i];
+    const text = (entry.content || '').toLowerCase();
+    let totalHits = 0;
+    for (const term of terms) {
+      let idx = 0;
+      while ((idx = text.indexOf(term, idx)) !== -1) {
+        totalHits++;
+        idx += term.length;
+      }
+    }
+    if (totalHits > 0) {
+      results.push({ idx: i, entry, hits: totalHits });
+    }
+  }
+
+  displayResults(results, query);
+  drawChart(results);
+
+  // Highlight hit days on the timeline
+  const hitDateSet = new Set(results.map(r => r.entry.date));
+  drawTimeline(hitDateSet);
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('resultsPanel').innerHTML =
+    '<div class="placeholder"><h2>Search Tony\'s Diary</h2>' +
+    '<p>Enter a search term above to find mentions across all ' +
+    (diaryData ? diaryData.total_entries : 860) + ' diary entries.</p></div>';
+  document.getElementById('chartSection').classList.remove('visible');
+  if (hitsChart) { hitsChart.destroy(); hitsChart = null; }
+  drawTimeline(); // reset timeline highlights
+  activeResultIdx = -1;
+}
+
+// ============================================================
+// Highlight helper
+// ============================================================
+function highlightText(text, query) {
+  const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+  if (terms.length === 0) return escapeHtml(text);
+  // Build regex that matches any term (case-insensitive)
+  const escapedTerms = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const regex = new RegExp('(' + escapedTerms.join('|') + ')', 'gi');
+  return escapeHtml(text).replace(regex, '<mark>$1</mark>');
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ============================================================
+// Display results
+// ============================================================
+function displayResults(results, query) {
+  const panel = document.getElementById('resultsPanel');
+  if (results.length === 0) {
+    panel.innerHTML = '<div class="placeholder"><h2>No results</h2>' +
+      '<p>No entries found for "' + escapeHtml(query) + '".</p></div>';
+    return;
+  }
+
+  let html = '<div style="margin-bottom:12px;font-size:14px;color:#888;">' +
+    '<b style="color:#e94560">' + results.length + '</b> entries · ' +
+    '<b style="color:#4ecca3">' + results.reduce((s,r)=>s+r.hits,0) + '</b> total hits</div>';
+
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    const e = r.entry;
+    const mapKey = e.date + '|' + e.raw_date;
+    const pdfPage = pageMap[mapKey];
+
+    // Get snippet around first hit
+    const content = e.content || '';
+    const lowerContent = content.toLowerCase();
+    const firstTerm = query.toLowerCase().split(/\s+/).filter(t=>t.length>0)[0];
+    let snippetStart = 0;
+    const firstIdx = lowerContent.indexOf(firstTerm);
+    if (firstIdx > 100) snippetStart = firstIdx - 100;
+    const snippet = content.substring(snippetStart, snippetStart + 800);
+    const prefix = snippetStart > 0 ? '...' : '';
+    const suffix = (snippetStart + 800 < content.length) ? '...' : '';
+
+    html += '<div class="result-entry" id="result-' + i + '" onclick="selectResult(' + i + ', ' + (pdfPage||1) + ', ' + r.idx + ')">';
+    html += '<div class="result-header">';
+    html += '<span><span class="result-date">' + e.date + '</span>' +
+      '<span class="result-raw-date">' + escapeHtml(e.raw_date) + '</span>';
+    if (pdfPage) {
+      html += '<span class="result-page-link">📄 p.' + pdfPage + '</span>';
+    }
+    if (e.date_note) {
+      html += '<div class="result-note">⚠ ' + escapeHtml(e.date_note) + '</div>';
+    }
+    html += '</span>';
+    html += '<span class="result-hits">' + r.hits + ' hit' + (r.hits>1?'s':'') + '</span>';
+    html += '</div>';
+    html += '<div class="result-content">' + prefix + highlightText(snippet, query) + suffix + '</div>';
+    html += '</div>';
+  }
+
+  // Store results for click handling
+  window._searchResults = results;
+  panel.innerHTML = html;
+}
+
+function selectResult(resultIdx, pdfPage, entryIdx) {
+  // Remove active class from all
+  document.querySelectorAll('.result-entry').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById('result-' + resultIdx);
+  if (el) el.classList.add('active');
+  activeResultIdx = resultIdx;
+
+  // Jump to PDF page
+  if (pdfPage && pdfDoc) {
+    renderPdfPage(pdfPage);
+  }
+}
+
+// ============================================================
+// Chart
+// ============================================================
+function drawChart(results) {
+  const section = document.getElementById('chartSection');
+  section.classList.add('visible');
+
+  // Group hits by date
+  const dateHits = {};
+  for (const r of results) {
+    dateHits[r.entry.date] = (dateHits[r.entry.date] || 0) + r.hits;
+  }
+
+  // Sort dates
+  const sortedDates = Object.keys(dateHits).sort();
+  const labels = sortedDates;
+  const data = sortedDates.map(d => dateHits[d]);
+
+  const totalHits = data.reduce((a,b)=>a+b, 0);
+  const maxHits = Math.max(...data);
+  document.getElementById('chartStats').textContent =
+    results.length + ' days · ' + totalHits + ' hits · peak ' + maxHits + '/day';
+
+  if (hitsChart) hitsChart.destroy();
+
+  const ctx = document.getElementById('hitsChart').getContext('2d');
+  hitsChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Hits',
+        data: data,
+        backgroundColor: function(ctx) {
+          const value = ctx.parsed.y;
+          const max = Math.max(...data);
+          const ratio = value / max;
+          if (ratio > 0.66) return 'rgba(233,69,96,0.8)';
+          if (ratio > 0.33) return 'rgba(255,170,0,0.8)';
+          return 'rgba(78,204,163,0.7)';
+        },
+        borderColor: 'rgba(233,69,96,0.3)',
+        borderWidth: 1,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: function(items) { return items[0].label; },
+            label: function(item) { return item.parsed.y + ' hits'; }
+          },
+          backgroundColor: '#16213e',
+          titleColor: '#e94560',
+          bodyColor: '#e0e0e0',
+          borderColor: '#0f3460',
+          borderWidth: 1,
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: '#666',
+            maxRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 20,
+            font: { size: 9 },
+          },
+          grid: { display: false }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { color: '#666', stepSize: 1, font: { size: 10 } },
+          grid: { color: '#1a1a2e' }
+        }
+      },
+      onClick: function(evt, elements) {
+        if (elements.length > 0) {
+          const idx = elements[0].index;
+          const date = labels[idx];
+          // Find first result with that date and scroll to it
+          for (let i = 0; i < window._searchResults.length; i++) {
+            if (window._searchResults[i].entry.date === date) {
+              const el = document.getElementById('result-' + i);
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'top' });
+                selectResult(i, pageMap[window._searchResults[i].entry.date + '|' + window._searchResults[i].entry.raw_date] || 1, window._searchResults[i].idx);
+              }
+              break;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// ============================================================
+// Init
+// ============================================================
+loadData();
+</script>
+</body>
+</html>
