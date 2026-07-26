@@ -34,21 +34,37 @@ body {
 #clearBtn { background: #333; color: #ccc; }
 #clearBtn:hover { background: #444; }
 
-/* Timeline section (always visible) */
-.timeline-section {
-  background: #16213e; border-bottom: 2px solid #0f3460; padding: 6px 16px 8px;
-  flex-shrink: 0;
+/* Timeline panel (collapsible vertical panel) */
+.tl-panel {
+  background: #16213e; border-right: 2px solid #0f3460;
+  display: flex; flex-direction: column; overflow: hidden;
+  flex-shrink: 0; width: 220px; transition: width 0.2s;
 }
-.timeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-.timeline-header h2 { font-size: 12px; color: #aaa; }
-.timeline-stats { font-size: 11px; color: #666; }
-.timeline-container { height: 52px; position: relative; }
+.tl-panel.collapsed { width: 32px; }
+.tl-panel.collapsed .tl-content { display: none; }
+.tl-toggle {
+  padding: 6px 8px; cursor: pointer; font-size: 16px;
+  background: #0f3460; text-align: center; flex-shrink: 0;
+  border-bottom: 1px solid #1a1a4e;
+}
+.tl-toggle:hover { background: #1a5a80; }
+.tl-content {
+  padding: 8px 10px; overflow-y: auto; flex: 1;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.tl-content h2 { font-size: 11px; color: #aaa; margin: 0; }
+.tl-content .tl-stats { font-size: 10px; color: #666; }
+.tl-chart-box { height: 80px; position: relative; }
+.tl-chart-box.hits { height: 40px; }
 
-/* Chart stats in timeline header */
-.chart-stats { font-size: 11px; color: #888; margin-left: 8px; }
+/* Chart stats in timeline panel */
+.chart-stats { font-size: 10px; color: #888; }
+
+/* Main layout wrapper */
+.main-layout { flex: 1; display: flex; overflow: hidden; }
 
 /* Main content area */
-.content-area { flex: 1; display: flex; overflow: hidden; }
+.content-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
 /* Results panel (left) */
 .results-panel {
@@ -94,9 +110,9 @@ mark {
   font-weight: 600;
 }
 
-/* PDF panel (right) */
+/* PDF panel (bottom half) */
 .pdf-panel {
-  width: 42%; min-width: 400px; border-left: 2px solid #0f3460;
+  border-top: 2px solid #0f3460; flex: 1; min-height: 200px;
   display: flex; flex-direction: column; background: #1a1a2e;
 }
 .pdf-toolbar {
@@ -144,6 +160,18 @@ mark {
 .placeholder h2 { font-size: 18px; margin-bottom: 10px; color: #666; }
 .placeholder p { font-size: 13px; line-height: 1.8; max-width: 400px; margin: 0 auto; }
 .placeholder .stats { margin-top: 20px; font-size: 14px; color: #4ecca3; }
+
+/* Portrait media query */
+@media (max-width: 768px) {
+  .main-layout { flex-direction: column; }
+  .tl-panel { width: 100% !important; border-right: none; border-bottom: 2px solid #0f3460; }
+  .tl-panel.collapsed { height: 32px; width: 100% !important; }
+  .tl-content { flex-direction: row; flex-wrap: wrap; }
+  .tl-chart-box { flex: 1; min-width: 120px; height: 60px; }
+  .tl-chart-box.hits { height: 30px; }
+  .content-area { flex: 1; }
+  .pdf-panel { border-left: none; border-top: 2px solid #0f3460; }
+}
 </style>
 </head>
 <body>
@@ -159,19 +187,23 @@ mark {
   <div style="font-size:11px;color:#555;margin-top:2px">Use <code style="background:#0f3460;padding:1px 4px;border-radius:2px">|</code> for OR, <code style="background:#0f3460;padding:1px 4px;border-radius:2px">*</code> for wildcard, <code style="background:#0f3460;padding:1px 4px;border-radius:2px">(regex)</code> for regex</div>
 </div>
 
-<div class="timeline-section">
-  <div class="timeline-header">
-    <h2>Entries over time <span style="color:#555;font-weight:normal">(gaps = days with no diary entry)</span></h2>
-    <div class="timeline-stats" id="timelineStats"></div><span class="chart-stats" id="chartStats"></span>
+<div class="main-layout" id="mainLayout">
+  <div class="tl-panel" id="tlPanel">
+    <div class="tl-toggle" onclick="toggleTL()" title="Toggle timeline panel">📊</div>
+    <div class="tl-content">
+      <div class="tl-stats">
+        <span id="timelineStats"></span>
+        <span class="chart-stats" id="chartStats"></span>
+      </div>
+      <h2>Entries <span style="color:#555;font-weight:normal">(gaps = days without entry)</span></h2>
+      <div class="tl-chart-box"><canvas id="timelineChart"></canvas></div>
+      <h2 id="hitsLabel" style="display:none">Hits per day</h2>
+      <div class="tl-chart-box hits" id="hitsBox" style="display:none"><canvas id="hitsChart"></canvas></div>
+    </div>
   </div>
-  <div class="timeline-container">
-    <canvas id="timelineChart"></canvas>
-    <canvas id="hitsChart" style="display:none;height:6px;margin-top:1px"></canvas>
-  </div>
-</div>
 
-<div class="content-area">
-  <div class="results-panel" id="resultsPanel">
+  <div class="content-area">
+    <div class="results-panel" id="resultsPanel">
     <div class="placeholder">
       <h2>Search Tony's Diary</h2>
       <p>Enter a search term above to find mentions across all 860 diary entries.
@@ -199,6 +231,7 @@ mark {
       <canvas id="pdfCanvas" style="display:none"></canvas>
     </div>
   </div>
+</div>
 </div>
 
 <script>
@@ -548,6 +581,8 @@ function doSearch() {
   drawChart(results);
   const hitDateSet = new Set(results.map(r => r.entry.date));
   drawTimeline(hitDateSet);
+  document.getElementById('hitsLabel').style.display = 'block';
+  document.getElementById('hitsBox').style.display = 'block';
 }
 
 function clearSearch() {
@@ -558,6 +593,8 @@ function clearSearch() {
     (diaryData ? diaryData.total_entries : 860) + ' diary entries.</p></div>';
   document.getElementById('hitsChart').style.display = 'none';
   document.getElementById('chartStats').textContent = '';
+  document.getElementById('hitsLabel').style.display = 'none';
+  document.getElementById('hitsBox').style.display = 'none';
   if (hitsChart) { hitsChart.destroy(); hitsChart = null; }
   drawTimeline(); // reset timeline highlights
   activeResultIdx = -1;
@@ -740,6 +777,14 @@ function drawChart(results) {
       }
     }
   });
+}
+
+// ============================================================
+// Toggle timeline panel
+// ============================================================
+function toggleTL() {
+  const p = document.getElementById('tlPanel');
+  p.classList.toggle('collapsed');
 }
 
 // ============================================================
