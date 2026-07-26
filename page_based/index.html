@@ -62,43 +62,94 @@ body {
 }
 .layout-toggle:hover { border-color: var(--accent); }
 
-/* ── Charts panel (collapsible, works in both layouts) ─────────────── */
+/* ── Charts panel: ONE dual-sided vertical timeline ─────────────────── */
+/* Left half  = all entries (bars grow left of center)                  */
+/* Right half = search hits (bars grow right of center)                 */
+/* Shared Y   = calendar day (top → bottom)                             */
 .charts-panel {
   background: var(--panel); border-bottom: 2px solid var(--border);
   display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
+  transition: width 0.18s ease, min-width 0.18s ease, height 0.18s ease, max-height 0.18s ease;
 }
 .panel-header {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 8px 16px; background: var(--panel-2); cursor: pointer;
-  border-bottom: 1px solid var(--border); user-select: none;
+  padding: 8px 12px; background: var(--panel-2); cursor: pointer;
+  border-bottom: 1px solid var(--border); user-select: none; flex-shrink: 0;
+  gap: 8px;
 }
-.panel-header h2 { font-size: 13px; color: var(--muted); }
+.panel-header h2 { font-size: 13px; color: var(--muted); white-space: nowrap; }
 .panel-header .collapse-btn {
   background: none; border: none; color: var(--muted); font-size: 16px;
-  cursor: pointer; padding: 0 4px;
+  cursor: pointer; padding: 0 4px; line-height: 1; flex-shrink: 0;
 }
-.charts-content { padding: 8px 12px; overflow: auto; }
+.panel-header:hover { background: #2a2a2a; }
+.panel-header:hover .collapse-btn { color: var(--accent); }
+.charts-content {
+  padding: 6px 8px 8px; overflow: hidden;
+  display: flex; flex-direction: column; flex: 1; min-height: 0;
+}
+/* Hide chart body when collapsed — panel itself also shrinks (see layout rules) */
 .charts-panel.collapsed .charts-content { display: none; }
-.chart-block { margin-bottom: 12px; }
-.chart-block-title {
-  font-size: 12px; color: var(--muted); margin-bottom: 4px;
-  display: flex; justify-content: space-between; align-items: center;
+
+.timeline-header-row {
+  display: flex; flex-direction: row; flex-shrink: 0;
+  gap: 0; margin-bottom: 4px; align-items: flex-end;
 }
-.chart-block-stats { font-size: 11px; color: var(--muted-2); }
-.chart-canvas-wrap { position: relative; }
+.timeline-header-row .th-side {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px;
+  line-height: 1.25;
+}
+.timeline-header-row .th-left { text-align: right; padding-right: 8px; }
+.timeline-header-row .th-right { text-align: left; padding-left: 8px; }
+.timeline-header-row .th-center {
+  flex: 0 0 1px; align-self: stretch; background: var(--border-2); margin: 0 2px;
+}
+.chart-title-main { font-size: 11px; font-weight: 600; color: var(--text); }
+.chart-block-stats { font-size: 10px; color: var(--muted-2); }
+.chart-canvas-wrap {
+  position: relative; flex: 1; min-height: 0; width: 100%;
+}
+.timeline-main {
+  /* center guide under the shared zero line */
+  background:
+    linear-gradient(to right,
+      transparent calc(50% - 0.5px),
+      var(--border-2) calc(50% - 0.5px),
+      var(--border-2) calc(50% + 0.5px),
+      transparent calc(50% + 0.5px));
+}
 
 /* ── Layout: Landscape (3 columns) ────────────────────────────────── */
 body.layout-landscape .content-area { flex-direction: row; }
 body.layout-landscape .charts-panel {
-  width: 260px; min-width: 200px; border-right: 2px solid var(--border); border-bottom: none;
+  width: 300px; min-width: 240px; border-right: 2px solid var(--border); border-bottom: none;
+  align-self: stretch;
 }
-body.layout-landscape .charts-content {
-  display: flex; flex-direction: column; gap: 8px; flex: 1;
+body.layout-landscape .charts-content { flex: 1; }
+/* Collapsed = thin vertical rail only (releases width to results) */
+body.layout-landscape .charts-panel.collapsed {
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
 }
-body.layout-landscape .chart-block { flex: 1; min-height: 200px; }
-body.layout-landscape .chart-canvas-wrap { height: 100%; min-height: 200px; }
+body.layout-landscape .charts-panel.collapsed .panel-header {
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  height: 100%;
+  padding: 10px 4px;
+  gap: 14px;
+  border-bottom: none;
+  border-right: none;
+}
+body.layout-landscape .charts-panel.collapsed .panel-header h2 {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  letter-spacing: 0.04em;
+  font-size: 12px;
+}
 body.layout-landscape .results-panel {
-  flex: 1; border-right: 2px solid var(--border);
+  flex: 1; border-right: 2px solid var(--border); min-width: 0;
 }
 body.layout-landscape .pdf-panel {
   width: 42%; min-width: 380px; border-left: none; border-top: none;
@@ -107,13 +158,14 @@ body.layout-landscape .pdf-panel {
 /* ── Layout: Portrait (stacked) ───────────────────────────────────── */
 body.layout-portrait .content-area { flex-direction: column; }
 body.layout-portrait .charts-panel {
-  border-bottom: 2px solid var(--border); max-height: 320px;
+  border-bottom: 2px solid var(--border); height: 280px; max-height: 40vh;
 }
-body.layout-portrait .charts-content {
-  display: flex; gap: 16px; flex-wrap: wrap;
+/* Collapsed = header bar only (releases height to results) */
+body.layout-portrait .charts-panel.collapsed {
+  height: auto;
+  max-height: none;
+  flex: 0 0 auto;
 }
-body.layout-portrait .chart-block { flex: 1; min-width: 300px; }
-body.layout-portrait .chart-canvas-wrap { height: 120px; }
 body.layout-portrait .results-panel {
   flex: 1; border-right: none; border-bottom: 2px solid var(--border);
 }
@@ -135,6 +187,7 @@ body.layout-portrait .pdf-panel {
 .result-entry {
   background: var(--panel); margin-bottom: 12px; border-radius: 8px;
   border: 1px solid var(--border-2); overflow: hidden; transition: border-color 0.2s;
+  cursor: pointer;
 }
 .result-entry:hover { border-color: var(--accent); }
 .result-entry.active { border-color: var(--accent); box-shadow: 0 0 10px rgba(233,69,96,0.2); }
@@ -143,6 +196,8 @@ body.layout-portrait .pdf-panel {
   padding: 8px 14px; background: var(--panel-2); display: flex;
   justify-content: space-between; align-items: center; cursor: pointer;
 }
+.result-content mark { cursor: pointer; }
+.result-content mark:hover { outline: 1px solid var(--accent); }
 .result-date { font-size: 15px; font-weight: 700; color: var(--accent); }
 .result-raw-date { font-size: 11px; color: var(--muted); margin-left: 8px; }
 .result-hits {
@@ -253,26 +308,27 @@ mark.hit-current {
 
 <div class="content-area">
 
-  <!-- ── Collapsible charts panel ─────────────────────────────────── -->
+  <!-- ── Dual vertical timeline: entries LEFT | hits RIGHT, shared Y = time ── -->
   <div class="charts-panel" id="chartsPanel">
     <div class="panel-header" onclick="toggleCharts()">
-      <h2>📊 Charts</h2>
-      <button class="collapse-btn" id="chartsCollapseBtn">▼</button>
+      <h2>📊 Dual timeline</h2>
+      <button class="collapse-btn" id="chartsCollapseBtn" title="Collapse timeline">◀</button>
     </div>
     <div class="charts-content">
-      <div class="chart-block">
-        <div class="chart-block-title">
-          <span>Entries over time <span style="color:var(--muted-2)">(gaps = no entry)</span></span>
+      <div class="timeline-header-row">
+        <div class="th-side th-left">
+          <span class="chart-title-main">← All entries</span>
           <span class="chart-block-stats" id="timelineStats"></span>
         </div>
-        <div class="chart-canvas-wrap"><canvas id="timelineChart"></canvas></div>
-      </div>
-      <div class="chart-block" id="hitsChartBlock" style="display:none">
-        <div class="chart-block-title">
-          <span>Hits per diary day</span>
-          <span class="chart-block-stats" id="chartStats"></span>
+        <div class="th-center"></div>
+        <div class="th-side th-right">
+          <span class="chart-title-main">Search hits →</span>
+          <span class="chart-block-stats" id="chartStats">search to filter</span>
         </div>
-        <div class="chart-canvas-wrap"><canvas id="hitsChart"></canvas></div>
+      </div>
+      <!-- Single canvas: negative values = entries (left), positive = hits (right) -->
+      <div class="chart-canvas-wrap timeline-main">
+        <canvas id="timelineChart"></canvas>
       </div>
     </div>
   </div>
@@ -325,8 +381,8 @@ let currentPage = 1;
 let pdfScale = 1.2;
 let isRendering = false;
 let pendingPage = null;
-let hitsChart = null;
 let timelineChart = null;
+// hitsChart removed: hits are the right half of timelineChart
 let activeResultIdx = -1;
 let currentLayout = 'landscape';
 let lastSearchResults = null;
@@ -342,9 +398,40 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dis
 // ============================================================
 // Load data
 // ============================================================
+function loadErrorHelp(err) {
+  const msg = (err && err.message) ? err.message : String(err);
+  const isFile = location.protocol === 'file:';
+  // page_based = static bundle (no serve.py). server_based = local helper script.
+  const looksServerBased = /server_based/i.test(location.pathname);
+  let help;
+  if (isFile) {
+    help =
+      'Browsers block loading JSON/PDF from <code>file://</code> URLs.<br>' +
+      'Serve this folder over HTTP, then open the http URL:<br>' +
+      '<code style="display:block;margin-top:6px;padding:6px 8px;background:#111;border-radius:4px">' +
+      'cd page_based && python3 -m http.server 8080</code>' +
+      '→ <code>http://localhost:8080</code><br>' +
+      'Or use the local app: <code>cd server_based && bash start_search.sh</code>';
+  } else if (looksServerBased) {
+    help =
+      'Could not load data. From <code>server_based/</code> run ' +
+      '<code>bash start_search.sh</code> (or <code>python3 serve.py</code>) and open ' +
+      '<code>http://localhost:8765</code>.';
+  } else {
+    help =
+      'Could not load <code>' + JSON_URL + '</code>, page map, or PDF from this folder.<br>' +
+      'For the static <b>page_based</b> build, any HTTP server is enough ' +
+      '(GitHub Pages, or <code>python3 -m http.server</code>). ' +
+      '<code>serve.py</code> is only for the <b>server_based</b> variant.';
+  }
+  return '<div style="color:var(--accent);max-width:420px;margin:0 auto;line-height:1.5">' +
+    '<b>Error loading:</b> ' + escapeHtml(msg) + '<br><br>' + help + '</div>';
+}
+
 async function loadData() {
   try {
     const resp = await fetch(JSON_URL);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status + ' for ' + JSON_URL);
     diaryData = await resp.json();
     document.getElementById('entryStats').textContent =
       diaryData.total_entries + ' entries · ' + diaryData.date_range.start + ' to ' + diaryData.date_range.end;
@@ -352,6 +439,7 @@ async function loadData() {
     drawTimeline();
 
     const pmResp = await fetch(PAGE_MAP_URL);
+    if (!pmResp.ok) throw new Error('HTTP ' + pmResp.status + ' for ' + PAGE_MAP_URL);
     pageMap = await pmResp.json();
 
     const loadingTask = pdfjsLib.getDocument(PDF_URL);
@@ -359,46 +447,73 @@ async function loadData() {
     document.getElementById('pdfTotalPages').textContent = pdfDoc.numPages;
     document.getElementById('pdfLoading').style.display = 'none';
     document.getElementById('pdfCanvas').style.display = 'block';
-    renderPdfPage(1);
+    // Honor any page jump requested before the PDF finished loading
+    renderPdfPage(pendingPage || 1);
   } catch (err) {
     console.error('Load error:', err);
-    document.getElementById('pdfLoading').innerHTML =
-      '<div style="color:var(--accent)">Error loading: ' + err.message + '<br>Make sure serve.py is running.</div>';
+    const html = loadErrorHelp(err);
+    document.getElementById('pdfLoading').innerHTML = html;
+    // Also surface in the results pane so it is not missed when PDF column is empty
+    const panel = document.getElementById('resultsPanel');
+    if (panel && !diaryData) {
+      panel.innerHTML = '<div class="placeholder">' + html + '</div>';
+    }
   }
 }
 
 // ============================================================
 // PDF rendering
 // ============================================================
+let pdfRenderTask = null;
+
 async function renderPdfPage(pageNum) {
-  if (!pdfDoc || isRendering) {
-    pendingPage = pageNum;
-    return;
-  }
+  pageNum = parseInt(pageNum, 10);
+  if (!pageNum || pageNum < 1) return;
+
+  // Always record the latest requested page (coalesce rapid clicks)
+  pendingPage = pageNum;
+  if (!pdfDoc) return; // will be re-requested once PDF finishes loading
+  if (isRendering) return;
+
   isRendering = true;
-  currentPage = pageNum;
-  document.getElementById('pdfPageInput').value = pageNum;
+  while (pendingPage !== null && pdfDoc) {
+    let target = pendingPage;
+    pendingPage = null;
+    if (target < 1) target = 1;
+    if (target > pdfDoc.numPages) target = pdfDoc.numPages;
+    currentPage = target;
+    document.getElementById('pdfPageInput').value = target;
 
-  try {
-    const page = await pdfDoc.getPage(pageNum);
-    const viewport = page.getViewport({ scale: pdfScale });
-    const canvas = document.getElementById('pdfCanvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    canvas.style.width = viewport.width + 'px';
-    canvas.style.height = viewport.height + 'px';
+    try {
+      if (pdfRenderTask) {
+        try { pdfRenderTask.cancel(); } catch (e) { /* ignore */ }
+        pdfRenderTask = null;
+      }
+      const page = await pdfDoc.getPage(target);
+      // If a newer page was requested while we awaited getPage, skip paint
+      if (pendingPage !== null) continue;
 
-    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-  } catch (err) {
-    console.error('Render error:', err);
+      const viewport = page.getViewport({ scale: pdfScale });
+      const canvas = document.getElementById('pdfCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      canvas.style.width = viewport.width + 'px';
+      canvas.style.height = viewport.height + 'px';
+
+      pdfRenderTask = page.render({ canvasContext: ctx, viewport: viewport });
+      await pdfRenderTask.promise;
+      pdfRenderTask = null;
+    } catch (err) {
+      if (err && (err.name === 'RenderingCancelledException' || err.message === 'Rendering cancelled')) {
+        // superseded by a newer page request — loop continues if pendingPage set
+      } else {
+        console.error('Render error page ' + target + ':', err);
+      }
+      pdfRenderTask = null;
+    }
   }
   isRendering = false;
-  if (pendingPage !== null) {
-    const p = pendingPage;
-    pendingPage = null;
-    renderPdfPage(p);
-  }
 }
 
 function pdfPrevPage() {
@@ -426,17 +541,37 @@ function switchLayout() {
   const btn = document.getElementById('layoutToggle');
   btn.textContent = currentLayout === 'landscape' ? '🖥️ Landscape' : '📱 Portrait';
 
-  // Redraw charts with new orientation
-  const hitDates = lastSearchResults ? new Set(lastSearchResults.map(r => r.entry.date)) : null;
-  drawTimeline(hitDates);
-  if (lastSearchResults) drawHitsChart(lastSearchResults);
+  // Keep collapse control consistent with layout
+  const panel = document.getElementById('chartsPanel');
+  const cbtn = document.getElementById('chartsCollapseBtn');
+  const collapsed = panel.classList.contains('collapsed');
+  if (currentLayout === 'landscape') {
+    cbtn.textContent = collapsed ? '▶' : '◀';
+  } else {
+    cbtn.textContent = collapsed ? '▶' : '▼';
+  }
+
+  // Same dual vertical timelines in both layouts — just reflow + redraw
+  if (!collapsed) redrawTimelines();
 }
 
 function toggleCharts() {
   const panel = document.getElementById('chartsPanel');
-  panel.classList.toggle('collapsed');
+  const collapsing = !panel.classList.contains('collapsed');
+  panel.classList.toggle('collapsed', collapsing);
   const btn = document.getElementById('chartsCollapseBtn');
-  btn.textContent = panel.classList.contains('collapsed') ? '▶' : '▼';
+  // Landscape rail uses ▶ / ◀; portrait uses ▼ / ▲
+  if (currentLayout === 'landscape') {
+    btn.textContent = collapsing ? '▶' : '◀';
+    btn.title = collapsing ? 'Expand timeline' : 'Collapse timeline';
+  } else {
+    btn.textContent = collapsing ? '▶' : '▼';
+    btn.title = collapsing ? 'Expand timeline' : 'Collapse timeline';
+  }
+  // After expand, wait for CSS width/height transition then redraw chart
+  if (!collapsing && diaryData) {
+    setTimeout(function() { redrawTimelines(); }, 200);
+  }
 }
 
 // ============================================================
@@ -543,10 +678,7 @@ function doSearch() {
   currentHitIdx = {};
 
   displayResults(results, raw);
-  drawHitsChart(results);
-
-  const hitDateSet = new Set(results.map(function(r) { return r.entry.date; }));
-  drawTimeline(hitDateSet);
+  redrawTimelines();
 }
 
 function clearSearch() {
@@ -555,99 +687,193 @@ function clearSearch() {
     '<div class="placeholder"><h2>Search Tony\'s Diary</h2>' +
     '<p>Enter a search term above to find mentions across all ' +
     (diaryData ? diaryData.total_entries : 860) + ' diary entries.</p></div>';
-  document.getElementById('hitsChartBlock').style.display = 'none';
-  if (hitsChart) { hitsChart.destroy(); hitsChart = null; }
-  drawTimeline();
   lastSearchResults = null;
   lastSearchQuery = '';
   activeResultIdx = -1;
+  document.getElementById('chartStats').textContent = 'search to filter';
+  redrawTimelines();
 }
 
 // ============================================================
-// Timeline chart (entries over time)
+// Dual-sided vertical timeline (ONE chart, shared Y = calendar day)
+//   LEFT  (negative X): all diary entries
+//   RIGHT (positive X): search hits on the same dates
 // ============================================================
-function drawTimeline(hitDates) {
-  const entries = diaryData.entries;
-  if (!entries || entries.length === 0) return;
+function formatLocalISO(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+function parseLocalISO(iso) {
+  const p = iso.split('-').map(Number);
+  return new Date(p[0], p[1] - 1, p[2]);
+}
 
+let timelineSeries = null; // { labels, entryCounts, entryColors, entryDays, totalDays }
+
+function buildTimelineSeries() {
   const dateCounts = {};
-  for (const e of entries) {
+  for (const e of diaryData.entries) {
     dateCounts[e.date] = (dateCounts[e.date] || 0) + 1;
   }
 
-  const startDate = diaryData.date_range.start;
-  const endDate = diaryData.date_range.end;
-  const allDates = [];
-  const allCounts = [];
-  const allColors = [];
-
   const yearColors = {
-    '2019': 'rgba(120, 130, 200, 0.75)',
-    '2020': 'rgba(233, 69, 96, 0.75)',
-    '2021': 'rgba(78, 204, 163, 0.75)',
-    '2022': 'rgba(255, 170, 0, 0.75)',
+    '2019': 'rgba(120, 130, 200, 0.9)',
+    '2020': 'rgba(233, 69, 96, 0.9)',
+    '2021': 'rgba(78, 204, 163, 0.9)',
+    '2022': 'rgba(255, 170, 0, 0.9)',
   };
-  const hitColor = 'rgba(255, 204, 0, 0.95)';
+  const gapColor = 'rgba(55, 55, 55, 0.35)';
 
-  let d = new Date(startDate + 'T00:00:00');
-  const end = new Date(endDate + 'T00:00:00');
-  let totalDays = 0;
+  const labels = [];
+  const entryCounts = [];
+  const entryColors = [];
+  let d = parseLocalISO(diaryData.date_range.start);
+  const end = parseLocalISO(diaryData.date_range.end);
   let entryDays = 0;
 
   while (d <= end) {
-    const iso = d.toISOString().slice(0, 10);
+    const iso = formatLocalISO(d);
     const count = dateCounts[iso] || 0;
-    const year = iso.slice(0, 4);
-    allDates.push(iso);
-    allCounts.push(count);
-    totalDays++;
+    labels.push(iso);
+    entryCounts.push(count);
+    entryColors.push(count > 0 ? (yearColors[iso.slice(0, 4)] || 'rgba(100,100,100,0.8)') : gapColor);
     if (count > 0) entryDays++;
-
-    if (hitDates && hitDates.has(iso)) {
-      allColors.push(hitColor);
-    } else if (count > 0) {
-      allColors.push(yearColors[year] || 'rgba(100,100,100,0.6)');
-    } else {
-      allColors.push('rgba(40, 40, 40, 0.3)');
-    }
     d.setDate(d.getDate() + 1);
   }
 
+  timelineSeries = {
+    labels: labels,
+    entryCounts: entryCounts,
+    entryColors: entryColors,
+    entryDays: entryDays,
+    totalDays: labels.length,
+  };
+  return timelineSeries;
+}
+
+function getTimelineSeries() {
+  return timelineSeries || buildTimelineSeries();
+}
+
+function hitCountsForSeries(results) {
+  const series = getTimelineSeries();
+  const byDate = {};
+  if (results) {
+    for (const r of results) {
+      byDate[r.entry.date] = (byDate[r.entry.date] || 0) + r.hits;
+    }
+  }
+  return series.labels.map(function(iso) { return byDate[iso] || 0; });
+}
+
+function jumpToDate(date) {
+  if (!diaryData) return;
+  for (const e of diaryData.entries) {
+    if (e.date === date) {
+      const pg = getPageNum(pageMap[e.date + '|' + e.raw_date]);
+      if (pg) renderPdfPage(pg);
+      if (window._searchResults) {
+        for (let i = 0; i < window._searchResults.length; i++) {
+          if (window._searchResults[i].entry.date === date) {
+            const el = document.getElementById('result-' + i);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'top' });
+            selectResult(i, pg || 1, window._searchResults[i].idx);
+            break;
+          }
+        }
+      }
+      break;
+    }
+  }
+}
+
+function redrawTimelines() {
+  if (!diaryData) return;
+  const series = getTimelineSeries();
   document.getElementById('timelineStats').textContent =
-    entryDays + ' entry-days / ' + totalDays + ' total · ' +
-    (totalDays - entryDays) + ' gaps';
+    series.entryDays + ' entry-days · ' + series.totalDays + ' days';
+
+  const hitData = hitCountsForSeries(lastSearchResults);
+  const peakHits = hitData.reduce(function(m, v) { return v > m ? v : m; }, 0);
+  const maxEntries = Math.max(2, series.entryCounts.reduce(function(m, v) {
+    return v > m ? v : m;
+  }, 0));
+
+  if (lastSearchResults && lastSearchResults.length) {
+    const totalHits = hitData.reduce(function(a, b) { return a + b; }, 0);
+    const hitDays = hitData.filter(function(v) { return v > 0; }).length;
+    document.getElementById('chartStats').textContent =
+      hitDays + ' days · ' + totalHits + ' hits · peak ' + peakHits;
+  } else if (!lastSearchResults) {
+    document.getElementById('chartStats').textContent = 'search to filter';
+  } else {
+    document.getElementById('chartStats').textContent = 'no hits';
+  }
+
+  // Symmetric-ish scale so zero stays near the visual center
+  const maxHits = Math.max(maxEntries, peakHits || 0, 2);
+
+  const hitColors = hitData.map(function(v) {
+    if (v <= 0) return 'rgba(40, 40, 40, 0.12)';
+    const ratio = v / maxHits;
+    if (ratio > 0.66) return 'rgba(233,69,96,0.95)';
+    if (ratio > 0.33) return 'rgba(255,170,0,0.95)';
+    return 'rgba(255,204,0,0.9)';
+  });
+
+  // Entries as NEGATIVE values → bars to the LEFT of zero
+  const entryNeg = series.entryCounts.map(function(c) { return -c; });
 
   if (timelineChart) timelineChart.destroy();
 
-  const isLandscape = currentLayout === 'landscape';
   const ctx = document.getElementById('timelineChart').getContext('2d');
   timelineChart = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: allDates,
-      datasets: [{
-        label: 'Entries',
-        data: allCounts,
-        backgroundColor: allColors,
-        borderWidth: function(c) {
-          return (hitDates && hitDates.has(allDates[c.dataIndex])) ? 1.5 : 0.5;
+      labels: series.labels,
+      datasets: [
+        {
+          label: 'Entries',
+          data: entryNeg,
+          backgroundColor: series.entryColors,
+          borderWidth: 0,
+          barPercentage: 1.0,
+          categoryPercentage: 1.0,
+          order: 2,
         },
-        barPercentage: 1.0,
-        categoryPercentage: 1.0,
-      }]
+        {
+          label: 'Hits',
+          data: hitData,
+          backgroundColor: hitColors,
+          borderWidth: 0,
+          barPercentage: 1.0,
+          categoryPercentage: 1.0,
+          order: 1,
+        }
+      ]
     },
     options: {
-      indexAxis: isLandscape ? 'y' : 'x',
+      indexAxis: 'y',
       responsive: true,
       maintainAspectRatio: false,
+      animation: false,
+      layout: { padding: { top: 0, right: 4, bottom: 0, left: 0 } },
       plugins: {
         legend: { display: false },
         tooltip: {
-          filter: function(item) { return item.parsed.y > 0; },
+          filter: function(item) {
+            return item.parsed.x !== 0 && item.parsed.x !== null;
+          },
           callbacks: {
             title: function(items) { return items[0].label; },
             label: function(item) {
-              return item.parsed.y + (item.parsed.y === 1 ? ' entry' : ' entries');
+              const v = Math.abs(item.parsed.x);
+              if (item.dataset.label === 'Entries') {
+                return v + (v === 1 ? ' entry' : ' entries');
+              }
+              return v + (v === 1 ? ' hit' : ' hits');
             }
           },
           backgroundColor: '#1a1a1a', titleColor: '#e94560',
@@ -655,52 +881,76 @@ function drawTimeline(hitDates) {
         }
       },
       scales: {
+        // Shared horizontal value axis: left = entries, right = hits
         x: {
+          stacked: false,
+          min: -maxEntries,
+          max: maxHits,
+          grace: 0,
           ticks: {
-            color: '#666', maxRotation: 0, autoSkip: true,
-            maxTicksLimit: isLandscape ? 5 : 12, font: { size: 9 },
-            callback: function(val, idx) {
-              if (isLandscape) return '';
-              const label = this.getLabelForValue(val);
-              if (label && label.slice(8) === '01') return label.slice(0, 7);
-              return '';
+            color: '#666',
+            font: { size: 8 },
+            maxTicksLimit: 7,
+            callback: function(v) {
+              if (v === 0) return '0';
+              return Math.abs(v);
             }
           },
-          grid: { display: false }
+          grid: {
+            color: function(ctx) {
+              return ctx.tick.value === 0
+                ? 'rgba(233,69,96,0.45)'
+                : 'rgba(50,50,50,0.35)';
+            },
+            lineWidth: function(ctx) {
+              return ctx.tick.value === 0 ? 1.5 : 1;
+            }
+          },
+          border: { display: false },
         },
+        // Shared vertical TIME axis (calendar day). First day at TOP.
         y: {
-          beginAtZero: true, max: 4,
+          reverse: false,
+          offset: false,
           ticks: {
-            color: '#666', autoSkip: true,
-            maxTicksLimit: isLandscape ? 30 : 5, font: { size: 8 },
-            callback: function(val, idx) {
-              if (!isLandscape) return val;
+            color: '#888',
+            autoSkip: true,
+            maxTicksLimit: 30,
+            font: { size: 8 },
+            callback: function(val) {
               const label = this.getLabelForValue(val);
               if (label && label.slice(8) === '01') return label.slice(0, 7);
               return '';
             }
           },
-          grid: { color: '#0d0d0d' }
+          grid: {
+            display: true,
+            color: 'rgba(45,45,45,0.3)',
+            drawTicks: false,
+          },
+          border: { display: false },
         }
       },
       onClick: function(evt, elements) {
-        if (elements.length > 0) {
-          const idx = elements[0].index;
-          const date = allDates[idx];
-          if (allCounts[idx] > 0) {
-            for (const e of entries) {
-              if (e.date === date) {
-                const pg = getPageNum(pageMap[e.date + '|' + e.raw_date]);
-                if (pg) renderPdfPage(pg);
-                break;
-              }
-            }
-          }
-        }
+        if (!elements.length) return;
+        const idx = elements[0].index;
+        const date = series.labels[idx];
+        if (series.entryCounts[idx] > 0 || hitData[idx] > 0) jumpToDate(date);
       }
     }
   });
 }
+
+function drawTimeline() { redrawTimelines(); }
+function drawHitsChart() { redrawTimelines(); }
+
+let _timelineResizeTimer = null;
+window.addEventListener('resize', function() {
+  clearTimeout(_timelineResizeTimer);
+  _timelineResizeTimer = setTimeout(function() {
+    if (diaryData) redrawTimelines();
+  }, 150);
+});
 
 // ============================================================
 // Highlight helper — wraps each hit in a <mark> with an ID
@@ -751,6 +1001,12 @@ function escapeHtml(s) {
 // ============================================================
 // Display results (full content + multi-hit navigation)
 // ============================================================
+function pdfPageForResult(r) {
+  if (!r || !r.entry) return 1;
+  const mapKey = r.entry.date + '|' + r.entry.raw_date;
+  return getPageNum(pageMap[mapKey]) || 1;
+}
+
 function displayResults(results, query) {
   const panel = document.getElementById('resultsPanel');
   if (results.length === 0) {
@@ -767,20 +1023,20 @@ function displayResults(results, query) {
   for (let i = 0; i < results.length; i++) {
     const r = results[i];
     const e = r.entry;
-    const mapKey = e.date + '|' + e.raw_date;
-    const pdfPage = getPageNum(pageMap[mapKey]);
+    const pdfPage = pdfPageForResult(r);
     const content = e.content || '';
 
     // Store hit positions for navigation
     currentHitPositions[i] = r.hitPositions;
     currentHitIdx[i] = 0;
 
-    html += '<div class="result-entry" id="result-' + i + '">';
-    html += '<div class="result-header" onclick="selectResult(' + i + ', ' + (pdfPage||1) + ', ' + r.idx + ')">';
+    // data-pdf-page keeps the target page on the card for click handlers
+    html += '<div class="result-entry" id="result-' + i + '" data-result-idx="' + i + '" data-pdf-page="' + pdfPage + '" data-entry-idx="' + r.idx + '">';
+    html += '<div class="result-header">';
     html += '<span><span class="result-date">' + e.date + '</span>' +
       '<span class="result-raw-date">' + escapeHtml(e.raw_date) + '</span>';
     if (pdfPage) {
-      html += '<span class="result-page-link">📄 p.' + pdfPage + '</span>';
+      html += '<span class="result-page-link" title="Open PDF page ' + pdfPage + '">📄 p.' + pdfPage + '</span>';
     }
     if (e.date_note) {
       html += '<div class="result-note">⚠ ' + escapeHtml(e.date_note) + '</div>';
@@ -792,9 +1048,9 @@ function displayResults(results, query) {
     // Hit navigation bar
     if (r.hits > 1) {
       html += '<div class="hit-nav">';
-      html += '<button class="hit-nav-btn" onclick="navigateHit(' + i + ', -1)" id="hitprev-' + i + '">◀ Prev</button>';
+      html += '<button type="button" class="hit-nav-btn" data-hit-nav="-1" id="hitprev-' + i + '">◀ Prev</button>';
       html += '<span class="hit-nav-label">>>> HIT #<span id="hitcur-' + i + '">1</span>/' + r.hits + ' <<<</span>';
-      html += '<button class="hit-nav-btn" onclick="navigateHit(' + i + ', 1)" id="hitnext-' + i + '">Next ▶</button>';
+      html += '<button type="button" class="hit-nav-btn" data-hit-nav="1" id="hitnext-' + i + '">Next ▶</button>';
       html += '</div>';
     } else {
       html += '<div class="hit-nav"><span class="hit-nav-label">>>> HIT #1/1 <<<</span></div>';
@@ -815,9 +1071,45 @@ function displayResults(results, query) {
   window._searchResults = results;
   panel.innerHTML = html;
 
-  // Highlight first hit on first result
-  if (results.length > 0 && results[0].hits > 0) {
-    updateHitHighlight(0, 0);
+  // Event delegation: any click in a result card jumps the PDF
+  panel.onclick = function(ev) {
+    const entry = ev.target.closest('.result-entry');
+    if (!entry || !panel.contains(entry)) return;
+
+    const resultIdx = parseInt(entry.getAttribute('data-result-idx'), 10);
+    const pdfPage = parseInt(entry.getAttribute('data-pdf-page'), 10) || 1;
+    const entryIdx = parseInt(entry.getAttribute('data-entry-idx'), 10);
+
+    // Hit Prev/Next buttons: step highlight AND keep PDF on this entry's page
+    const navBtn = ev.target.closest('[data-hit-nav]');
+    if (navBtn) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const dir = parseInt(navBtn.getAttribute('data-hit-nav'), 10) || 0;
+      navigateHit(resultIdx, dir);
+      selectResult(resultIdx, pdfPage, entryIdx);
+      return;
+    }
+
+    // Clicked a specific <mark> hit → jump to that hit index
+    const mark = ev.target.closest('mark[id^="hit-"]');
+    if (mark) {
+      const parts = mark.id.split('-'); // hit, resultIdx, hitIdx
+      const hitIdx = parseInt(parts[2], 10);
+      if (!isNaN(hitIdx)) {
+        currentHitIdx[resultIdx] = hitIdx;
+        updateHitHighlight(resultIdx, hitIdx);
+      }
+    }
+
+    selectResult(resultIdx, pdfPage, entryIdx);
+  };
+
+  // Auto-open first result in the PDF panel
+  if (results.length > 0) {
+    const firstPage = pdfPageForResult(results[0]);
+    selectResult(0, firstPage, results[0].idx);
+    if (results[0].hits > 0) updateHitHighlight(0, 0);
   }
 }
 
@@ -829,9 +1121,14 @@ function selectResult(resultIdx, pdfPage, entryIdx) {
   const el = document.getElementById('result-' + resultIdx);
   if (el) el.classList.add('active');
   activeResultIdx = resultIdx;
-  if (pdfPage && pdfDoc) {
-    renderPdfPage(pdfPage);
+
+  // Resolve page from args, data attribute, or page_map
+  let page = parseInt(pdfPage, 10);
+  if (!page && el) page = parseInt(el.getAttribute('data-pdf-page'), 10);
+  if (!page && window._searchResults && window._searchResults[resultIdx]) {
+    page = pdfPageForResult(window._searchResults[resultIdx]);
   }
+  if (page) renderPdfPage(page);
 }
 
 // ============================================================
@@ -867,102 +1164,6 @@ function updateHitHighlight(resultIdx, hitIdx) {
   // Update the counter display
   const counter = document.getElementById('hitcur-' + resultIdx);
   if (counter) counter.textContent = (hitIdx + 1);
-}
-
-// ============================================================
-// Hits chart (with orientation support)
-// ============================================================
-function drawHitsChart(results) {
-  const block = document.getElementById('hitsChartBlock');
-  block.style.display = 'block';
-
-  const dateHits = {};
-  for (const r of results) {
-    dateHits[r.entry.date] = (dateHits[r.entry.date] || 0) + r.hits;
-  }
-
-  const sortedDates = Object.keys(dateHits).sort();
-  const labels = sortedDates;
-  const data = sortedDates.map(d => dateHits[d]);
-
-  const totalHits = data.reduce((a, b) => a + b, 0);
-  const maxHits = Math.max(...data);
-  document.getElementById('chartStats').textContent =
-    results.length + ' days · ' + totalHits + ' hits · peak ' + maxHits + '/day';
-
-  if (hitsChart) hitsChart.destroy();
-
-  const isLandscape = currentLayout === 'landscape';
-  const ctx = document.getElementById('hitsChart').getContext('2d');
-  hitsChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Hits',
-        data: data,
-        backgroundColor: function(ctx) {
-          const value = isLandscape ? ctx.parsed.x : ctx.parsed.y;
-          const ratio = value / maxHits;
-          if (ratio > 0.66) return 'rgba(233,69,96,0.8)';
-          if (ratio > 0.33) return 'rgba(255,170,0,0.8)';
-          return 'rgba(78,204,163,0.7)';
-        },
-        borderColor: 'rgba(233,69,96,0.3)',
-        borderWidth: 1,
-      }]
-    },
-    options: {
-      indexAxis: isLandscape ? 'y' : 'x',
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            title: function(items) { return items[0].label; },
-            label: function(item) {
-              const v = isLandscape ? item.parsed.x : item.parsed.y;
-              return v + ' hits';
-            }
-          },
-          backgroundColor: '#1a1a1a', titleColor: '#e94560',
-          bodyColor: '#d0d0d0', borderColor: '#333', borderWidth: 1,
-        }
-      },
-      scales: {
-        x: {
-          ticks: {
-            color: '#666', maxRotation: 0, autoSkip: true,
-            maxTicksLimit: isLandscape ? 6 : 20, font: { size: 9 },
-          },
-          grid: { display: false }
-        },
-        y: {
-          beginAtZero: true,
-          ticks: { color: '#666', stepSize: 1, font: { size: 9 }, autoSkip: true,
-            maxTicksLimit: isLandscape ? 30 : 8 },
-          grid: { color: '#0d0d0d' }
-        }
-      },
-      onClick: function(evt, elements) {
-        if (elements.length > 0) {
-          const idx = elements[0].index;
-          const date = labels[idx];
-          for (let i = 0; i < window._searchResults.length; i++) {
-            if (window._searchResults[i].entry.date === date) {
-              const el = document.getElementById('result-' + i);
-              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'top' });
-              const r = window._searchResults[i];
-              const pg = getPageNum(pageMap[r.entry.date + '|' + r.entry.raw_date]) || 1;
-              selectResult(i, pg, r.idx);
-              break;
-            }
-          }
-        }
-      }
-    }
-  });
 }
 
 // ============================================================
