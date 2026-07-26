@@ -13,14 +13,16 @@ date pattern, cleans the content, applies known typo corrections, filters out
 embedded article clippings, and writes a corrected JSON file.
 """
 
-import json
-import re
 import calendar
-from datetime import date, timedelta
+import json
+import os
+import re
 from collections import Counter
+from datetime import date, timedelta
 
-TEXT_PATH = "/Users/gillesdemaneuf/Work/DataWharehouse/DRASTIC/external_processed/congressional/2026.07.24_Tonys-Diary-Package.txt"
-OUT_PATH = "/Users/gillesdemaneuf/Work/DataWharehouse/DRASTIC/external_processed/congressional/2026.07.24_Tonys-Diary-Package_fixed.json"
+HERE = os.path.dirname(os.path.abspath(__file__))
+TEXT_PATH = os.path.join(HERE, "2026.07.24_Tonys-Diary-Package.txt")
+OUT_PATH = os.path.join(HERE, "2026.07.24_Tonys-Diary-Package_fixed.json")
 
 MONTH_MAP = {
     "january": 1, "jan": 1,

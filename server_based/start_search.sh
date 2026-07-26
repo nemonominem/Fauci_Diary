@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# Tony's Diary Search App — Startup Script (local server)
+# Tony's Diary Search App — Startup Script
 # ============================================================
 # Usage:  bash start_search.sh
 # Then open:  http://localhost:8765
@@ -8,6 +8,13 @@
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR"
+
+# Regenerate page_map.json and clean JSON line breaks
+echo "Regenerating page map..."
+python3 regen_page_map.py
+
+echo "Cleaning JSON line breaks..."
+python3 clean_json_breaks.py
 
 # Kill any existing instance
 pkill -f "python3 serve.py" 2>/dev/null

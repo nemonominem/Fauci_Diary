@@ -8,212 +8,287 @@
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg:        #0d0d0d;
+  --panel:     #1a1a1a;
+  --panel-2:   #222;
+  --border:    #2a2a2a;
+  --border-2:  #333;
+  --input:     #222;
+  --text:      #d0d0d0;
+  --muted:     #888;
+  --muted-2:   #666;
+  --accent:    #e94560;
+  --green:     #4ecca3;
+  --orange:    #ffaa00;
+  --blue:      #6c9ff2;
+  --mark-bg:   #ffcc00;
+  --mark-tx:   #000;
+}
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column;
+  background: var(--bg); color: var(--text); height: 100vh;
+  display: flex; flex-direction: column; overflow: hidden;
 }
 /* Header */
 .header {
-  background: #16213e; padding: 10px 16px; border-bottom: 2px solid #0f3460;
-  display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+  background: var(--panel); padding: 10px 16px; border-bottom: 2px solid var(--border);
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0; flex-wrap: wrap;
 }
-.header h1 { font-size: 18px; color: #e94560; white-space: nowrap; }
-.header .subtitle { font-size: 12px; color: #888; white-space: nowrap; }
-.search-bar { flex: 1; display: flex; gap: 8px; max-width: 600px; margin-left: 20px; }
+.header h1 { font-size: 18px; color: var(--accent); white-space: nowrap; }
+.header .subtitle { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.header .instructions {
+  font-size: 12px; color: var(--muted); margin-left: 4px; max-width: 320px;
+  line-height: 1.4;
+}
+.search-bar { flex: 1; display: flex; gap: 8px; max-width: 600px; margin-left: 12px; }
 #searchInput {
-  flex: 1; padding: 8px 12px; background: #0f3460; border: 1px solid #1a1a4e;
+  flex: 1; padding: 8px 12px; background: var(--input); border: 1px solid var(--border-2);
   color: #fff; border-radius: 4px; font-size: 14px; outline: none;
 }
-#searchInput:focus { border-color: #e94560; }
+#searchInput:focus { border-color: var(--accent); }
 #searchBtn, #clearBtn {
   padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;
   font-size: 13px; font-weight: 600;
 }
-#searchBtn { background: #e94560; color: #fff; }
+#searchBtn { background: var(--accent); color: #fff; }
 #searchBtn:hover { background: #c81e4a; }
-#clearBtn { background: #333; color: #ccc; }
+#clearBtn { background: var(--border-2); color: var(--text); }
 #clearBtn:hover { background: #444; }
-
-/* Timeline panel (collapsible vertical panel) */
-.tl-panel {
-  background: #16213e; border-right: 2px solid #0f3460;
-  display: flex; flex-direction: column; overflow: hidden;
-  flex-shrink: 0; width: 220px; transition: width 0.2s;
+.layout-toggle {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border-2);
+  padding: 8px 14px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600;
+  white-space: nowrap;
 }
-.tl-panel.collapsed { width: 32px; }
-.tl-panel.collapsed .tl-content { display: none; }
-.tl-toggle {
-  padding: 6px 8px; cursor: pointer; font-size: 16px;
-  background: #0f3460; text-align: center; flex-shrink: 0;
-  border-bottom: 1px solid #1a1a4e;
+.layout-toggle:hover { border-color: var(--accent); }
+
+/* ── Charts panel (collapsible, works in both layouts) ─────────────── */
+.charts-panel {
+  background: var(--panel); border-bottom: 2px solid var(--border);
+  display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
 }
-.tl-toggle:hover { background: #1a5a80; }
-.tl-content {
-  padding: 8px 10px; overflow-y: auto; flex: 1;
-  display: flex; flex-direction: column; gap: 6px;
+.panel-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 16px; background: var(--panel-2); cursor: pointer;
+  border-bottom: 1px solid var(--border); user-select: none;
 }
-.tl-content h2 { font-size: 11px; color: #aaa; margin: 0; }
-.tl-content .tl-stats { font-size: 10px; color: #666; }
-.tl-chart-box { height: 80px; position: relative; }
-.tl-chart-box.hits { height: 40px; }
+.panel-header h2 { font-size: 13px; color: var(--muted); }
+.panel-header .collapse-btn {
+  background: none; border: none; color: var(--muted); font-size: 16px;
+  cursor: pointer; padding: 0 4px;
+}
+.charts-content { padding: 8px 12px; overflow: auto; }
+.charts-panel.collapsed .charts-content { display: none; }
+.chart-block { margin-bottom: 12px; }
+.chart-block-title {
+  font-size: 12px; color: var(--muted); margin-bottom: 4px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.chart-block-stats { font-size: 11px; color: var(--muted-2); }
+.chart-canvas-wrap { position: relative; }
 
-/* Chart stats in timeline panel */
-.chart-stats { font-size: 10px; color: #888; }
+/* ── Layout: Landscape (3 columns) ────────────────────────────────── */
+body.layout-landscape .content-area { flex-direction: row; }
+body.layout-landscape .charts-panel {
+  width: 260px; min-width: 200px; border-right: 2px solid var(--border); border-bottom: none;
+}
+body.layout-landscape .charts-content {
+  display: flex; flex-direction: column; gap: 8px; flex: 1;
+}
+body.layout-landscape .chart-block { flex: 1; min-height: 200px; }
+body.layout-landscape .chart-canvas-wrap { height: 100%; min-height: 200px; }
+body.layout-landscape .results-panel {
+  flex: 1; border-right: 2px solid var(--border);
+}
+body.layout-landscape .pdf-panel {
+  width: 42%; min-width: 380px; border-left: none; border-top: none;
+}
 
-/* Main layout wrapper */
-.main-layout { flex: 1; display: flex; overflow: hidden; }
+/* ── Layout: Portrait (stacked) ───────────────────────────────────── */
+body.layout-portrait .content-area { flex-direction: column; }
+body.layout-portrait .charts-panel {
+  border-bottom: 2px solid var(--border); max-height: 320px;
+}
+body.layout-portrait .charts-content {
+  display: flex; gap: 16px; flex-wrap: wrap;
+}
+body.layout-portrait .chart-block { flex: 1; min-width: 300px; }
+body.layout-portrait .chart-canvas-wrap { height: 120px; }
+body.layout-portrait .results-panel {
+  flex: 1; border-right: none; border-bottom: 2px solid var(--border);
+}
+body.layout-portrait .pdf-panel {
+  width: 100%; min-width: 0; height: 45%; border-left: none; border-top: none;
+}
 
-/* Main content area */
-.content-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+/* ── Main content area ─────────────────────────────────────────────── */
+.content-area { flex: 1; display: flex; overflow: hidden; }
 
-/* Results panel (left) */
+/* ── Results panel ─────────────────────────────────────────────────── */
 .results-panel {
-  flex: 1; overflow-y: auto; padding: 12px;
+  overflow-y: auto; padding: 12px;
 }
 .results-panel::-webkit-scrollbar { width: 8px; }
-.results-panel::-webkit-scrollbar-track { background: #16213e; }
-.results-panel::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 4px; }
+.results-panel::-webkit-scrollbar-track { background: var(--panel); }
+.results-panel::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
 
 .result-entry {
-  background: #16213e; margin-bottom: 12px; border-radius: 8px;
-  border: 1px solid #0f3460; overflow: hidden; cursor: pointer;
-  transition: border-color 0.2s;
+  background: var(--panel); margin-bottom: 12px; border-radius: 8px;
+  border: 1px solid var(--border-2); overflow: hidden; transition: border-color 0.2s;
 }
-.result-entry:hover { border-color: #e94560; }
-.result-entry.active { border-color: #e94560; box-shadow: 0 0 10px rgba(233,69,96,0.3); }
+.result-entry:hover { border-color: var(--accent); }
+.result-entry.active { border-color: var(--accent); box-shadow: 0 0 10px rgba(233,69,96,0.2); }
 
 .result-header {
-  padding: 8px 14px; background: #0f3460; display: flex;
-  justify-content: space-between; align-items: center;
+  padding: 8px 14px; background: var(--panel-2); display: flex;
+  justify-content: space-between; align-items: center; cursor: pointer;
 }
-.result-date { font-size: 15px; font-weight: 700; color: #e94560; }
-.result-raw-date { font-size: 11px; color: #888; margin-left: 8px; }
+.result-date { font-size: 15px; font-weight: 700; color: var(--accent); }
+.result-raw-date { font-size: 11px; color: var(--muted); margin-left: 8px; }
 .result-hits {
-  font-size: 12px; color: #4ecca3; font-weight: 600;
-  background: rgba(78,204,163,0.15); padding: 2px 8px; border-radius: 12px;
+  font-size: 12px; color: var(--green); font-weight: 600;
+  background: rgba(78,204,163,0.12); padding: 2px 8px; border-radius: 12px;
 }
 .result-page-link {
-  font-size: 11px; color: #6c9ff2; margin-left: 8px; cursor: pointer;
+  font-size: 11px; color: var(--blue); margin-left: 8px; cursor: pointer;
 }
 .result-note {
-  font-size: 11px; color: #ffaa00; margin-top: 4px; font-style: italic;
+  font-size: 11px; color: var(--orange); margin-top: 4px; font-style: italic;
 }
+
+/* ── Hit navigation bar ────────────────────────────────────────────── */
+.hit-nav {
+  display: flex; align-items: center; gap: 8px; padding: 6px 14px;
+  background: var(--panel-2); border-bottom: 1px solid var(--border); font-size: 12px;
+}
+.hit-nav-btn {
+  background: var(--border-2); color: var(--text); border: none; padding: 3px 10px;
+  border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;
+}
+.hit-nav-btn:hover { background: #444; }
+.hit-nav-btn:disabled { opacity: 0.4; cursor: default; }
+.hit-nav-label { color: var(--green); font-weight: 600; white-space: nowrap; }
+
 .result-content {
-  padding: 10px 14px; font-size: 13px; line-height: 1.6; color: #ccc;
-  max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;
+  padding: 10px 14px; font-size: 13px; line-height: 1.7; color: var(--text);
+  max-height: 350px; overflow-y: auto; word-wrap: break-word; overflow-wrap: break-word;
 }
 .result-content::-webkit-scrollbar { width: 6px; }
-.result-content::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+.result-content::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
+.result-content p { margin-bottom: 8px; }
 
 mark {
-  background: #ffcc00; color: #000; padding: 1px 2px; border-radius: 2px;
+  background: var(--mark-bg); color: var(--mark-tx); padding: 1px 2px; border-radius: 2px;
   font-weight: 600;
 }
+mark.hit-current {
+  background: var(--orange); color: #000; outline: 2px solid var(--accent);
+}
 
-/* PDF panel (bottom half) */
+/* ── PDF panel ─────────────────────────────────────────────────────── */
 .pdf-panel {
-  border-top: 2px solid #0f3460; flex: 1; min-height: 200px;
-  display: flex; flex-direction: column; background: #1a1a2e;
+  display: flex; flex-direction: column; background: var(--bg);
 }
 .pdf-toolbar {
-  padding: 8px 12px; background: #16213e; border-bottom: 1px solid #0f3460;
-  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap;
 }
 .pdf-toolbar button {
-  background: #0f3460; color: #fff; border: none; padding: 6px 12px;
+  background: var(--panel-2); color: #fff; border: 1px solid var(--border-2); padding: 6px 12px;
   border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600;
 }
-.pdf-toolbar button:hover { background: #1a5a80; }
+.pdf-toolbar button:hover { background: var(--border-2); }
 .pdf-toolbar button:disabled { opacity: 0.4; cursor: default; }
 .pdf-page-input {
-  width: 60px; text-align: center; background: #0f3460; color: #fff;
-  border: 1px solid #1a1a4e; border-radius: 4px; padding: 5px; font-size: 14px;
+  width: 60px; text-align: center; background: var(--input); color: #fff;
+  border: 1px solid var(--border-2); border-radius: 4px; padding: 5px; font-size: 14px;
 }
-.pdf-page-label { font-size: 13px; color: #888; }
-.pdf-zoom-label { font-size: 12px; color: #888; margin-left: auto; }
+.pdf-page-label { font-size: 13px; color: var(--muted); }
+.pdf-zoom-label { font-size: 12px; color: var(--muted); margin-left: auto; }
 
 .pdf-viewer-container {
   flex: 1; overflow: auto; display: flex; justify-content: center;
-  padding: 12px; background: #2a2a2a;
+  padding: 12px; background: #1a1a1a;
 }
 .pdf-viewer-container::-webkit-scrollbar { width: 8px; height: 8px; }
-.pdf-viewer-container::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+.pdf-viewer-container::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
 #pdfCanvas {
   box-shadow: 0 4px 20px rgba(0,0,0,0.5);
   background: #fff;
 }
 .pdf-loading {
-  color: #888; font-size: 14px; text-align: center; padding: 40px;
+  color: var(--muted); font-size: 14px; text-align: center; padding: 40px;
 }
 .pdf-loading .spinner {
   display: inline-block; width: 24px; height: 24px;
-  border: 3px solid #0f3460; border-top-color: #e94560;
+  border: 3px solid var(--border-2); border-top-color: var(--accent);
   border-radius: 50%; animation: spin 1s linear infinite;
   margin-bottom: 8px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Placeholder */
+/* ── Placeholder ───────────────────────────────────────────────────── */
 .placeholder {
-  text-align: center; padding: 60px 20px; color: #555;
+  text-align: center; padding: 60px 20px; color: var(--muted-2);
 }
-.placeholder h2 { font-size: 18px; margin-bottom: 10px; color: #666; }
+.placeholder h2 { font-size: 18px; margin-bottom: 10px; color: var(--muted); }
 .placeholder p { font-size: 13px; line-height: 1.8; max-width: 400px; margin: 0 auto; }
-.placeholder .stats { margin-top: 20px; font-size: 14px; color: #4ecca3; }
-
-/* Portrait media query */
-@media (max-width: 768px) {
-  .main-layout { flex-direction: column; }
-  .tl-panel { width: 100% !important; border-right: none; border-bottom: 2px solid #0f3460; }
-  .tl-panel.collapsed { height: 32px; width: 100% !important; }
-  .tl-content { flex-direction: row; flex-wrap: wrap; }
-  .tl-chart-box { flex: 1; min-width: 120px; height: 60px; }
-  .tl-chart-box.hits { height: 30px; }
-  .content-area { flex: 1; }
-  .pdf-panel { border-left: none; border-top: 2px solid #0f3460; }
-}
+.placeholder .stats { margin-top: 20px; font-size: 14px; color: var(--green); }
 </style>
 </head>
-<body>
+<body class="layout-landscape">
 
 <div class="header">
   <h1>📖 Tony's Diary Search</h1>
-  <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank" style="color:#aaa;text-decoration:underline">Rand Paul's release of Fauci's Diary</a> · 860 entries · Dec 2019 – Dec 2022</span>
+  <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank" style="color:var(--muted);text-decoration:underline">Rand Paul's release of Fauci's Diary</a> · 860 entries · Dec 2019 – Dec 2022</span>
   <div class="search-bar">
     <input type="text" id="searchInput" placeholder="Search diary text (e.g. 'lab leak', 'PEPFAR', 'Wuhan', 'Rand Paul')..." onkeydown="if(event.key==='Enter')doSearch()">
     <button id="searchBtn" onclick="doSearch()">Search</button>
     <button id="clearBtn" onclick="clearSearch()">Clear</button>
-<button id="helpBtn" onclick="showHelp()" style="background:#0f3460;color:#aaa;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">?</button>
+    <button id="helpBtn" onclick="showHelp()" title="Search help" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border-2);padding:8px 12px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">?</button>
   </div>
-  <div style="font-size:11px;color:#555;margin-top:2px">Use <code style="background:#0f3460;padding:1px 4px;border-radius:2px">|</code> for OR, <code style="background:#0f3460;padding:1px 4px;border-radius:2px">*</code> for wildcard, <code style="background:#0f3460;padding:1px 4px;border-radius:2px">(regex)</code> for regex</div>
+  <button class="layout-toggle" id="layoutToggle" onclick="switchLayout()">🖥️ Landscape</button>
+  <span class="instructions">Search → click a result to jump to the PDF page. Use HIT navigation to browse all matches in each entry. Press ? for search syntax.</span>
 </div>
 
-<div class="main-layout" id="mainLayout">
-  <div class="tl-panel" id="tlPanel">
-    <div class="tl-toggle" onclick="toggleTL()" title="Toggle timeline panel">📊</div>
-    <div class="tl-content">
-      <div class="tl-stats">
-        <span id="timelineStats"></span>
-        <span class="chart-stats" id="chartStats"></span>
+<div class="content-area">
+
+  <!-- ── Collapsible charts panel ─────────────────────────────────── -->
+  <div class="charts-panel" id="chartsPanel">
+    <div class="panel-header" onclick="toggleCharts()">
+      <h2>📊 Charts</h2>
+      <button class="collapse-btn" id="chartsCollapseBtn">▼</button>
+    </div>
+    <div class="charts-content">
+      <div class="chart-block">
+        <div class="chart-block-title">
+          <span>Entries over time <span style="color:var(--muted-2)">(gaps = no entry)</span></span>
+          <span class="chart-block-stats" id="timelineStats"></span>
+        </div>
+        <div class="chart-canvas-wrap"><canvas id="timelineChart"></canvas></div>
       </div>
-      <h2>Entries <span style="color:#555;font-weight:normal">(gaps = days without entry)</span></h2>
-      <div class="tl-chart-box"><canvas id="timelineChart"></canvas></div>
-      <h2 id="hitsLabel" style="display:none">Hits per day</h2>
-      <div class="tl-chart-box hits" id="hitsBox" style="display:none"><canvas id="hitsChart"></canvas></div>
+      <div class="chart-block" id="hitsChartBlock" style="display:none">
+        <div class="chart-block-title">
+          <span>Hits per diary day</span>
+          <span class="chart-block-stats" id="chartStats"></span>
+        </div>
+        <div class="chart-canvas-wrap"><canvas id="hitsChart"></canvas></div>
+      </div>
     </div>
   </div>
 
-  <div class="content-area">
-    <div class="results-panel" id="resultsPanel">
+  <!-- ── Results panel ────────────────────────────────────────────── -->
+  <div class="results-panel" id="resultsPanel">
     <div class="placeholder">
       <h2>Search Tony's Diary</h2>
       <p>Enter a search term above to find mentions across all 860 diary entries.
-      Results will show a chart of hits per day, the matching JSON text, and the
-      corresponding PDF page side-by-side.</p>
+      Results will show the matching JSON text with all hits highlighted, the
+      corresponding PDF page, and charts of entries/hits over time.</p>
       <div class="stats" id="entryStats"></div>
     </div>
   </div>
 
+  <!-- ── PDF panel ────────────────────────────────────────────────── -->
   <div class="pdf-panel">
     <div class="pdf-toolbar">
       <button id="pdfPrev" onclick="pdfPrevPage()">◀ Prev</button>
@@ -232,7 +307,7 @@ mark {
       <canvas id="pdfCanvas" style="display:none"></canvas>
     </div>
   </div>
-</div>
+
 </div>
 
 <script>
@@ -253,20 +328,11 @@ let pendingPage = null;
 let hitsChart = null;
 let timelineChart = null;
 let activeResultIdx = -1;
-
-// ============================================================
-// Page map helpers (supports both old int and new [start,end] arrays)
-// ============================================================
-function getPageNum(val) {
-  if (val === null || val === undefined) return null;
-  if (Array.isArray(val)) return val[0];
-  return val;
-}
-function getPageRange(val) {
-  if (val === null || val === undefined) return null;
-  if (Array.isArray(val)) return val;
-  return [val, val];
-}
+let currentLayout = 'landscape';
+let lastSearchResults = null;
+let lastSearchQuery = '';
+let currentHitPositions = {};  // { resultIdx: [pos1, pos2, ...] }
+let currentHitIdx = {};        // { resultIdx: 0 }
 
 // ============================================================
 // PDF.js setup
@@ -283,13 +349,11 @@ async function loadData() {
     document.getElementById('entryStats').textContent =
       diaryData.total_entries + ' entries · ' + diaryData.date_range.start + ' to ' + diaryData.date_range.end;
 
-    // Draw the timeline (entries over time) immediately
     drawTimeline();
 
     const pmResp = await fetch(PAGE_MAP_URL);
     pageMap = await pmResp.json();
 
-    // Load PDF
     const loadingTask = pdfjsLib.getDocument(PDF_URL);
     pdfDoc = await loadingTask.promise;
     document.getElementById('pdfTotalPages').textContent = pdfDoc.numPages;
@@ -299,7 +363,7 @@ async function loadData() {
   } catch (err) {
     console.error('Load error:', err);
     document.getElementById('pdfLoading').innerHTML =
-      '<div style="color:#e94560">Error loading: ' + err.message + '<br>Make sure serve.py is running.</div>';
+      '<div style="color:var(--accent)">Error loading: ' + err.message + '<br>Make sure serve.py is running.</div>';
   }
 }
 
@@ -354,27 +418,169 @@ function pdfZoom(delta) {
 }
 
 // ============================================================
-// Timeline chart (entries over time — always visible)
+// Layout switching
+// ============================================================
+function switchLayout() {
+  currentLayout = currentLayout === 'landscape' ? 'portrait' : 'landscape';
+  document.body.className = 'layout-' + currentLayout;
+  const btn = document.getElementById('layoutToggle');
+  btn.textContent = currentLayout === 'landscape' ? '🖥️ Landscape' : '📱 Portrait';
+
+  // Redraw charts with new orientation
+  const hitDates = lastSearchResults ? new Set(lastSearchResults.map(r => r.entry.date)) : null;
+  drawTimeline(hitDates);
+  if (lastSearchResults) drawHitsChart(lastSearchResults);
+}
+
+function toggleCharts() {
+  const panel = document.getElementById('chartsPanel');
+  panel.classList.toggle('collapsed');
+  const btn = document.getElementById('chartsCollapseBtn');
+  btn.textContent = panel.classList.contains('collapsed') ? '▶' : '▼';
+}
+
+// ============================================================
+// Page map helper (int or legacy [start,end] arrays)
+// ============================================================
+function getPageNum(val) {
+  if (val === null || val === undefined) return null;
+  if (Array.isArray(val)) return val[0];
+  return val;
+}
+
+// ============================================================
+// Search (AND / OR / wildcard / regex + hit positions for nav)
+// ============================================================
+function collectRegexHits(text, pattern) {
+  const positions = [];
+  const re = new RegExp(pattern, 'gi');
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    positions.push(m.index);
+    if (m[0].length === 0) {
+      re.lastIndex++;
+      if (re.lastIndex > text.length) break;
+    }
+  }
+  return positions;
+}
+
+function doSearch() {
+  const raw = document.getElementById('searchInput').value.trim();
+  if (!raw || !diaryData) return;
+
+  const results = [];
+  const hasSpecial = /[|()*?+[\]{}^$\\"]/.test(raw);
+
+  for (let i = 0; i < diaryData.entries.length; i++) {
+    const entry = diaryData.entries[i];
+    const text = entry.content || '';
+    const lowerText = text.toLowerCase();
+    let hitPositions = [];
+    let matched = false;
+
+    if (hasSpecial) {
+      try {
+        let pattern = raw;
+        // Quoted phrases → exact substring (escaped)
+        pattern = pattern.replace(/"([^"]+)"/g, function(_, phrase) {
+          return phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        });
+        // Escape literal dots but keep regex operators
+        pattern = pattern.replace(/\./g, '\\.');
+        // Convert * to .* for wildcard
+        pattern = pattern.replace(/\*/g, '.*');
+        hitPositions = collectRegexHits(text, pattern);
+        if (hitPositions.length > 0) matched = true;
+      } catch (e) {
+        matched = false;
+        hitPositions = [];
+      }
+    }
+
+    if (!matched) {
+      // OR groups, each with AND-of-words
+      const orTerms = raw.split('|').map(t => t.trim()).filter(t => t.length > 0);
+      const positions = [];
+      for (const orTerm of orTerms) {
+        const words = orTerm.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+        if (words.length === 0) continue;
+        let allMatch = true;
+        const groupPos = [];
+        for (const word of words) {
+          let idx = 0;
+          let found = false;
+          while ((idx = lowerText.indexOf(word, idx)) !== -1) {
+            groupPos.push(idx);
+            found = true;
+            idx += word.length;
+          }
+          if (!found) {
+            allMatch = false;
+            break;
+          }
+        }
+        if (allMatch) {
+          positions.push.apply(positions, groupPos);
+          matched = true;
+        }
+      }
+      if (matched) {
+        hitPositions = Array.from(new Set(positions)).sort(function(a, b) { return a - b; });
+      }
+    }
+
+    if (matched && hitPositions.length > 0) {
+      results.push({ idx: i, entry: entry, hits: hitPositions.length, hitPositions: hitPositions });
+    }
+  }
+
+  results.sort(function(a, b) { return b.hits - a.hits; });
+
+  lastSearchResults = results;
+  lastSearchQuery = raw;
+  currentHitPositions = {};
+  currentHitIdx = {};
+
+  displayResults(results, raw);
+  drawHitsChart(results);
+
+  const hitDateSet = new Set(results.map(function(r) { return r.entry.date; }));
+  drawTimeline(hitDateSet);
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('resultsPanel').innerHTML =
+    '<div class="placeholder"><h2>Search Tony\'s Diary</h2>' +
+    '<p>Enter a search term above to find mentions across all ' +
+    (diaryData ? diaryData.total_entries : 860) + ' diary entries.</p></div>';
+  document.getElementById('hitsChartBlock').style.display = 'none';
+  if (hitsChart) { hitsChart.destroy(); hitsChart = null; }
+  drawTimeline();
+  lastSearchResults = null;
+  lastSearchQuery = '';
+  activeResultIdx = -1;
+}
+
+// ============================================================
+// Timeline chart (entries over time)
 // ============================================================
 function drawTimeline(hitDates) {
-  // hitDates: optional Set of 'YYYY-MM-DD' strings to highlight
   const entries = diaryData.entries;
   if (!entries || entries.length === 0) return;
 
-  // Build a map: date -> count of entries
   const dateCounts = {};
   for (const e of entries) {
     dateCounts[e.date] = (dateCounts[e.date] || 0) + 1;
   }
 
-  // Generate all dates from start to end (inclusive) so gaps are visible
   const startDate = diaryData.date_range.start;
   const endDate = diaryData.date_range.end;
   const allDates = [];
   const allCounts = [];
   const allColors = [];
 
-  // Year colors
   const yearColors = {
     '2019': 'rgba(120, 130, 200, 0.75)',
     '2020': 'rgba(233, 69, 96, 0.75)',
@@ -382,7 +588,6 @@ function drawTimeline(hitDates) {
     '2022': 'rgba(255, 170, 0, 0.75)',
   };
   const hitColor = 'rgba(255, 204, 0, 0.95)';
-  const hitBorder = 'rgba(255, 204, 0, 1)';
 
   let d = new Date(startDate + 'T00:00:00');
   const end = new Date(endDate + 'T00:00:00');
@@ -398,24 +603,23 @@ function drawTimeline(hitDates) {
     totalDays++;
     if (count > 0) entryDays++;
 
-    // Color logic
     if (hitDates && hitDates.has(iso)) {
       allColors.push(hitColor);
     } else if (count > 0) {
       allColors.push(yearColors[year] || 'rgba(100,100,100,0.6)');
     } else {
-      allColors.push('rgba(40, 40, 60, 0.3)'); // gap — barely visible
+      allColors.push('rgba(40, 40, 40, 0.3)');
     }
-
     d.setDate(d.getDate() + 1);
   }
 
   document.getElementById('timelineStats').textContent =
-    entryDays + ' entry-days / ' + totalDays + ' total days · ' +
-    (totalDays - entryDays) + ' gap days';
+    entryDays + ' entry-days / ' + totalDays + ' total · ' +
+    (totalDays - entryDays) + ' gaps';
 
   if (timelineChart) timelineChart.destroy();
 
+  const isLandscape = currentLayout === 'landscape';
   const ctx = document.getElementById('timelineChart').getContext('2d');
   timelineChart = new Chart(ctx, {
     type: 'bar',
@@ -425,17 +629,15 @@ function drawTimeline(hitDates) {
         label: 'Entries',
         data: allCounts,
         backgroundColor: allColors,
-        borderColor: allColors.map(c => c.replace('0.75)', '0.9)').replace('0.3)', '0.5)').replace('0.95)', '1)')),
-        borderWidth: function(ctx) {
-          const idx = ctx.dataIndex;
-          if (hitDates && hitDates.has(allDates[idx])) return 1.5;
-          return 0.5;
+        borderWidth: function(c) {
+          return (hitDates && hitDates.has(allDates[c.dataIndex])) ? 1.5 : 0.5;
         },
         barPercentage: 1.0,
         categoryPercentage: 1.0,
       }]
     },
     options: {
+      indexAxis: isLandscape ? 'y' : 'x',
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
@@ -448,25 +650,18 @@ function drawTimeline(hitDates) {
               return item.parsed.y + (item.parsed.y === 1 ? ' entry' : ' entries');
             }
           },
-          backgroundColor: '#16213e',
-          titleColor: '#e94560',
-          bodyColor: '#e0e0e0',
-          borderColor: '#0f3460',
-          borderWidth: 1,
+          backgroundColor: '#1a1a1a', titleColor: '#e94560',
+          bodyColor: '#d0d0d0', borderColor: '#333', borderWidth: 1,
         }
       },
       scales: {
         x: {
           ticks: {
-            color: '#555',
-            maxRotation: 0,
-            autoSkip: true,
-            maxTicksLimit: 12,
-            font: { size: 9 },
+            color: '#666', maxRotation: 0, autoSkip: true,
+            maxTicksLimit: isLandscape ? 5 : 12, font: { size: 9 },
             callback: function(val, idx) {
-              // Show year-month labels
+              if (isLandscape) return '';
               const label = this.getLabelForValue(val);
-              if (label && label.endsWith('-01')) return label.slice(0, 7);
               if (label && label.slice(8) === '01') return label.slice(0, 7);
               return '';
             }
@@ -474,23 +669,28 @@ function drawTimeline(hitDates) {
           grid: { display: false }
         },
         y: {
-          beginAtZero: true,
-          max: 4,
-          ticks: { color: '#555', stepSize: 1, font: { size: 9 } },
-          grid: { color: '#1a1a2e' }
+          beginAtZero: true, max: 4,
+          ticks: {
+            color: '#666', autoSkip: true,
+            maxTicksLimit: isLandscape ? 30 : 5, font: { size: 8 },
+            callback: function(val, idx) {
+              if (!isLandscape) return val;
+              const label = this.getLabelForValue(val);
+              if (label && label.slice(8) === '01') return label.slice(0, 7);
+              return '';
+            }
+          },
+          grid: { color: '#0d0d0d' }
         }
       },
       onClick: function(evt, elements) {
         if (elements.length > 0) {
           const idx = elements[0].index;
           const date = allDates[idx];
-          const count = allCounts[idx];
-          if (count > 0) {
-            // Jump to that date's PDF page
+          if (allCounts[idx] > 0) {
             for (const e of entries) {
               if (e.date === date) {
-                const mapKey = e.date + '|' + e.raw_date;
-                const pg = getPageNum(pageMap[mapKey]);
+                const pg = getPageNum(pageMap[e.date + '|' + e.raw_date]);
                 if (pg) renderPdfPage(pg);
                 break;
               }
@@ -502,115 +702,45 @@ function drawTimeline(hitDates) {
   });
 }
 
+// ============================================================
+// Highlight helper — wraps each hit in a <mark> with an ID
+// ============================================================
+function highlightWithHits(text, query, resultIdx) {
+  if (!query) return escapeHtml(text);
 
-function doSearch() {
-  const raw = document.getElementById('searchInput').value.trim();
-  if (!raw || !diaryData) return;
-
-  const results = [];
-  let queryForDisplay = raw;
-
-  // Detect if this is a regex/boolean query
-  const hasSpecial = /[|()*?+[\]{}^$\\]/.test(raw);
-  
-  for (let i = 0; i < diaryData.entries.length; i++) {
-    const entry = diaryData.entries[i];
-    const text = entry.content || '';
-    let totalHits = 0;
-    let matched = false;
-
-    if (hasSpecial) {
-      // Try as regex
-      try {
-        let pattern = raw;
-        // Escape literal dots but keep regex operators
-        pattern = pattern.replace(/\./g, '\\.');
-        // Convert * to .* for wildcard
-        pattern = pattern.replace(/\*/g, '.*');
-        // Wrap in try/catch
-        const regex = new RegExp(pattern, 'gi');
-        const matches = text.match(regex);
-        if (matches) {
-          totalHits = matches.length;
-          matched = true;
-        }
-      } catch(e) {
-        // Fall through to plain text search
-        matched = false;
-      }
-    }
-    
-    if (!matched) {
-      // OR search: split on |
-      const orTerms = raw.split('|').map(t => t.trim()).filter(t => t.length > 0);
-      for (const orTerm of orTerms) {
-        // AND search: split on whitespace within each OR term
-        const words = orTerm.toLowerCase().split(/\s+/).filter(t => t.length > 0);
-        if (words.length === 0) continue;
-        
-        // Check if all words match (AND)
-        let allMatch = true;
-        let hitsForTerm = 0;
-        const lowerText = text.toLowerCase();
-        for (const word of words) {
-          let idx = 0;
-          let wordHits = 0;
-          while ((idx = lowerText.indexOf(word, idx)) !== -1) {
-            wordHits++;
-            idx += word.length;
-          }
-          if (wordHits === 0) {
-            allMatch = false;
-            break;
-          }
-          hitsForTerm += wordHits;
-        }
-        if (allMatch) {
-          totalHits += hitsForTerm;
-          matched = true;
-        }
-      }
-    }
-
-    if (matched && totalHits > 0) {
-      results.push({ idx: i, entry, hits: totalHits });
+  let pattern = null;
+  const hasSpecial = /[|()*?+[\]{}^$\\"]/.test(query);
+  if (hasSpecial) {
+    try {
+      pattern = query;
+      pattern = pattern.replace(/"([^"]+)"/g, function(_, phrase) {
+        return phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      });
+      pattern = pattern.replace(/\./g, '\\.');
+      pattern = pattern.replace(/\*/g, '.*');
+      // Validate
+      new RegExp(pattern, 'gi');
+    } catch (e) {
+      pattern = null;
     }
   }
+  if (!pattern) {
+    // OR of words: highlight any of the individual tokens
+    const terms = query.toLowerCase().split(/[|\s]+/).filter(function(t) { return t.length > 0; });
+    if (terms.length === 0) return escapeHtml(text);
+    const escapedTerms = terms.map(function(t) {
+      return t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    });
+    pattern = escapedTerms.join('|');
+  }
 
-  results.sort((a, b) => b.hits - a.hits); // sort by hits descending
-  displayResults(results, raw);
-  drawChart(results);
-  const hitDateSet = new Set(results.map(r => r.entry.date));
-  drawTimeline(hitDateSet);
-  document.getElementById('hitsLabel').style.display = 'block';
-  document.getElementById('hitsBox').style.display = 'block';
-}
-
-function clearSearch() {
-  document.getElementById('searchInput').value = '';
-  document.getElementById('resultsPanel').innerHTML =
-    '<div class="placeholder"><h2>Search Tony\'s Diary</h2>' +
-    '<p>Enter a search term above to find mentions across all ' +
-    (diaryData ? diaryData.total_entries : 860) + ' diary entries.</p></div>';
-  document.getElementById('hitsChart').style.display = 'none';
-  document.getElementById('chartStats').textContent = '';
-  document.getElementById('hitsLabel').style.display = 'none';
-  document.getElementById('hitsBox').style.display = 'none';
-  if (hitsChart) { hitsChart.destroy(); hitsChart = null; }
-  drawTimeline(); // reset timeline highlights
-  activeResultIdx = -1;
-}
-
-// ============================================================
-// Highlight helper
-// ============================================================
-function highlightText(text, query) {
-  const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 0);
-  if (terms.length === 0) return escapeHtml(text);
-  // Build regex that matches any term (case-insensitive)
-  const escapedTerms = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const regex = new RegExp('(' + escapedTerms.join('|') + ')', 'gi');
-  return escapeHtml(text).replace(regex, '<mark>$1</mark>');
+  const regex = new RegExp('(' + pattern + ')', 'gi');
+  let hitCount = 0;
+  return escapeHtml(text).replace(regex, function(match) {
+    const id = 'hit-' + resultIdx + '-' + hitCount;
+    hitCount++;
+    return '<mark id="' + id + '">' + match + '</mark>';
+  });
 }
 
 function escapeHtml(s) {
@@ -619,7 +749,7 @@ function escapeHtml(s) {
 }
 
 // ============================================================
-// Display results
+// Display results (full content + multi-hit navigation)
 // ============================================================
 function displayResults(results, query) {
   const panel = document.getElementById('resultsPanel');
@@ -629,86 +759,140 @@ function displayResults(results, query) {
     return;
   }
 
-  let html = '<div style="margin-bottom:12px;font-size:14px;color:#888;">' +
-    '<b style="color:#e94560">' + results.length + '</b> entries · ' +
-    '<b style="color:#4ecca3">' + results.reduce((s,r)=>s+r.hits,0) + '</b> total hits</div>';
+  const totalHits = results.reduce((s, r) => s + r.hits, 0);
+  let html = '<div style="margin-bottom:12px;font-size:14px;color:var(--muted)">' +
+    '<b style="color:var(--accent)">' + results.length + '</b> entries · ' +
+    '<b style="color:var(--green)">' + totalHits + '</b> total hits</div>';
 
   for (let i = 0; i < results.length; i++) {
     const r = results[i];
     const e = r.entry;
     const mapKey = e.date + '|' + e.raw_date;
     const pdfPage = getPageNum(pageMap[mapKey]);
-    const pageRange = getPageRange(pageMap[mapKey]);
-
-    // Get snippet around first hit
     const content = e.content || '';
-    const lowerContent = content.toLowerCase();
-    const firstTerm = query.toLowerCase().split(/\s+/).filter(t=>t.length>0)[0];
-    let snippetStart = 0;
-    const firstIdx = lowerContent.indexOf(firstTerm);
-    if (firstIdx > 100) snippetStart = firstIdx - 100;
-    const snippet = content.substring(snippetStart, snippetStart + 800);
-    const prefix = snippetStart > 0 ? '...' : '';
-    const suffix = (snippetStart + 800 < content.length) ? '...' : '';
 
-    html += '<div class="result-entry" id="result-' + i + '" onclick="selectResult(' + i + ', ' + (pdfPage||1) + ', ' + r.idx + ')">';
-    html += '<div class="result-header">';
+    // Store hit positions for navigation
+    currentHitPositions[i] = r.hitPositions;
+    currentHitIdx[i] = 0;
+
+    html += '<div class="result-entry" id="result-' + i + '">';
+    html += '<div class="result-header" onclick="selectResult(' + i + ', ' + (pdfPage||1) + ', ' + r.idx + ')">';
     html += '<span><span class="result-date">' + e.date + '</span>' +
       '<span class="result-raw-date">' + escapeHtml(e.raw_date) + '</span>';
     if (pdfPage) {
-      const pageStr = pageRange[0] === pageRange[1] ? 'p.' + pageRange[0] : 'p.' + pageRange[0] + '-' + pageRange[1];
-      html += '<span class="result-page-link">📄 ' + pageStr + '</span>';
+      html += '<span class="result-page-link">📄 p.' + pdfPage + '</span>';
     }
     if (e.date_note) {
       html += '<div class="result-note">⚠ ' + escapeHtml(e.date_note) + '</div>';
     }
     html += '</span>';
-    html += '<span class="result-hits">' + r.hits + ' hit' + (r.hits>1?'s':'') + '</span>';
+    html += '<span class="result-hits">' + r.hits + ' hit' + (r.hits > 1 ? 's' : '') + '</span>';
     html += '</div>';
-    html += '<div class="result-content">' + prefix + highlightText(snippet, query) + suffix + '</div>';
+
+    // Hit navigation bar
+    if (r.hits > 1) {
+      html += '<div class="hit-nav">';
+      html += '<button class="hit-nav-btn" onclick="navigateHit(' + i + ', -1)" id="hitprev-' + i + '">◀ Prev</button>';
+      html += '<span class="hit-nav-label">>>> HIT #<span id="hitcur-' + i + '">1</span>/' + r.hits + ' <<<</span>';
+      html += '<button class="hit-nav-btn" onclick="navigateHit(' + i + ', 1)" id="hitnext-' + i + '">Next ▶</button>';
+      html += '</div>';
+    } else {
+      html += '<div class="hit-nav"><span class="hit-nav-label">>>> HIT #1/1 <<<</span></div>';
+    }
+
+    // Full content with highlights (paragraphs from cleaned JSON)
+    const highlighted = highlightWithHits(content, query, i);
+    // Split into paragraphs and wrap in <p>
+    const paragraphs = highlighted.split(/\n\n/);
+    html += '<div class="result-content" id="content-' + i + '">';
+    for (const p of paragraphs) {
+      html += '<p>' + p + '</p>';
+    }
+    html += '</div>';
     html += '</div>';
   }
 
-  // Store results for click handling
   window._searchResults = results;
   panel.innerHTML = html;
+
+  // Highlight first hit on first result
+  if (results.length > 0 && results[0].hits > 0) {
+    updateHitHighlight(0, 0);
+  }
 }
 
+// ============================================================
+// Select result + jump to PDF page
+// ============================================================
 function selectResult(resultIdx, pdfPage, entryIdx) {
-  // Remove active class from all
   document.querySelectorAll('.result-entry').forEach(el => el.classList.remove('active'));
   const el = document.getElementById('result-' + resultIdx);
   if (el) el.classList.add('active');
   activeResultIdx = resultIdx;
-
-  // Jump to PDF page
   if (pdfPage && pdfDoc) {
     renderPdfPage(pdfPage);
   }
 }
 
 // ============================================================
-// Chart
+// Navigate between hits within an entry
 // ============================================================
-function drawChart(results) {
-  // Group hits by date
+function navigateHit(resultIdx, direction) {
+  const positions = currentHitPositions[resultIdx];
+  if (!positions || positions.length === 0) return;
+
+  let idx = (currentHitIdx[resultIdx] || 0) + direction;
+  if (idx < 0) idx = positions.length - 1;
+  if (idx >= positions.length) idx = 0;
+  currentHitIdx[resultIdx] = idx;
+
+  updateHitHighlight(resultIdx, idx);
+}
+
+function updateHitHighlight(resultIdx, hitIdx) {
+  // Remove previous highlight
+  document.querySelectorAll('mark.hit-current').forEach(m => m.classList.remove('hit-current'));
+
+  const mark = document.getElementById('hit-' + resultIdx + '-' + hitIdx);
+  if (!mark) return;
+  mark.classList.add('hit-current');
+
+  // Scroll to the hit within the content box
+  const container = document.getElementById('content-' + resultIdx);
+  if (container) {
+    const top = mark.offsetTop - container.offsetTop - 40;
+    container.scrollTop = Math.max(0, top);
+  }
+
+  // Update the counter display
+  const counter = document.getElementById('hitcur-' + resultIdx);
+  if (counter) counter.textContent = (hitIdx + 1);
+}
+
+// ============================================================
+// Hits chart (with orientation support)
+// ============================================================
+function drawHitsChart(results) {
+  const block = document.getElementById('hitsChartBlock');
+  block.style.display = 'block';
+
   const dateHits = {};
   for (const r of results) {
     dateHits[r.entry.date] = (dateHits[r.entry.date] || 0) + r.hits;
   }
 
-  // Sort dates
   const sortedDates = Object.keys(dateHits).sort();
   const labels = sortedDates;
   const data = sortedDates.map(d => dateHits[d]);
 
-  const totalHits = data.reduce((a,b)=>a+b, 0);
+  const totalHits = data.reduce((a, b) => a + b, 0);
   const maxHits = Math.max(...data);
   document.getElementById('chartStats').textContent =
-    ' · ' + results.length + ' days · ' + totalHits + ' hits · peak ' + maxHits + '/day';
+    results.length + ' days · ' + totalHits + ' hits · peak ' + maxHits + '/day';
 
   if (hitsChart) hitsChart.destroy();
 
+  const isLandscape = currentLayout === 'landscape';
   const ctx = document.getElementById('hitsChart').getContext('2d');
   hitsChart = new Chart(ctx, {
     type: 'bar',
@@ -718,19 +902,18 @@ function drawChart(results) {
         label: 'Hits',
         data: data,
         backgroundColor: function(ctx) {
-          const value = ctx.parsed.y;
-          const max = Math.max(...data);
-          const ratio = value / max;
+          const value = isLandscape ? ctx.parsed.x : ctx.parsed.y;
+          const ratio = value / maxHits;
           if (ratio > 0.66) return 'rgba(233,69,96,0.8)';
           if (ratio > 0.33) return 'rgba(255,170,0,0.8)';
           return 'rgba(78,204,163,0.7)';
         },
         borderColor: 'rgba(233,69,96,0.3)',
-        borderWidth: 0,
-        borderRadius: 1,
+        borderWidth: 1,
       }]
     },
     options: {
+      indexAxis: isLandscape ? 'y' : 'x',
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
@@ -738,39 +921,41 @@ function drawChart(results) {
         tooltip: {
           callbacks: {
             title: function(items) { return items[0].label; },
-            label: function(item) { return item.parsed.y + ' hits'; }
+            label: function(item) {
+              const v = isLandscape ? item.parsed.x : item.parsed.y;
+              return v + ' hits';
+            }
           },
-          backgroundColor: '#16213e',
-          titleColor: '#e94560',
-          bodyColor: '#e0e0e0',
-          borderColor: '#0f3460',
-          borderWidth: 1,
+          backgroundColor: '#1a1a1a', titleColor: '#e94560',
+          bodyColor: '#d0d0d0', borderColor: '#333', borderWidth: 1,
         }
       },
       scales: {
         x: {
-          display: false,
+          ticks: {
+            color: '#666', maxRotation: 0, autoSkip: true,
+            maxTicksLimit: isLandscape ? 6 : 20, font: { size: 9 },
+          },
           grid: { display: false }
         },
         y: {
-          display: false,
           beginAtZero: true,
-          grid: { display: false }
+          ticks: { color: '#666', stepSize: 1, font: { size: 9 }, autoSkip: true,
+            maxTicksLimit: isLandscape ? 30 : 8 },
+          grid: { color: '#0d0d0d' }
         }
       },
       onClick: function(evt, elements) {
         if (elements.length > 0) {
           const idx = elements[0].index;
           const date = labels[idx];
-          // Find first result with that date and scroll to it
           for (let i = 0; i < window._searchResults.length; i++) {
             if (window._searchResults[i].entry.date === date) {
               const el = document.getElementById('result-' + i);
-              if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'top' });
-                const mapKey = window._searchResults[i].entry.date + '|' + window._searchResults[i].entry.raw_date;
-                selectResult(i, getPageNum(pageMap[mapKey]) || 1, window._searchResults[i].idx);
-              }
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'top' });
+              const r = window._searchResults[i];
+              const pg = getPageNum(pageMap[r.entry.date + '|' + r.entry.raw_date]) || 1;
+              selectResult(i, pg, r.idx);
               break;
             }
           }
@@ -781,15 +966,7 @@ function drawChart(results) {
 }
 
 // ============================================================
-// Toggle timeline panel
-// ============================================================
-function toggleTL() {
-  const p = document.getElementById('tlPanel');
-  p.classList.toggle('collapsed');
-}
-
-// ============================================================
-// Init
+// Help + Init
 // ============================================================
 function showHelp() {
   document.getElementById('helpOverlay').style.display = 'flex';
@@ -801,17 +978,17 @@ loadData();
 </script>
 
 <div id="helpOverlay" onclick="hideHelp()" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:1000;justify-content:center;align-items:center;">
-  <div onclick="event.stopPropagation()" style="background:#16213e;border:2px solid #0f3460;border-radius:12px;padding:24px 32px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto;color:#e0e0e0;">
-    <h2 style="color:#e94560;margin-bottom:16px;font-size:18px;">🔍 Search Help</h2>
+  <div onclick="event.stopPropagation()" style="background:var(--panel);border:2px solid var(--border-2);border-radius:12px;padding:24px 32px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto;color:var(--text);">
+    <h2 style="color:var(--accent);margin-bottom:16px;font-size:18px;">🔍 Search Help</h2>
     <table style="width:100%;border-collapse:collapse;font-size:13px;">
-      <tr><td style="padding:6px 8px;background:#0f3460;border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">word1 word2</td><td style="padding:6px 12px;background:#0f3460;border-radius:0 4px 4px 0">AND — matches entries containing both words</td></tr>
+      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">word1 word2</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0">AND — matches entries containing both words</td></tr>
       <tr><td style="padding:6px 8px;white-space:nowrap;font-family:monospace">word1|word2</td><td style="padding:6px 12px">OR — matches entries containing either word</td></tr>
-      <tr><td style="padding:6px 8px;background:#0f3460;border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">lab*</td><td style="padding:6px 12px;background:#0f3460;border-radius:0 4px 4px 0">Wildcard — matches "lab", "laboratory", "lab leak", etc.</td></tr>
-      <tr><td style="padding:6px 8px;white-space:nowrap;font-family:monospace">(wuhan|Wuhan) virus</td><td style="padding:6px 12px">Regex — matches "wuhan virus" or "Wuhan virus" (AND of regex + word)</td></tr>
-      <tr><td style="padding:6px 8px;background:#0f3460;border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">"gain of function"</td><td style="padding:6px 12px;background:#0f3460;border-radius:0 4px 4px 0">Exact phrase — matches the exact quoted string</td></tr>
+      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">lab*</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0">Wildcard — matches "lab", "laboratory", etc.</td></tr>
+      <tr><td style="padding:6px 8px;white-space:nowrap;font-family:monospace">(wuhan|Wuhan)</td><td style="padding:6px 12px">Regex — full JavaScript regex when special chars are present</td></tr>
+      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">"gain of function"</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0">Exact phrase — matches the quoted string</td></tr>
     </table>
-    <p style="margin-top:16px;font-size:12px;color:#888;">Results are sorted by number of hits (descending). Click any result to jump the PDF viewer to the corresponding page.</p>
-    <button onclick="hideHelp()" style="margin-top:12px;background:#e94560;color:#fff;border:none;padding:8px 24px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">Got it</button>
+    <p style="margin-top:16px;font-size:12px;color:var(--muted);">Results are sorted by number of hits (descending). Click a result header to jump the PDF viewer. Use HIT Prev/Next to step through matches in an entry.</p>
+    <button onclick="hideHelp()" style="margin-top:12px;background:var(--accent);color:#fff;border:none;padding:8px 24px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">Got it</button>
   </div>
 </div>
 
