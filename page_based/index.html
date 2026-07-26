@@ -150,12 +150,13 @@ mark {
 
 <div class="header">
   <h1>📖 Tony's Diary Search</h1>
-  <span class="subtitle">Fauchi Congressional Release · 860 entries · Dec 2019 – Dec 2022</span>
+  <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank" style="color:#aaa;text-decoration:underline">Rand Paul's release of Fauci's Diary</a> · 860 entries · Dec 2019 – Dec 2022</span>
   <div class="search-bar">
     <input type="text" id="searchInput" placeholder="Search diary text (e.g. 'lab leak', 'PEPFAR', 'Wuhan', 'Rand Paul')..." onkeydown="if(event.key==='Enter')doSearch()">
     <button id="searchBtn" onclick="doSearch()">Search</button>
     <button id="clearBtn" onclick="clearSearch()">Clear</button>
   </div>
+  <div style="font-size:11px;color:#555;margin-top:2px">Use <code style="background:#0f3460;padding:1px 4px;border-radius:2px">|</code> for OR, <code style="background:#0f3460;padding:1px 4px;border-radius:2px">*</code> for wildcard, <code style="background:#0f3460;padding:1px 4px;border-radius:2px">(regex)</code> for regex</div>
 </div>
 
 <div class="timeline-section">
@@ -469,37 +470,84 @@ function drawTimeline(hitDates) {
 
 
 function doSearch() {
-  const query = document.getElementById('searchInput').value.trim();
-  if (!query || !diaryData) return;
+  const raw = document.getElementById('searchInput').value.trim();
+  if (!raw || !diaryData) return;
 
-  const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 0);
   const results = [];
+  let queryForDisplay = raw;
 
+  // Detect if this is a regex/boolean query
+  const hasSpecial = /[|()*?+[\]{}^$\\]/.test(raw);
+  
   for (let i = 0; i < diaryData.entries.length; i++) {
     const entry = diaryData.entries[i];
-    const text = (entry.content || '').toLowerCase();
+    const text = entry.content || '';
     let totalHits = 0;
-    for (const term of terms) {
-      let idx = 0;
-      while ((idx = text.indexOf(term, idx)) !== -1) {
-        totalHits++;
-        idx += term.length;
+    let matched = false;
+
+    if (hasSpecial) {
+      // Try as regex
+      try {
+        let pattern = raw;
+        // Escape literal dots but keep regex operators
+        pattern = pattern.replace(/\./g, '\\.');
+        // Convert * to .* for wildcard
+        pattern = pattern.replace(/\*/g, '.*');
+        // Wrap in try/catch
+        const regex = new RegExp(pattern, 'gi');
+        const matches = text.match(regex);
+        if (matches) {
+          totalHits = matches.length;
+          matched = true;
+        }
+      } catch(e) {
+        // Fall through to plain text search
+        matched = false;
       }
     }
-    if (totalHits > 0) {
+    
+    if (!matched) {
+      // OR search: split on |
+      const orTerms = raw.split('|').map(t => t.trim()).filter(t => t.length > 0);
+      for (const orTerm of orTerms) {
+        // AND search: split on whitespace within each OR term
+        const words = orTerm.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+        if (words.length === 0) continue;
+        
+        // Check if all words match (AND)
+        let allMatch = true;
+        let hitsForTerm = 0;
+        const lowerText = text.toLowerCase();
+        for (const word of words) {
+          let idx = 0;
+          let wordHits = 0;
+          while ((idx = lowerText.indexOf(word, idx)) !== -1) {
+            wordHits++;
+            idx += word.length;
+          }
+          if (wordHits === 0) {
+            allMatch = false;
+            break;
+          }
+          hitsForTerm += wordHits;
+        }
+        if (allMatch) {
+          totalHits += hitsForTerm;
+          matched = true;
+        }
+      }
+    }
+
+    if (matched && totalHits > 0) {
       results.push({ idx: i, entry, hits: totalHits });
     }
   }
 
-  displayResults(results, query);
+  results.sort((a, b) => b.hits - a.hits); // sort by hits descending
+  displayResults(results, raw);
   drawChart(results);
-
-  // Highlight hit days on the timeline
   const hitDateSet = new Set(results.map(r => r.entry.date));
   drawTimeline(hitDateSet);
-
-  // Show the hits chart
-  document.getElementById('hitsChart').style.display = 'block';
 }
 
 function clearSearch() {
