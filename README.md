@@ -6,7 +6,7 @@ Searchable web app for Dr. Anthony Fauci's diary (Congressional release, Dec 201
 
 | Folder | Purpose |
 |---|---|
-| `server_based/` | Local version — run `bash start_search.sh` to serve on port 8765. Uses a symlink to the original PDF. Includes reparse/clean/page-map scripts. |
+| `server_based/` | Local version — run `bash start_search.sh` to serve on port 8765. Includes local `diary.pdf` plus reparse/clean/page-map scripts. |
 | `page_based/` | Static GitHub Pages version — self-contained, includes the PDF. |
 
 ## Data

@@ -1,6 +1,6 @@
 # Server-based version
 
-Requires Python 3. The PDF is a symlink to the original in `DataWharehouse/`.
+Requires Python 3. Self-contained: includes a local `diary.pdf` (same file as `page_based/`).
 
 ## Quick start
 ```bash
@@ -31,4 +31,4 @@ python3 regen_page_map.py
 | `2026.07.24_Tonys-Diary-Package_fixed.json` | Parsed entries (pre-clean) |
 | `2026.07.24_Tonys-Diary-Package.json` | App load file (cleaned content) |
 | `page_map.json` | date\|raw_date → PDF page |
-| `diary.pdf` | Symlink to original PDF |
+| `diary.pdf` | Local copy of the Congressional PDF |

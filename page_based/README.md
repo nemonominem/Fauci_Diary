@@ -27,5 +27,5 @@ Push this folder’s contents to a Pages-enabled branch/repo. Prefer Git LFS for
 git lfs track "diary.pdf"
 ```
 
-### Option C — full local app with symlink PDF
-Use `../server_based` and `bash start_search.sh` instead.
+### Option C — full local app with pipeline scripts
+Use `../server_based` and `bash start_search.sh` (also includes a local `diary.pdf`).
