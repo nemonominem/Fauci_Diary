@@ -42,18 +42,10 @@ body {
 .timeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .timeline-header h2 { font-size: 12px; color: #aaa; }
 .timeline-stats { font-size: 11px; color: #666; }
-.timeline-container { height: 48px; position: relative; }
+.timeline-container { height: 52px; position: relative; }
 
-/* Chart section */
-.chart-section {
-  background: #16213e; border-bottom: 2px solid #0f3460; padding: 10px 16px;
-  flex-shrink: 0; display: none;
-}
-.chart-section.visible { display: block; }
-.chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-.chart-header h2 { font-size: 14px; color: #aaa; }
-.chart-stats { font-size: 12px; color: #888; }
-.chart-container { height: 140px; position: relative; }
+/* Chart stats in timeline header */
+.chart-stats { font-size: 11px; color: #888; margin-left: 8px; }
 
 /* Main content area */
 .content-area { flex: 1; display: flex; overflow: hidden; }
@@ -169,17 +161,12 @@ mark {
 <div class="timeline-section">
   <div class="timeline-header">
     <h2>Entries over time <span style="color:#555;font-weight:normal">(gaps = days with no diary entry)</span></h2>
-    <div class="timeline-stats" id="timelineStats"></div>
+    <div class="timeline-stats" id="timelineStats"></div><span class="chart-stats" id="chartStats"></span>
   </div>
-  <div class="timeline-container"><canvas id="timelineChart"></canvas></div>
-</div>
-
-<div class="chart-section" id="chartSection">
-  <div class="chart-header">
-    <h2>Hits per diary day</h2>
-    <div class="chart-stats" id="chartStats"></div>
+  <div class="timeline-container">
+    <canvas id="timelineChart"></canvas>
+    <canvas id="hitsChart" style="display:none;height:6px;margin-top:1px"></canvas>
   </div>
-  <div class="chart-container"><canvas id="hitsChart"></canvas></div>
 </div>
 
 <div class="content-area">
@@ -231,6 +218,20 @@ let pendingPage = null;
 let hitsChart = null;
 let timelineChart = null;
 let activeResultIdx = -1;
+
+// ============================================================
+// Page map helpers (supports both old int and new [start,end] arrays)
+// ============================================================
+function getPageNum(val) {
+  if (val === null || val === undefined) return null;
+  if (Array.isArray(val)) return val[0];
+  return val;
+}
+function getPageRange(val) {
+  if (val === null || val === undefined) return null;
+  if (Array.isArray(val)) return val;
+  return [val, val];
+}
 
 // ============================================================
 // PDF.js setup
@@ -454,7 +455,7 @@ function drawTimeline(hitDates) {
             for (const e of entries) {
               if (e.date === date) {
                 const mapKey = e.date + '|' + e.raw_date;
-                const pg = pageMap[mapKey];
+                const pg = getPageNum(pageMap[mapKey]);
                 if (pg) renderPdfPage(pg);
                 break;
               }
@@ -496,6 +497,9 @@ function doSearch() {
   // Highlight hit days on the timeline
   const hitDateSet = new Set(results.map(r => r.entry.date));
   drawTimeline(hitDateSet);
+
+  // Show the hits chart
+  document.getElementById('hitsChart').style.display = 'block';
 }
 
 function clearSearch() {
@@ -504,7 +508,8 @@ function clearSearch() {
     '<div class="placeholder"><h2>Search Tony\'s Diary</h2>' +
     '<p>Enter a search term above to find mentions across all ' +
     (diaryData ? diaryData.total_entries : 860) + ' diary entries.</p></div>';
-  document.getElementById('chartSection').classList.remove('visible');
+  document.getElementById('hitsChart').style.display = 'none';
+  document.getElementById('chartStats').textContent = '';
   if (hitsChart) { hitsChart.destroy(); hitsChart = null; }
   drawTimeline(); // reset timeline highlights
   activeResultIdx = -1;
@@ -546,7 +551,8 @@ function displayResults(results, query) {
     const r = results[i];
     const e = r.entry;
     const mapKey = e.date + '|' + e.raw_date;
-    const pdfPage = pageMap[mapKey];
+    const pdfPage = getPageNum(pageMap[mapKey]);
+    const pageRange = getPageRange(pageMap[mapKey]);
 
     // Get snippet around first hit
     const content = e.content || '';
@@ -564,7 +570,8 @@ function displayResults(results, query) {
     html += '<span><span class="result-date">' + e.date + '</span>' +
       '<span class="result-raw-date">' + escapeHtml(e.raw_date) + '</span>';
     if (pdfPage) {
-      html += '<span class="result-page-link">📄 p.' + pdfPage + '</span>';
+      const pageStr = pageRange[0] === pageRange[1] ? 'p.' + pageRange[0] : 'p.' + pageRange[0] + '-' + pageRange[1];
+      html += '<span class="result-page-link">📄 ' + pageStr + '</span>';
     }
     if (e.date_note) {
       html += '<div class="result-note">⚠ ' + escapeHtml(e.date_note) + '</div>';
@@ -598,9 +605,6 @@ function selectResult(resultIdx, pdfPage, entryIdx) {
 // Chart
 // ============================================================
 function drawChart(results) {
-  const section = document.getElementById('chartSection');
-  section.classList.add('visible');
-
   // Group hits by date
   const dateHits = {};
   for (const r of results) {
@@ -615,7 +619,7 @@ function drawChart(results) {
   const totalHits = data.reduce((a,b)=>a+b, 0);
   const maxHits = Math.max(...data);
   document.getElementById('chartStats').textContent =
-    results.length + ' days · ' + totalHits + ' hits · peak ' + maxHits + '/day';
+    ' · ' + results.length + ' days · ' + totalHits + ' hits · peak ' + maxHits + '/day';
 
   if (hitsChart) hitsChart.destroy();
 
@@ -636,7 +640,8 @@ function drawChart(results) {
           return 'rgba(78,204,163,0.7)';
         },
         borderColor: 'rgba(233,69,96,0.3)',
-        borderWidth: 1,
+        borderWidth: 0,
+        borderRadius: 1,
       }]
     },
     options: {
@@ -658,19 +663,13 @@ function drawChart(results) {
       },
       scales: {
         x: {
-          ticks: {
-            color: '#666',
-            maxRotation: 0,
-            autoSkip: true,
-            maxTicksLimit: 20,
-            font: { size: 9 },
-          },
+          display: false,
           grid: { display: false }
         },
         y: {
+          display: false,
           beginAtZero: true,
-          ticks: { color: '#666', stepSize: 1, font: { size: 10 } },
-          grid: { color: '#1a1a2e' }
+          grid: { display: false }
         }
       },
       onClick: function(evt, elements) {
@@ -683,7 +682,8 @@ function drawChart(results) {
               const el = document.getElementById('result-' + i);
               if (el) {
                 el.scrollIntoView({ behavior: 'smooth', block: 'top' });
-                selectResult(i, pageMap[window._searchResults[i].entry.date + '|' + window._searchResults[i].entry.raw_date] || 1, window._searchResults[i].idx);
+                const mapKey = window._searchResults[i].entry.date + '|' + window._searchResults[i].entry.raw_date;
+                selectResult(i, getPageNum(pageMap[mapKey]) || 1, window._searchResults[i].idx);
               }
               break;
             }
