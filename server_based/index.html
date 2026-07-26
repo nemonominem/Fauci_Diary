@@ -575,12 +575,67 @@ function toggleCharts() {
 }
 
 // ============================================================
-// Page map helper (int or legacy [start,end] arrays)
+// Page map helpers
+// Supports: int | [start,end] | {start,end,breaks:[[offset,page],...]}
 // ============================================================
 function getPageNum(val) {
   if (val === null || val === undefined) return null;
+  if (typeof val === 'number') return val;
   if (Array.isArray(val)) return val[0];
-  return val;
+  if (typeof val === 'object') {
+    if (typeof val.start === 'number') return val.start;
+    if (typeof val.page === 'number') return val.page;
+  }
+  return null;
+}
+
+function getPageEnd(val) {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'number') return val;
+  if (Array.isArray(val)) return val[val.length - 1];
+  if (typeof val === 'object' && typeof val.end === 'number') return val.end;
+  return getPageNum(val);
+}
+
+/** PDF page for a character offset within the entry's cleaned content. */
+function pageForContentOffset(mapVal, charOffset) {
+  if (mapVal === null || mapVal === undefined) return 1;
+  if (typeof mapVal === 'number') return mapVal;
+  if (Array.isArray(mapVal) && mapVal.length && typeof mapVal[0] === 'number'
+      && (mapVal.length < 2 || typeof mapVal[1] === 'number')
+      && !(Array.isArray(mapVal[0]))) {
+    // legacy [start, end] — no per-hit offsets
+    return mapVal[0];
+  }
+  if (typeof mapVal === 'object' && Array.isArray(mapVal.breaks) && mapVal.breaks.length) {
+    let page = mapVal.breaks[0][1];
+    const off = (charOffset === null || charOffset === undefined) ? 0 : charOffset;
+    for (let i = 0; i < mapVal.breaks.length; i++) {
+      const bOff = mapVal.breaks[i][0];
+      const bPage = mapVal.breaks[i][1];
+      if (off >= bOff) page = bPage;
+      else break;
+    }
+    return page;
+  }
+  return getPageNum(mapVal) || 1;
+}
+
+function pageMapValueForResult(r) {
+  if (!r || !r.entry) return null;
+  return pageMap[r.entry.date + '|' + r.entry.raw_date];
+}
+
+function pdfPageForHit(resultIdx, hitIdx) {
+  const r = window._searchResults && window._searchResults[resultIdx];
+  if (!r) return 1;
+  const mapVal = pageMapValueForResult(r);
+  const positions = r.hitPositions || currentHitPositions[resultIdx] || [];
+  if (hitIdx === null || hitIdx === undefined || !positions.length) {
+    return pageForContentOffset(mapVal, 0);
+  }
+  const clamped = Math.max(0, Math.min(hitIdx, positions.length - 1));
+  return pageForContentOffset(mapVal, positions[clamped]);
 }
 
 // ============================================================
@@ -1002,9 +1057,16 @@ function escapeHtml(s) {
 // Display results (full content + multi-hit navigation)
 // ============================================================
 function pdfPageForResult(r) {
-  if (!r || !r.entry) return 1;
-  const mapKey = r.entry.date + '|' + r.entry.raw_date;
-  return getPageNum(pageMap[mapKey]) || 1;
+  return pageForContentOffset(pageMapValueForResult(r), 0) || 1;
+}
+
+function pdfPageLabel(r) {
+  const mapVal = pageMapValueForResult(r);
+  const start = getPageNum(mapVal);
+  const end = getPageEnd(mapVal);
+  if (!start) return '';
+  if (end && end !== start) return 'p.' + start + '–' + end;
+  return 'p.' + start;
 }
 
 function displayResults(results, query) {
@@ -1024,19 +1086,20 @@ function displayResults(results, query) {
     const r = results[i];
     const e = r.entry;
     const pdfPage = pdfPageForResult(r);
+    const pageLabel = pdfPageLabel(r);
     const content = e.content || '';
 
     // Store hit positions for navigation
     currentHitPositions[i] = r.hitPositions;
     currentHitIdx[i] = 0;
 
-    // data-pdf-page keeps the target page on the card for click handlers
+    // data-pdf-page = start page; actual hit page resolved on click / HIT nav
     html += '<div class="result-entry" id="result-' + i + '" data-result-idx="' + i + '" data-pdf-page="' + pdfPage + '" data-entry-idx="' + r.idx + '">';
     html += '<div class="result-header">';
     html += '<span><span class="result-date">' + e.date + '</span>' +
       '<span class="result-raw-date">' + escapeHtml(e.raw_date) + '</span>';
-    if (pdfPage) {
-      html += '<span class="result-page-link" title="Open PDF page ' + pdfPage + '">📄 p.' + pdfPage + '</span>';
+    if (pageLabel) {
+      html += '<span class="result-page-link" title="Open PDF at this entry">📄 ' + pageLabel + '</span>';
     }
     if (e.date_note) {
       html += '<div class="result-note">⚠ ' + escapeHtml(e.date_note) + '</div>';
@@ -1071,45 +1134,42 @@ function displayResults(results, query) {
   window._searchResults = results;
   panel.innerHTML = html;
 
-  // Event delegation: any click in a result card jumps the PDF
+  // Event delegation: any click in a result card jumps the PDF (to the hit's page)
   panel.onclick = function(ev) {
     const entry = ev.target.closest('.result-entry');
     if (!entry || !panel.contains(entry)) return;
 
     const resultIdx = parseInt(entry.getAttribute('data-result-idx'), 10);
-    const pdfPage = parseInt(entry.getAttribute('data-pdf-page'), 10) || 1;
     const entryIdx = parseInt(entry.getAttribute('data-entry-idx'), 10);
 
-    // Hit Prev/Next buttons: step highlight AND keep PDF on this entry's page
+    // Hit Prev/Next: step highlight + PDF page for THAT hit
     const navBtn = ev.target.closest('[data-hit-nav]');
     if (navBtn) {
       ev.preventDefault();
       ev.stopPropagation();
       const dir = parseInt(navBtn.getAttribute('data-hit-nav'), 10) || 0;
       navigateHit(resultIdx, dir);
-      selectResult(resultIdx, pdfPage, entryIdx);
       return;
     }
 
-    // Clicked a specific <mark> hit → jump to that hit index
+    // Clicked a specific <mark> hit → that hit's PDF page
+    let hitIdx = currentHitIdx[resultIdx] || 0;
     const mark = ev.target.closest('mark[id^="hit-"]');
     if (mark) {
       const parts = mark.id.split('-'); // hit, resultIdx, hitIdx
-      const hitIdx = parseInt(parts[2], 10);
-      if (!isNaN(hitIdx)) {
-        currentHitIdx[resultIdx] = hitIdx;
-        updateHitHighlight(resultIdx, hitIdx);
-      }
+      const parsed = parseInt(parts[2], 10);
+      if (!isNaN(parsed)) hitIdx = parsed;
     }
-
-    selectResult(resultIdx, pdfPage, entryIdx);
+    currentHitIdx[resultIdx] = hitIdx;
+    updateHitHighlight(resultIdx, hitIdx);
+    selectResult(resultIdx, pdfPageForHit(resultIdx, hitIdx), entryIdx);
   };
 
-  // Auto-open first result in the PDF panel
+  // Auto-open first result at first hit's page
   if (results.length > 0) {
-    const firstPage = pdfPageForResult(results[0]);
-    selectResult(0, firstPage, results[0].idx);
+    currentHitIdx[0] = 0;
     if (results[0].hits > 0) updateHitHighlight(0, 0);
+    selectResult(0, pdfPageForHit(0, 0), results[0].idx);
   }
 }
 
@@ -1122,17 +1182,17 @@ function selectResult(resultIdx, pdfPage, entryIdx) {
   if (el) el.classList.add('active');
   activeResultIdx = resultIdx;
 
-  // Resolve page from args, data attribute, or page_map
+  // Prefer explicit page; else current hit's page; else entry start
   let page = parseInt(pdfPage, 10);
-  if (!page && el) page = parseInt(el.getAttribute('data-pdf-page'), 10);
-  if (!page && window._searchResults && window._searchResults[resultIdx]) {
-    page = pdfPageForResult(window._searchResults[resultIdx]);
+  if (!page) {
+    const hitIdx = currentHitIdx[resultIdx] || 0;
+    page = pdfPageForHit(resultIdx, hitIdx);
   }
   if (page) renderPdfPage(page);
 }
 
 // ============================================================
-// Navigate between hits within an entry
+// Navigate between hits within an entry (text highlight + PDF page)
 // ============================================================
 function navigateHit(resultIdx, direction) {
   const positions = currentHitPositions[resultIdx];
@@ -1144,6 +1204,11 @@ function navigateHit(resultIdx, direction) {
   currentHitIdx[resultIdx] = idx;
 
   updateHitHighlight(resultIdx, idx);
+
+  // Jump PDF to the page that contains THIS hit (may be later than entry start)
+  const r = window._searchResults && window._searchResults[resultIdx];
+  const entryIdx = r ? r.idx : 0;
+  selectResult(resultIdx, pdfPageForHit(resultIdx, idx), entryIdx);
 }
 
 function updateHitHighlight(resultIdx, hitIdx) {
@@ -1164,6 +1229,24 @@ function updateHitHighlight(resultIdx, hitIdx) {
   // Update the counter display
   const counter = document.getElementById('hitcur-' + resultIdx);
   if (counter) counter.textContent = (hitIdx + 1);
+
+  // Show which PDF page this hit is on (range · current when multi-page)
+  const pageEl = document.getElementById('result-' + resultIdx);
+  if (pageEl) {
+    const link = pageEl.querySelector('.result-page-link');
+    if (link) {
+      const page = pdfPageForHit(resultIdx, hitIdx);
+      const r = window._searchResults && window._searchResults[resultIdx];
+      const mapVal = pageMapValueForResult(r);
+      const start = getPageNum(mapVal);
+      const end = getPageEnd(mapVal);
+      if (start && end && end !== start) {
+        link.textContent = '📄 p.' + start + '–' + end + ' · hit p.' + page;
+      } else {
+        link.textContent = '📄 p.' + page;
+      }
+    }
+  }
 }
 
 // ============================================================

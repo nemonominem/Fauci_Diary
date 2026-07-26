@@ -137,26 +137,104 @@ def format_raw_date(month_txt, day, end_day_s, year):
     return raw
 
 
-def build_page_map():
-    with open(TEXT_PATH, encoding="utf-8") as f:
-        lines = f.readlines()
+def clean_with_pages(line_pages):
+    """Mirror clean_json_breaks.clean_content while tracking PDF page per character.
 
-    # First pass: record the page number for every line index
+    line_pages: list of (line_str, page_number)
+    Returns (cleaned_text, breaks) where breaks is [[char_offset, page], ...]
+    at every page change (including offset 0).
+    """
+    paragraphs = []
+    current = []
+
+    def flush():
+        nonlocal current
+        if current:
+            paragraphs.append(current)
+            current = []
+
+    for line, page in line_pages:
+        s = line.strip()
+        if not s:
+            flush()
+            continue
+        if s.upper().startswith("PRESS:"):
+            flush()
+            current.append((s, page))
+            continue
+        if s.endswith(":") and len(s) < 80:
+            flush()
+            current.append((s, page))
+            continue
+        current.append((s, page))
+    flush()
+
+    cleaned_parts = []
+    char_pages = []
+    for pi, para in enumerate(paragraphs):
+        if pi:
+            cleaned_parts.append("\n\n")
+            char_pages.extend([para[0][1], para[0][1]])
+        first = True
+        for text, page in para:
+            if not first:
+                cleaned_parts.append(" ")
+                char_pages.append(page)
+            t = re.sub(r"\s+", " ", text).strip()
+            cleaned_parts.append(t)
+            char_pages.extend([page] * len(t))
+            first = False
+
+    cleaned = "".join(cleaned_parts)
+    if len(cleaned) != len(char_pages):
+        # Fallback: no per-char map
+        pages = sorted({p for _, p in line_pages}) or [1]
+        return cleaned, [[0, pages[0]]], pages[0], pages[-1]
+
+    breaks = []
+    prev = None
+    for i, p in enumerate(char_pages):
+        if p != prev:
+            breaks.append([i, p])
+            prev = p
+    start = breaks[0][1] if breaks else 1
+    end = breaks[-1][1] if breaks else start
+    return cleaned, breaks, start, end
+
+
+def build_page_map():
+    """Build rich page map: start/end + char-offset breaks for hit→page jumps."""
+    with open(TEXT_PATH, encoding="utf-8") as f:
+        lines = [ln.rstrip("\n") for ln in f.readlines()]
+
     page_of_line = {}
     current_page = 1
-    for i, raw_line in enumerate(lines):
-        line = raw_line.rstrip("\n")
+    for i, line in enumerate(lines):
         m = PAGE_MARKER_RE.match(line.strip())
         if m:
             current_page = int(m.group(1))
         page_of_line[i] = current_page
 
-    # Second pass: find date headers and determine content pages
     page_map = {}
-    pending = None  # {iso, raw, line_idx, content_preview}
+    cur_iso = None
+    cur_raw = None
+    cur_lines = []  # (text, page)
 
-    for i, raw_line in enumerate(lines):
-        line = raw_line.rstrip("\n")
+    def finalize():
+        nonlocal cur_iso, cur_raw, cur_lines
+        if cur_iso is None:
+            return
+        raw_content = "\n".join(t for t, _ in cur_lines).strip()
+        corrected_iso = apply_corrections(cur_iso, cur_raw, raw_content)
+        cleaned, breaks, start, end = clean_with_pages(cur_lines)
+        key = corrected_iso + "|" + cur_raw
+        page_map[key] = {
+            "start": start,
+            "end": end,
+            "breaks": breaks,
+        }
+
+    for i, line in enumerate(lines):
         stripped = line.strip()
         m = DATE_HEADER_RE.match(stripped)
         if m:
@@ -167,69 +245,28 @@ def build_page_map():
             rest_of_line = stripped[m.end():]
 
             if looks_like_article_date(rest_of_line) or looks_like_article_date(stripped):
+                if cur_iso is not None and not is_strip_line(stripped):
+                    cur_lines.append((line, page_of_line[i]))
                 continue
 
             try:
                 month = parse_month(month_txt)
             except KeyError:
+                if cur_iso is not None and not is_strip_line(stripped):
+                    cur_lines.append((line, page_of_line[i]))
                 continue
 
-            iso = safe_date(year, month, day).isoformat()
-            raw = format_raw_date(month_txt, day, end_day_s, year)
-
-            # Finalize previous pending header
-            if pending is not None:
-                header_page = page_of_line[pending["line_idx"]]
-                substantive = 0
-                for j in range(pending["line_idx"] + 1, i):
-                    ln = lines[j].rstrip("\n").strip()
-                    if page_of_line[j] != header_page:
-                        break
-                    if not ln or is_strip_line(ln):
-                        continue
-                    substantive += 1
-
-                if substantive >= 3:
-                    content_page = header_page
-                else:
-                    content_page = header_page + 1
-
-                corrected_iso = apply_corrections(
-                    pending["iso"], pending["raw"], pending.get("content_preview", "")
-                )
-                key = corrected_iso + "|" + pending["raw"]
-                page_map[key] = content_page
-
-            pending = {
-                "iso": iso,
-                "raw": raw,
-                "line_idx": i,
-                "content_preview": rest_of_line,
-            }
-
-    # Finalize last pending header
-    if pending is not None:
-        header_page = page_of_line[pending["line_idx"]]
-        substantive = 0
-        for j in range(pending["line_idx"] + 1, len(lines)):
-            ln = lines[j].rstrip("\n").strip()
-            if page_of_line[j] != header_page:
-                break
-            if not ln or is_strip_line(ln):
-                continue
-            substantive += 1
-
-        if substantive >= 3:
-            content_page = header_page
+            finalize()
+            cur_raw = format_raw_date(month_txt, day, end_day_s, year)
+            cur_iso = safe_date(year, month, day).isoformat()
+            cur_lines = []
+            if rest_of_line.strip():
+                cur_lines.append((rest_of_line, page_of_line[i]))
         else:
-            content_page = header_page + 1
+            if cur_iso is not None and not is_strip_line(stripped):
+                cur_lines.append((line, page_of_line[i]))
 
-        corrected_iso = apply_corrections(
-            pending["iso"], pending["raw"], pending.get("content_preview", "")
-        )
-        key = corrected_iso + "|" + pending["raw"]
-        page_map[key] = content_page
-
+    finalize()
     return page_map
 
 
@@ -239,12 +276,13 @@ def main():
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         json.dump(page_map, f, ensure_ascii=False, indent=2)
 
-    print(f"Wrote {len(page_map)} entries to {OUT_PATH}")
+    multi = sum(1 for v in page_map.values() if v.get("end", v.get("start")) > v.get("start", 0))
+    print(f"Wrote {len(page_map)} entries to {OUT_PATH} ({multi} multi-page)")
 
-    # Show samples around the known problem area
     for k in sorted(page_map.keys()):
-        if "2021-08-1" in k:
-            print(f"  {k} -> {page_map[k]}")
+        if "2021-08-03" in k or "2021-08-15" in k:
+            v = page_map[k]
+            print(f"  {k} -> p.{v['start']}-{v['end']} breaks={v['breaks']}")
 
 
 if __name__ == "__main__":
