@@ -1,6 +1,6 @@
 # Server-based version
 
-Requires Python 3. Self-contained: includes a local `diary.pdf` (same file as `page_based/`).
+Requires Python 3. **Self-contained** — local `diary.pdf` and data files only (no DataWarehouse paths or symlinks).
 
 ## Quick start
 ```bash
