@@ -109,8 +109,8 @@ body {
 .chart-canvas-wrap {
   position: relative; flex: 1; min-height: 0; width: 100%;
 }
-.timeline-main {
-  /* center guide under the shared zero line */
+/* Landscape dual chart: vertical center guide (zero between left/right bars) */
+body.layout-landscape .timeline-main {
   background:
     linear-gradient(to right,
       transparent calc(50% - 0.5px),
@@ -118,6 +118,13 @@ body {
       var(--border-2) calc(50% + 0.5px),
       transparent calc(50% + 0.5px));
 }
+/* Portrait: horizontal time axis — no vertical center rail */
+body.layout-portrait .timeline-main {
+  background: transparent;
+}
+body.layout-portrait .timeline-header-row .th-left { text-align: left; padding-right: 8px; }
+body.layout-portrait .timeline-header-row .th-right { text-align: right; padding-left: 8px; }
+body.layout-portrait .timeline-header-row .th-center { display: none; }
 
 /* ── Layout: Landscape (3 columns) ────────────────────────────────── */
 body.layout-landscape .content-area { flex-direction: row; }
@@ -867,133 +874,235 @@ function redrawTimelines() {
     document.getElementById('chartStats').textContent = 'no hits';
   }
 
-  // Symmetric-ish scale so zero stays near the visual center
-  const maxHits = Math.max(maxEntries, peakHits || 0, 2);
+  const isLandscape = currentLayout === 'landscape';
+  const maxHitsScale = Math.max(maxEntries, peakHits || 0, 2);
 
   const hitColors = hitData.map(function(v) {
     if (v <= 0) return 'rgba(40, 40, 40, 0.12)';
-    const ratio = v / maxHits;
+    const ratio = v / maxHitsScale;
     if (ratio > 0.66) return 'rgba(233,69,96,0.95)';
     if (ratio > 0.33) return 'rgba(255,170,0,0.95)';
     return 'rgba(255,204,0,0.9)';
   });
 
-  // Entries as NEGATIVE values → bars to the LEFT of zero
-  const entryNeg = series.entryCounts.map(function(c) { return -c; });
+  // Header labels depend on orientation
+  const titleLeft = document.querySelector('.timeline-header-row .th-left .chart-title-main');
+  const titleRight = document.querySelector('.timeline-header-row .th-right .chart-title-main');
+  if (titleLeft) titleLeft.textContent = isLandscape ? '← All entries' : 'All entries ↑';
+  if (titleRight) titleRight.textContent = isLandscape ? 'Search hits →' : 'Search hits ↑';
 
   if (timelineChart) timelineChart.destroy();
 
   const ctx = document.getElementById('timelineChart').getContext('2d');
-  timelineChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: series.labels,
-      datasets: [
-        {
-          label: 'Entries',
-          data: entryNeg,
-          backgroundColor: series.entryColors,
-          borderWidth: 0,
-          barPercentage: 1.0,
-          categoryPercentage: 1.0,
-          order: 2,
-        },
-        {
-          label: 'Hits',
-          data: hitData,
-          backgroundColor: hitColors,
-          borderWidth: 0,
-          barPercentage: 1.0,
-          categoryPercentage: 1.0,
-          order: 1,
-        }
-      ]
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      layout: { padding: { top: 0, right: 4, bottom: 0, left: 0 } },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          filter: function(item) {
-            return item.parsed.x !== 0 && item.parsed.x !== null;
+  const timeTickCb = function(val) {
+    const label = this.getLabelForValue(val);
+    if (label && label.slice(8) === '01') return label.slice(0, 7);
+    return '';
+  };
+  const onBarClick = function(evt, elements) {
+    if (!elements.length) return;
+    const idx = elements[0].index;
+    const date = series.labels[idx];
+    if (series.entryCounts[idx] > 0 || hitData[idx] > 0) jumpToDate(date);
+  };
+
+  if (isLandscape) {
+    // ── Landscape: vertical TIME axis; entries LEFT of 0, hits RIGHT ──
+    const entryNeg = series.entryCounts.map(function(c) { return -c; });
+    timelineChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: series.labels,
+        datasets: [
+          {
+            label: 'Entries',
+            data: entryNeg,
+            backgroundColor: series.entryColors,
+            borderWidth: 0,
+            barPercentage: 1.0,
+            categoryPercentage: 1.0,
+            order: 2,
           },
-          callbacks: {
-            title: function(items) { return items[0].label; },
-            label: function(item) {
-              const v = Math.abs(item.parsed.x);
-              if (item.dataset.label === 'Entries') {
-                return v + (v === 1 ? ' entry' : ' entries');
-              }
-              return v + (v === 1 ? ' hit' : ' hits');
-            }
-          },
-          backgroundColor: '#1a1a1a', titleColor: '#e94560',
-          bodyColor: '#d0d0d0', borderColor: '#333', borderWidth: 1,
-        }
+          {
+            label: 'Hits',
+            data: hitData,
+            backgroundColor: hitColors,
+            borderWidth: 0,
+            barPercentage: 1.0,
+            categoryPercentage: 1.0,
+            order: 1,
+          }
+        ]
       },
-      scales: {
-        // Shared horizontal value axis: left = entries, right = hits
-        x: {
-          stacked: false,
-          min: -maxEntries,
-          max: maxHits,
-          grace: 0,
-          ticks: {
-            color: '#666',
-            font: { size: 8 },
-            maxTicksLimit: 7,
-            callback: function(v) {
-              if (v === 0) return '0';
-              return Math.abs(v);
-            }
-          },
-          grid: {
-            color: function(ctx) {
-              return ctx.tick.value === 0
-                ? 'rgba(233,69,96,0.45)'
-                : 'rgba(50,50,50,0.35)';
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        layout: { padding: { top: 0, right: 4, bottom: 0, left: 0 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            filter: function(item) {
+              return item.parsed.x !== 0 && item.parsed.x !== null;
             },
-            lineWidth: function(ctx) {
-              return ctx.tick.value === 0 ? 1.5 : 1;
-            }
-          },
-          border: { display: false },
+            callbacks: {
+              title: function(items) { return items[0].label; },
+              label: function(item) {
+                const v = Math.abs(item.parsed.x);
+                if (item.dataset.label === 'Entries') {
+                  return v + (v === 1 ? ' entry' : ' entries');
+                }
+                return v + (v === 1 ? ' hit' : ' hits');
+              }
+            },
+            backgroundColor: '#1a1a1a', titleColor: '#e94560',
+            bodyColor: '#d0d0d0', borderColor: '#333', borderWidth: 1,
+          }
         },
-        // Shared vertical TIME axis (calendar day). First day at TOP.
-        y: {
-          reverse: false,
-          offset: false,
-          ticks: {
-            color: '#888',
-            autoSkip: true,
-            maxTicksLimit: 30,
-            font: { size: 8 },
-            callback: function(val) {
-              const label = this.getLabelForValue(val);
-              if (label && label.slice(8) === '01') return label.slice(0, 7);
-              return '';
-            }
+        scales: {
+          x: {
+            stacked: false,
+            min: -maxEntries,
+            max: maxHitsScale,
+            grace: 0,
+            ticks: {
+              color: '#666',
+              font: { size: 8 },
+              maxTicksLimit: 7,
+              callback: function(v) {
+                if (v === 0) return '0';
+                return Math.abs(v);
+              }
+            },
+            grid: {
+              color: function(c) {
+                return c.tick.value === 0
+                  ? 'rgba(233,69,96,0.45)'
+                  : 'rgba(50,50,50,0.35)';
+              },
+              lineWidth: function(c) {
+                return c.tick.value === 0 ? 1.5 : 1;
+              }
+            },
+            border: { display: false },
           },
-          grid: {
-            display: true,
-            color: 'rgba(45,45,45,0.3)',
-            drawTicks: false,
-          },
-          border: { display: false },
-        }
-      },
-      onClick: function(evt, elements) {
-        if (!elements.length) return;
-        const idx = elements[0].index;
-        const date = series.labels[idx];
-        if (series.entryCounts[idx] > 0 || hitData[idx] > 0) jumpToDate(date);
+          y: {
+            reverse: false,
+            offset: false,
+            ticks: {
+              color: '#888',
+              autoSkip: true,
+              maxTicksLimit: 30,
+              font: { size: 8 },
+              callback: timeTickCb
+            },
+            grid: {
+              display: true,
+              color: 'rgba(45,45,45,0.3)',
+              drawTicks: false,
+            },
+            border: { display: false },
+          }
+        },
+        onClick: onBarClick
       }
-    }
-  });
+    });
+  } else {
+    // ── Portrait: horizontal TIME axis (left→right); vertical bars ──
+    // Entries and hits as two series of upright bars on the shared date axis.
+    const yMax = Math.max(maxEntries, peakHits || 0, 2);
+    timelineChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: series.labels,
+        datasets: [
+          {
+            label: 'Entries',
+            data: series.entryCounts,
+            backgroundColor: series.entryColors,
+            borderWidth: 0,
+            barPercentage: 1.0,
+            categoryPercentage: 0.9,
+            order: 2,
+          },
+          {
+            label: 'Hits',
+            data: hitData,
+            backgroundColor: hitColors,
+            borderWidth: 0,
+            barPercentage: 1.0,
+            categoryPercentage: 0.9,
+            order: 1,
+          }
+        ]
+      },
+      options: {
+        indexAxis: 'x',
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        layout: { padding: { top: 4, right: 8, bottom: 0, left: 4 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            filter: function(item) {
+              return item.parsed.y !== 0 && item.parsed.y !== null;
+            },
+            callbacks: {
+              title: function(items) { return items[0].label; },
+              label: function(item) {
+                const v = item.parsed.y;
+                if (item.dataset.label === 'Entries') {
+                  return v + (v === 1 ? ' entry' : ' entries');
+                }
+                return v + (v === 1 ? ' hit' : ' hits');
+              }
+            },
+            backgroundColor: '#1a1a1a', titleColor: '#e94560',
+            bodyColor: '#d0d0d0', borderColor: '#333', borderWidth: 1,
+          }
+        },
+        scales: {
+          // TIME left → right
+          x: {
+            offset: false,
+            ticks: {
+              color: '#888',
+              maxRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: 16,
+              font: { size: 9 },
+              callback: timeTickCb
+            },
+            grid: {
+              display: true,
+              color: 'rgba(45,45,45,0.3)',
+              drawTicks: false,
+            },
+            border: { display: false },
+          },
+          // Counts up
+          y: {
+            beginAtZero: true,
+            max: yMax,
+            grace: 0,
+            ticks: {
+              color: '#666',
+              stepSize: 1,
+              font: { size: 8 },
+              maxTicksLimit: 5,
+            },
+            grid: {
+              color: 'rgba(50,50,50,0.35)',
+            },
+            border: { display: false },
+          }
+        },
+        onClick: onBarClick
+      }
+    });
+  }
 }
 
 function drawTimeline() { redrawTimelines(); }
