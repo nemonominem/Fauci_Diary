@@ -195,6 +195,15 @@ body.layout-landscape .results-panel {
 body.layout-landscape .pdf-panel {
   width: 42%; min-width: 380px; border-left: none; border-top: none;
 }
+body.layout-landscape .panel-resizer {
+  display: block; width: 6px; flex-shrink: 0; cursor: col-resize;
+  background: var(--border); position: relative;
+}
+body.layout-landscape .panel-resizer:hover,
+body.layout-landscape .panel-resizer.dragging {
+  background: var(--accent);
+}
+body.layout-portrait .panel-resizer { display: none; }
 
 /* ── Layout: Portrait (stacked) ───────────────────────────────────── */
 body.layout-portrait .content-area { flex-direction: column; }
@@ -406,8 +415,11 @@ mark.hit-current {
     </div>
   </div>
 
+  <!-- ── Drag handle to resize the PDF panel ─────────────────────────── -->
+  <div class="panel-resizer" id="pdfResizer" title="Drag to resize"></div>
+
   <!-- ── PDF panel ────────────────────────────────────────────────── -->
-  <div class="pdf-panel">
+  <div class="pdf-panel" id="pdfPanel">
     <div class="pdf-toolbar">
       <button id="pdfPrev" onclick="pdfPrevPage()">◀ Prev</button>
       <input type="number" class="pdf-page-input" id="pdfPageInput" value="1" min="1" max="1141" onchange="pdfGoToPage(this.value)">
@@ -627,6 +639,9 @@ function switchLayout() {
   currentLayout = currentLayout === 'landscape' ? 'portrait' : 'landscape';
   document.body.className = 'layout-' + currentLayout;
   updateLayoutToggleLabel();
+  if (currentLayout === 'portrait') {
+    document.getElementById('pdfPanel').style.width = '';
+  }
 
   // Keep collapse control consistent with layout
   const panel = document.getElementById('chartsPanel');
@@ -1354,6 +1369,51 @@ window.addEventListener('resize', function() {
     if (diaryData) redrawTimelines();
   }, 150);
 });
+
+// ============================================================
+// PDF page navigation via arrow keys (ignored while typing)
+// ============================================================
+document.addEventListener('keydown', function(e) {
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    pdfPrevPage();
+  } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+    e.preventDefault();
+    pdfNextPage();
+  }
+});
+
+// ============================================================
+// Drag the left border of the PDF panel to resize it (landscape only)
+// ============================================================
+(function() {
+  const resizer = document.getElementById('pdfResizer');
+  const pdfPanel = document.getElementById('pdfPanel');
+  let dragging = false;
+
+  resizer.addEventListener('mousedown', function(e) {
+    if (currentLayout !== 'landscape') return;
+    dragging = true;
+    resizer.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    const contentRect = document.querySelector('.content-area').getBoundingClientRect();
+    let newWidth = contentRect.right - e.clientX;
+    newWidth = Math.max(320, Math.min(contentRect.width - 260, newWidth));
+    pdfPanel.style.width = newWidth + 'px';
+  });
+  document.addEventListener('mouseup', function() {
+    if (!dragging) return;
+    dragging = false;
+    resizer.classList.remove('dragging');
+    document.body.style.userSelect = '';
+  });
+})();
 
 // ============================================================
 // Highlight helper — wraps each hit in a <mark> with an ID

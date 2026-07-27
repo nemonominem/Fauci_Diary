@@ -21,7 +21,23 @@ from datetime import date
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEXT_PATH = os.path.join(HERE, "2026.07.24_Tonys-Diary-Package.txt")
+JSON_PATH = os.path.join(HERE, "2026.07.24_Tonys-Diary-Package.json")
 OUT_PATH = os.path.join(HERE, "page_map.json")
+
+
+def load_expected_entry_counts():
+    """How many real diary entries the content JSON has per ISO date.
+
+    A handful of dates legitimately have two separate entries (e.g.
+    2020-03-29 has both "Mar. 29, 2020" and "March 29, 2020"). Used to tell
+    a genuine second entry for the same date apart from a same-date mention
+    embedded in pasted press content (a byline, a cartoon-list date, etc.)."""
+    with open(JSON_PATH, encoding="utf-8") as f:
+        data = json.load(f)
+    counts = {}
+    for e in data["entries"]:
+        counts[e["date"]] = counts.get(e["date"], 0) + 1
+    return counts
 
 # ── Month / date parsing (mirrors reparse_diary.py) ──────────────────────
 
@@ -212,7 +228,10 @@ def looks_like_bare_link_reference(rest_of_line, lines, i):
     j = i + 1
     while j < len(lines) and not lines[j].strip():
         j += 1
-    return j < len(lines) and lines[j].strip().startswith("http")
+    if j >= len(lines):
+        return False
+    nxt = lines[j].strip().lower()
+    return nxt.startswith("http") or nxt.startswith("sharethis")
 
 
 def build_page_map():
@@ -227,6 +246,9 @@ def build_page_map():
         if m:
             current_page = int(m.group(1))
         page_of_line[i] = current_page
+
+    expected_counts = load_expected_entry_counts()
+    started_counts = {}
 
     page_map = {}
     cur_iso = None
@@ -274,9 +296,24 @@ def build_page_map():
                     cur_lines.append((line, page_of_line[i]))
                 continue
 
+            raw_candidate = format_raw_date(month_txt, day, end_day_s, year)
+            candidate_iso = safe_date(year, month, day).isoformat()
+            corrected_candidate_iso = apply_corrections(candidate_iso, raw_candidate, "")
+            already_started = started_counts.get(corrected_candidate_iso, 0)
+            expected = expected_counts.get(corrected_candidate_iso, 1)
+            if already_started >= expected:
+                # The content JSON says this date already has as many real
+                # entries as expected; this is a same-date self-reference
+                # embedded in pasted press content (a byline, a cartoon-list
+                # date, etc.), not another new entry.
+                if cur_iso is not None and not is_strip_line(stripped):
+                    cur_lines.append((line, page_of_line[i]))
+                continue
+
             finalize()
-            cur_raw = format_raw_date(month_txt, day, end_day_s, year)
-            cur_iso = safe_date(year, month, day).isoformat()
+            started_counts[corrected_candidate_iso] = already_started + 1
+            cur_raw = raw_candidate
+            cur_iso = candidate_iso
             cur_lines = []
             if rest_of_line.strip():
                 cur_lines.append((rest_of_line, page_of_line[i]))
