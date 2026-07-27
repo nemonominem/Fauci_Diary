@@ -57,10 +57,18 @@ body {
 #clearBtn:hover { background: #444; }
 .layout-toggle {
   background: var(--panel-2); color: var(--text); border: 1px solid var(--border-2);
-  padding: 8px 14px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600;
-  white-space: nowrap;
+  padding: 5px 12px; border-radius: 4px; cursor: pointer; font-weight: 600;
+  white-space: nowrap; line-height: 1.15; text-align: center;
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  min-width: 7.5em;
 }
 .layout-toggle:hover { border-color: var(--accent); }
+.layout-toggle .layout-action {
+  font-size: 10px; font-weight: 500; color: var(--muted); letter-spacing: 0.02em;
+}
+.layout-toggle .layout-target {
+  font-size: 13px; font-weight: 700; color: var(--text);
+}
 
 /* ── Charts panel: ONE dual-sided vertical timeline ─────────────────── */
 /* Left half  = all entries (bars grow left of center)                  */
@@ -330,7 +338,10 @@ mark.hit-current {
     <button id="clearBtn" onclick="clearSearch()">Clear</button>
     <button id="helpBtn" onclick="showHelp()" title="Search help" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border-2);padding:8px 12px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">?</button>
   </div>
-  <button class="layout-toggle" id="layoutToggle" onclick="switchLayout()">🖥️ Landscape</button>
+  <button class="layout-toggle" id="layoutToggle" type="button" onclick="switchLayout()" title="Switch layout">
+    <span class="layout-action">Switch to</span>
+    <span class="layout-target">Portrait</span>
+  </button>
   <span class="instructions">Search → click a result to jump to the PDF page. Use HIT navigation to browse all matches in each entry. Press ? for search syntax.</span>
 </div>
 
@@ -563,11 +574,21 @@ function pdfZoom(delta) {
 // ============================================================
 // Layout switching
 // ============================================================
+function updateLayoutToggleLabel() {
+  // Action label = what you switch TO (not current mode)
+  const btn = document.getElementById('layoutToggle');
+  if (!btn) return;
+  const target = currentLayout === 'landscape' ? 'Portrait' : 'Landscape';
+  btn.innerHTML =
+    '<span class="layout-action">Switch to</span>' +
+    '<span class="layout-target">' + target + '</span>';
+  btn.title = 'Switch to ' + target + ' layout';
+}
+
 function switchLayout() {
   currentLayout = currentLayout === 'landscape' ? 'portrait' : 'landscape';
   document.body.className = 'layout-' + currentLayout;
-  const btn = document.getElementById('layoutToggle');
-  btn.textContent = currentLayout === 'landscape' ? '🖥️ Landscape' : '📱 Portrait';
+  updateLayoutToggleLabel();
 
   // Keep collapse control consistent with layout
   const panel = document.getElementById('chartsPanel');
@@ -579,7 +600,7 @@ function switchLayout() {
     cbtn.textContent = collapsed ? '▶' : '▼';
   }
 
-  // Same dual vertical timelines in both layouts — just reflow + redraw
+  // Same dual timelines — reflow + redraw for the new orientation
   if (!collapsed) redrawTimelines();
 }
 
