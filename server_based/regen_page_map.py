@@ -202,6 +202,19 @@ def clean_with_pages(line_pages):
     return cleaned, breaks, start, end
 
 
+def looks_like_bare_link_reference(rest_of_line, lines, i):
+    """Detect date-list lines like 'May 11, 2020' inside 'Other Tatulli
+    cartoons with Lio:' reference blocks — a bare date with nothing else on
+    the line, immediately followed by a URL. Real entry headers always carry
+    same-line content (e.g. the Global/USA case counts)."""
+    if rest_of_line.strip():
+        return False
+    j = i + 1
+    while j < len(lines) and not lines[j].strip():
+        j += 1
+    return j < len(lines) and lines[j].strip().startswith("http")
+
+
 def build_page_map():
     """Build rich page map: start/end + char-offset breaks for hit→page jumps."""
     with open(TEXT_PATH, encoding="utf-8") as f:
@@ -243,6 +256,11 @@ def build_page_map():
             end_day_s = m.group(3)
             year = int(m.group(4))
             rest_of_line = stripped[m.end():]
+
+            if looks_like_bare_link_reference(rest_of_line, lines, i):
+                if cur_iso is not None and not is_strip_line(stripped):
+                    cur_lines.append((line, page_of_line[i]))
+                continue
 
             if looks_like_article_date(rest_of_line) or looks_like_article_date(stripped):
                 if cur_iso is not None and not is_strip_line(stripped):
