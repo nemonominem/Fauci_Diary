@@ -32,16 +32,21 @@ body {
 }
 /* Header */
 .header {
-  background: var(--panel); padding: 10px 16px; border-bottom: 2px solid var(--border);
-  display: flex; align-items: center; gap: 12px; flex-shrink: 0; flex-wrap: wrap;
+  background: var(--panel); padding: 12px 16px; border-bottom: 2px solid var(--border);
+  display: flex; align-items: center; gap: 20px; flex-shrink: 0; flex-wrap: wrap;
 }
-.header h1 { font-size: 18px; color: var(--accent); white-space: nowrap; }
+.title-block { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+.header h1 { font-size: 26px; color: var(--accent); white-space: nowrap; line-height: 1.15; }
 .header .subtitle { font-size: 12px; color: var(--muted); white-space: nowrap; }
-.header .instructions {
-  font-size: 12px; color: var(--muted); margin-left: 4px; max-width: 320px;
-  line-height: 1.4;
+.header .subtitle a { color: var(--muted); text-decoration: underline; }
+.toolbar {
+  background: var(--panel-2); padding: 8px 16px; border-bottom: 2px solid var(--border);
+  display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap;
 }
-.search-bar { flex: 1; display: flex; gap: 8px; max-width: 720px; margin-left: 12px; align-items: center; flex-wrap: wrap; }
+.toolbar .instructions {
+  font-size: 12px; color: var(--muted); line-height: 1.4;
+}
+.search-bar { flex: 1; display: flex; gap: 8px; max-width: 720px; align-items: center; flex-wrap: wrap; }
 #searchInput {
   flex: 1; min-width: 160px; padding: 8px 12px; background: var(--input); border: 1px solid var(--border-2);
   color: #fff; border-radius: 4px; font-size: 14px; outline: none;
@@ -196,7 +201,7 @@ body.layout-portrait .content-area { flex-direction: column; }
 /* Horizontal timelines: keep panel short (~40% of prior 280px / 40vh) */
 body.layout-portrait .charts-panel {
   border-bottom: 2px solid var(--border);
-  height: 112px; max-height: 16vh; min-height: 96px;
+  height: 190px; max-height: 26vh; min-height: 160px;
   flex: 0 0 auto;
 }
 body.layout-portrait .charts-content { padding: 2px 8px 4px; }
@@ -339,10 +344,12 @@ mark.hit-current {
 <body class="layout-landscape">
 
 <div class="header">
-  <h1>📖 Tony's Diary Search</h1>
-  <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank" style="color:var(--muted);text-decoration:underline">Rand Paul's release of Fauci's Diary</a> · 860 entries · Dec 2019 – Dec 2022</span>
+  <div class="title-block">
+    <h1>📖 Tony's Diary Search</h1>
+    <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a> · 860 entries · Dec 2019 – Dec 2022</span>
+  </div>
   <div class="search-bar">
-    <input type="text" id="searchInput" placeholder='Phrase: "conspiracy theory" · words: lab leak · help: ?' onkeydown="if(event.key==='Enter')doSearch()">
+    <input type="text" id="searchInput" placeholder='Phrase: "blue car" · words: happy bunny · help: ?' onkeydown="if(event.key==='Enter')doSearch()">
     <button id="searchBtn" onclick="doSearch()">Search</button>
     <button id="clearBtn" onclick="clearSearch()">Clear</button>
     <label class="case-toggle" title="Off = match any capitalization (default). On = exact capitalization only.">
@@ -351,6 +358,9 @@ mark.hit-current {
     </label>
     <button id="helpBtn" onclick="showHelp()" title="Search help" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border-2);padding:8px 12px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">?</button>
   </div>
+</div>
+
+<div class="toolbar">
   <button class="layout-toggle" id="layoutToggle" type="button" onclick="switchLayout()" title="Switch layout">
     <span class="layout-action">Switch to</span>
     <span class="layout-target">Portrait</span>
@@ -995,12 +1005,12 @@ function buildTimelineSeries() {
   }
 
   const yearColors = {
-    '2019': 'rgba(120, 130, 200, 0.9)',
-    '2020': 'rgba(233, 69, 96, 0.9)',
-    '2021': 'rgba(78, 204, 163, 0.9)',
-    '2022': 'rgba(255, 170, 0, 0.9)',
+    '2019': 'rgba(160, 170, 240, 1)',
+    '2020': 'rgba(255, 90, 120, 1)',
+    '2021': 'rgba(110, 235, 195, 1)',
+    '2022': 'rgba(255, 195, 60, 1)',
   };
-  const gapColor = 'rgba(55, 55, 55, 0.35)';
+  const gapColor = 'rgba(80, 80, 80, 0.4)';
 
   const labels = [];
   const entryCounts = [];
@@ -1092,11 +1102,11 @@ function redrawTimelines() {
   const maxHitsScale = Math.max(maxEntries, peakHits || 0, 2);
 
   const hitColors = hitData.map(function(v) {
-    if (v <= 0) return 'rgba(40, 40, 40, 0.12)';
+    if (v <= 0) return 'rgba(60, 60, 60, 0.15)';
     const ratio = v / maxHitsScale;
-    if (ratio > 0.66) return 'rgba(233,69,96,0.95)';
-    if (ratio > 0.33) return 'rgba(255,170,0,0.95)';
-    return 'rgba(255,204,0,0.9)';
+    if (ratio > 0.66) return 'rgba(255,80,110,1)';
+    if (ratio > 0.33) return 'rgba(255,190,50,1)';
+    return 'rgba(255,224,90,1)';
   });
 
   // Header labels depend on orientation
@@ -1587,11 +1597,11 @@ loadData();
   <div onclick="event.stopPropagation()" style="background:var(--panel);border:2px solid var(--border-2);border-radius:12px;padding:24px 32px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto;color:var(--text);">
     <h2 style="color:var(--accent);margin-bottom:16px;font-size:18px;">🔍 Search Help</h2>
     <table style="width:100%;border-collapse:collapse;font-size:13px;">
-      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">"conspiracy theory"</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0"><b>Exact phrase</b> — double or single quotes; words together in order</td></tr>
+      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">"blue car"</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0"><b>Exact phrase</b> — double or single quotes; words together in order</td></tr>
       <tr><td style="padding:6px 8px;white-space:nowrap;font-family:monospace">blue green</td><td style="padding:6px 12px"><b>AND</b> — both words (any order). Same as <code>blue AND green</code></td></tr>
       <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">blue OR green</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0"><b>OR</b> — either word. <code>|</code> is the same: <code>blue|green</code></td></tr>
       <tr><td style="padding:6px 8px;white-space:nowrap;font-family:monospace">(a OR b) AND c</td><td style="padding:6px 12px"><b>Parentheses</b> — group boolean expressions</td></tr>
-      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">lab*</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0">Wildcard inside a term</td></tr>
+      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">bun*</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0">Wildcard inside a term</td></tr>
     </table>
     <p style="margin-top:12px;font-size:12px;line-height:1.55;font-family:monospace;background:var(--panel-2);padding:10px 12px;border-radius:6px;color:var(--text)">
       ((blue OR green) AND (car | train)) OR 'white plane'
