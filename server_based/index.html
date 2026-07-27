@@ -201,7 +201,7 @@ body.layout-portrait .content-area { flex-direction: column; }
 /* Horizontal timelines: keep panel short (~40% of prior 280px / 40vh) */
 body.layout-portrait .charts-panel {
   border-bottom: 2px solid var(--border);
-  height: 190px; max-height: 26vh; min-height: 160px;
+  height: 145px; max-height: 165px; min-height: 130px;
   flex: 0 0 auto;
 }
 body.layout-portrait .charts-content { padding: 2px 8px 4px; }
@@ -416,6 +416,8 @@ mark.hit-current {
       <span class="pdf-zoom-label" id="pdfZoomLabel">100%</span>
       <button onclick="pdfZoom(-0.2)" style="font-size:12px;padding:4px 8px">−</button>
       <button onclick="pdfZoom(0.2)" style="font-size:12px;padding:4px 8px">+</button>
+      <button onclick="pdfFit('width')" title="Fit width" style="font-size:12px;padding:4px 8px">↔ Width</button>
+      <button onclick="pdfFit('height')" title="Fit height" style="font-size:12px;padding:4px 8px">↕ Height</button>
     </div>
     <div class="pdf-viewer-container" id="pdfViewerContainer">
       <div class="pdf-loading" id="pdfLoading">
@@ -587,6 +589,19 @@ function pdfNextPage() {
 function pdfGoToPage(pageStr) {
   const p = parseInt(pageStr);
   if (p >= 1 && pdfDoc && p <= pdfDoc.numPages) renderPdfPage(p);
+}
+async function pdfFit(mode) {
+  if (!pdfDoc) return;
+  const page = await pdfDoc.getPage(currentPage);
+  const viewport = page.getViewport({ scale: 1 });
+  const container = document.getElementById('pdfViewerContainer');
+  const padding = 24; // 12px on each side
+  const availW = container.clientWidth - padding;
+  const availH = container.clientHeight - padding;
+  const scale = mode === 'width' ? availW / viewport.width : availH / viewport.height;
+  pdfScale = Math.max(0.4, Math.min(3.0, scale));
+  document.getElementById('pdfZoomLabel').textContent = Math.round(pdfScale * 100) + '%';
+  renderPdfPage(currentPage);
 }
 function pdfZoom(delta) {
   pdfScale = Math.max(0.4, Math.min(3.0, pdfScale + delta));
