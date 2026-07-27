@@ -41,9 +41,9 @@ body {
   font-size: 12px; color: var(--muted); margin-left: 4px; max-width: 320px;
   line-height: 1.4;
 }
-.search-bar { flex: 1; display: flex; gap: 8px; max-width: 600px; margin-left: 12px; }
+.search-bar { flex: 1; display: flex; gap: 8px; max-width: 720px; margin-left: 12px; align-items: center; flex-wrap: wrap; }
 #searchInput {
-  flex: 1; padding: 8px 12px; background: var(--input); border: 1px solid var(--border-2);
+  flex: 1; min-width: 160px; padding: 8px 12px; background: var(--input); border: 1px solid var(--border-2);
   color: #fff; border-radius: 4px; font-size: 14px; outline: none;
 }
 #searchInput:focus { border-color: var(--accent); }
@@ -55,6 +55,15 @@ body {
 #searchBtn:hover { background: #c81e4a; }
 #clearBtn { background: var(--border-2); color: var(--text); }
 #clearBtn:hover { background: #444; }
+.case-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--muted); white-space: nowrap; cursor: pointer;
+  user-select: none; padding: 6px 8px; border: 1px solid var(--border-2);
+  border-radius: 4px; background: var(--panel-2);
+}
+.case-toggle:hover { border-color: var(--accent); color: var(--text); }
+.case-toggle input { accent-color: var(--accent); cursor: pointer; }
+.case-toggle strong { color: var(--text); font-weight: 600; }
 .layout-toggle {
   background: var(--panel-2); color: var(--text); border: 1px solid var(--border-2);
   padding: 5px 12px; border-radius: 4px; cursor: pointer; font-weight: 600;
@@ -333,9 +342,13 @@ mark.hit-current {
   <h1>📖 Tony's Diary Search</h1>
   <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank" style="color:var(--muted);text-decoration:underline">Rand Paul's release of Fauci's Diary</a> · 860 entries · Dec 2019 – Dec 2022</span>
   <div class="search-bar">
-    <input type="text" id="searchInput" placeholder="Search diary text (e.g. 'lab leak', 'PEPFAR', 'Wuhan', 'Rand Paul')..." onkeydown="if(event.key==='Enter')doSearch()">
+    <input type="text" id="searchInput" placeholder='Phrase: "conspiracy theory" · words: lab leak · help: ?' onkeydown="if(event.key==='Enter')doSearch()">
     <button id="searchBtn" onclick="doSearch()">Search</button>
     <button id="clearBtn" onclick="clearSearch()">Clear</button>
+    <label class="case-toggle" title="Off = match any capitalization (default). On = exact capitalization only.">
+      <input type="checkbox" id="caseSensitive" onchange="if(document.getElementById('searchInput').value.trim())doSearch()">
+      <span><strong>Aa</strong> case sensitive</span>
+    </label>
     <button id="helpBtn" onclick="showHelp()" title="Search help" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border-2);padding:8px 12px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">?</button>
   </div>
   <button class="layout-toggle" id="layoutToggle" type="button" onclick="switchLayout()" title="Switch layout">
@@ -688,11 +701,17 @@ function pdfPageForHit(resultIdx, hitIdx) {
 }
 
 // ============================================================
-// Search (AND / OR / wildcard / regex + hit positions for nav)
+// Search (AND / OR / phrase / wildcard / regex + hit positions)
 // ============================================================
-function collectRegexHits(text, pattern) {
+function isCaseSensitive() {
+  const el = document.getElementById('caseSensitive');
+  return !!(el && el.checked);
+}
+
+function collectRegexHits(text, pattern, caseSensitive) {
   const positions = [];
-  const re = new RegExp(pattern, 'gi');
+  const flags = caseSensitive ? 'g' : 'gi';
+  const re = new RegExp(pattern, flags);
   let m;
   while ((m = re.exec(text)) !== null) {
     positions.push(m.index);
@@ -704,32 +723,50 @@ function collectRegexHits(text, pattern) {
   return positions;
 }
 
+/** Turn query into a regex pattern, or null to use plain AND/OR word search. */
+function buildSearchPattern(raw) {
+  // Exact phrase: "conspiracy theory" or 'conspiracy theory'
+  const phraseOnly = raw.match(/^["']([^"']+)["']$/);
+  if (phraseOnly) {
+    return phraseOnly[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  const hasSpecial = /[|()*?+[\]{}^$\\"]/.test(raw) || /'[^']+'/.test(raw);
+  if (!hasSpecial) return null;
+
+  let pattern = raw;
+  // Quoted phrases (double or single) → literal substrings
+  pattern = pattern.replace(/"([^"]+)"/g, function(_, phrase) {
+    return phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  });
+  pattern = pattern.replace(/'([^']+)'/g, function(_, phrase) {
+    return phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  });
+  // Escape literal dots but keep regex operators
+  pattern = pattern.replace(/\./g, '\\.');
+  // Convert * to .* for wildcard
+  pattern = pattern.replace(/\*/g, '.*');
+  return pattern;
+}
+
 function doSearch() {
   const raw = document.getElementById('searchInput').value.trim();
   if (!raw || !diaryData) return;
 
+  const caseSensitive = isCaseSensitive();
   const results = [];
-  const hasSpecial = /[|()*?+[\]{}^$\\"]/.test(raw);
+  const pattern = buildSearchPattern(raw);
 
   for (let i = 0; i < diaryData.entries.length; i++) {
     const entry = diaryData.entries[i];
     const text = entry.content || '';
-    const lowerText = text.toLowerCase();
+    const cmpText = caseSensitive ? text : text.toLowerCase();
     let hitPositions = [];
     let matched = false;
 
-    if (hasSpecial) {
+    if (pattern !== null) {
       try {
-        let pattern = raw;
-        // Quoted phrases → exact substring (escaped)
-        pattern = pattern.replace(/"([^"]+)"/g, function(_, phrase) {
-          return phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        });
-        // Escape literal dots but keep regex operators
-        pattern = pattern.replace(/\./g, '\\.');
-        // Convert * to .* for wildcard
-        pattern = pattern.replace(/\*/g, '.*');
-        hitPositions = collectRegexHits(text, pattern);
+        hitPositions = collectRegexHits(text, pattern, caseSensitive);
         if (hitPositions.length > 0) matched = true;
       } catch (e) {
         matched = false;
@@ -737,19 +774,23 @@ function doSearch() {
       }
     }
 
-    if (!matched) {
-      // OR groups, each with AND-of-words
-      const orTerms = raw.split('|').map(t => t.trim()).filter(t => t.length > 0);
+    if (!matched && pattern === null) {
+      // Plain words: OR groups (via |), each with AND-of-words (spaces)
+      // Example:  conspiracy theory  → both words, any order (not a phrase)
+      // Example:  "conspiracy theory" → handled above as exact phrase
+      const orTerms = raw.split('|').map(function(t) { return t.trim(); }).filter(function(t) { return t.length > 0; });
       const positions = [];
-      for (const orTerm of orTerms) {
-        const words = orTerm.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+      for (let oi = 0; oi < orTerms.length; oi++) {
+        const words = orTerms[oi].split(/\s+/).filter(function(t) { return t.length > 0; })
+          .map(function(w) { return caseSensitive ? w : w.toLowerCase(); });
         if (words.length === 0) continue;
         let allMatch = true;
         const groupPos = [];
-        for (const word of words) {
+        for (let wi = 0; wi < words.length; wi++) {
+          const word = words[wi];
           let idx = 0;
           let found = false;
-          while ((idx = lowerText.indexOf(word, idx)) !== -1) {
+          while ((idx = cmpText.indexOf(word, idx)) !== -1) {
             groupPos.push(idx);
             found = true;
             idx += word.length;
@@ -1164,25 +1205,11 @@ window.addEventListener('resize', function() {
 function highlightWithHits(text, query, resultIdx) {
   if (!query) return escapeHtml(text);
 
-  let pattern = null;
-  const hasSpecial = /[|()*?+[\]{}^$\\"]/.test(query);
-  if (hasSpecial) {
-    try {
-      pattern = query;
-      pattern = pattern.replace(/"([^"]+)"/g, function(_, phrase) {
-        return phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      });
-      pattern = pattern.replace(/\./g, '\\.');
-      pattern = pattern.replace(/\*/g, '.*');
-      // Validate
-      new RegExp(pattern, 'gi');
-    } catch (e) {
-      pattern = null;
-    }
-  }
-  if (!pattern) {
-    // OR of words: highlight any of the individual tokens
-    const terms = query.toLowerCase().split(/[|\s]+/).filter(function(t) { return t.length > 0; });
+  const caseSensitive = isCaseSensitive();
+  let pattern = buildSearchPattern(query);
+  if (pattern === null) {
+    // Plain AND/OR words: highlight any of the tokens
+    const terms = query.split(/[|\s]+/).filter(function(t) { return t.length > 0; });
     if (terms.length === 0) return escapeHtml(text);
     const escapedTerms = terms.map(function(t) {
       return t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1190,7 +1217,12 @@ function highlightWithHits(text, query, resultIdx) {
     pattern = escapedTerms.join('|');
   }
 
-  const regex = new RegExp('(' + pattern + ')', 'gi');
+  let regex;
+  try {
+    regex = new RegExp('(' + pattern + ')', caseSensitive ? 'g' : 'gi');
+  } catch (e) {
+    return escapeHtml(text);
+  }
   let hitCount = 0;
   return escapeHtml(text).replace(regex, function(match) {
     const id = 'hit-' + resultIdx + '-' + hitCount;
@@ -1416,13 +1448,18 @@ loadData();
   <div onclick="event.stopPropagation()" style="background:var(--panel);border:2px solid var(--border-2);border-radius:12px;padding:24px 32px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto;color:var(--text);">
     <h2 style="color:var(--accent);margin-bottom:16px;font-size:18px;">🔍 Search Help</h2>
     <table style="width:100%;border-collapse:collapse;font-size:13px;">
-      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">word1 word2</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0">AND — matches entries containing both words</td></tr>
-      <tr><td style="padding:6px 8px;white-space:nowrap;font-family:monospace">word1|word2</td><td style="padding:6px 12px">OR — matches entries containing either word</td></tr>
-      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">lab*</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0">Wildcard — matches "lab", "laboratory", etc.</td></tr>
-      <tr><td style="padding:6px 8px;white-space:nowrap;font-family:monospace">(wuhan|Wuhan)</td><td style="padding:6px 12px">Regex — full JavaScript regex when special chars are present</td></tr>
-      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">"gain of function"</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0">Exact phrase — matches the quoted string</td></tr>
+      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">"conspiracy theory"</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0"><b>Exact phrase</b> — use double quotes (or single quotes). Words must appear together in that order. Example: <code>"conspiracy theory"</code></td></tr>
+      <tr><td style="padding:6px 8px;white-space:nowrap;font-family:monospace">conspiracy theory</td><td style="padding:6px 12px"><b>AND (not a phrase)</b> — both words somewhere in the entry, any order, not necessarily adjacent</td></tr>
+      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">word1|word2</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0">OR — either word</td></tr>
+      <tr><td style="padding:6px 8px;white-space:nowrap;font-family:monospace">lab*</td><td style="padding:6px 12px">Wildcard — lab, laboratory, …</td></tr>
+      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">(wuhan|lab)</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0">Regex when special characters are present</td></tr>
     </table>
-    <p style="margin-top:16px;font-size:12px;color:var(--muted);">Results are sorted by number of hits (descending). Click a result header to jump the PDF viewer. Use HIT Prev/Next to step through matches in an entry.</p>
+    <p style="margin-top:14px;font-size:13px;line-height:1.5">
+      <b>Case sensitivity</b> — default is <b>not</b> case sensitive (<code>Conspiracy</code> = <code>conspiracy</code>).
+      Check the <b>Aa case sensitive</b> box next to Search to require exact capitalization
+      (e.g. <code>PEPFAR</code> will not match <code>pepfar</code>).
+    </p>
+    <p style="margin-top:10px;font-size:12px;color:var(--muted);">Results are sorted by hit count. Click a result or highlighted hit to open the PDF page. Use HIT Prev/Next to step through matches.</p>
     <button onclick="hideHelp()" style="margin-top:12px;background:var(--accent);color:#fff;border:none;padding:8px 24px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">Got it</button>
   </div>
 </div>
