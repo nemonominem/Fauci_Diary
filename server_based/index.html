@@ -128,11 +128,23 @@ body.layout-portrait .timeline-header-row .th-center { display: none; }
 
 /* ── Layout: Landscape (3 columns) ────────────────────────────────── */
 body.layout-landscape .content-area { flex-direction: row; }
+/* Vertical timelines: keep panel slim (~40% of prior 300px) */
 body.layout-landscape .charts-panel {
-  width: 300px; min-width: 240px; border-right: 2px solid var(--border); border-bottom: none;
+  width: 120px; min-width: 100px; max-width: 140px;
+  border-right: 2px solid var(--border); border-bottom: none;
   align-self: stretch;
 }
-body.layout-landscape .charts-content { flex: 1; }
+body.layout-landscape .charts-content { flex: 1; padding: 4px 4px 6px; }
+body.layout-landscape .timeline-header-row {
+  flex-direction: column; gap: 2px; margin-bottom: 2px;
+}
+body.layout-landscape .timeline-header-row .th-left,
+body.layout-landscape .timeline-header-row .th-right {
+  text-align: center; padding: 0;
+}
+body.layout-landscape .timeline-header-row .th-center { display: none; }
+body.layout-landscape .chart-title-main { font-size: 10px; }
+body.layout-landscape .chart-block-stats { font-size: 9px; }
 /* Collapsed = thin vertical rail only (releases width to results) */
 body.layout-landscape .charts-panel.collapsed {
   width: 36px;
@@ -164,13 +176,22 @@ body.layout-landscape .pdf-panel {
 
 /* ── Layout: Portrait (stacked) ───────────────────────────────────── */
 body.layout-portrait .content-area { flex-direction: column; }
+/* Horizontal timelines: keep panel short (~40% of prior 280px / 40vh) */
 body.layout-portrait .charts-panel {
-  border-bottom: 2px solid var(--border); height: 280px; max-height: 40vh;
+  border-bottom: 2px solid var(--border);
+  height: 112px; max-height: 16vh; min-height: 96px;
+  flex: 0 0 auto;
 }
+body.layout-portrait .charts-content { padding: 2px 8px 4px; }
+body.layout-portrait .timeline-header-row { margin-bottom: 0; }
+body.layout-portrait .chart-block-title,
+body.layout-portrait .chart-title-main { font-size: 10px; min-height: 0; }
+body.layout-portrait .chart-block-stats { font-size: 9px; }
 /* Collapsed = header bar only (releases height to results) */
 body.layout-portrait .charts-panel.collapsed {
   height: auto;
   max-height: none;
+  min-height: 0;
   flex: 0 0 auto;
 }
 body.layout-portrait .results-panel {
