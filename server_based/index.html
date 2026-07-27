@@ -701,17 +701,41 @@ function pdfPageForHit(resultIdx, hitIdx) {
 }
 
 // ============================================================
-// Search (AND / OR / phrase / wildcard / regex + hit positions)
+// Search — boolean expressions with AND / OR / | / () / phrases
+// ============================================================
+// Examples:
+//   "conspiracy theory"              exact phrase
+//   conspiracy theory                AND (both words, any order)
+//   blue|green                       OR
+//   ((blue OR green) AND (car|train)) OR 'white plane'
+// Case: checkbox “Aa case sensitive” (default off = ignore case)
 // ============================================================
 function isCaseSensitive() {
   const el = document.getElementById('caseSensitive');
   return !!(el && el.checked);
 }
 
-function collectRegexHits(text, pattern, caseSensitive) {
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function findAllPositions(text, term, caseSensitive) {
   const positions = [];
+  if (!term) return positions;
+  // Wildcard * in a term → .*
+  let pattern;
+  if (term.indexOf('*') >= 0) {
+    pattern = term.split('*').map(escapeRegex).join('.*');
+  } else {
+    pattern = escapeRegex(term);
+  }
   const flags = caseSensitive ? 'g' : 'gi';
-  const re = new RegExp(pattern, flags);
+  let re;
+  try {
+    re = new RegExp(pattern, flags);
+  } catch (e) {
+    return positions;
+  }
   let m;
   while ((m = re.exec(text)) !== null) {
     positions.push(m.index);
@@ -723,30 +747,163 @@ function collectRegexHits(text, pattern, caseSensitive) {
   return positions;
 }
 
-/** Turn query into a regex pattern, or null to use plain AND/OR word search. */
-function buildSearchPattern(raw) {
-  // Exact phrase: "conspiracy theory" or 'conspiracy theory'
-  const phraseOnly = raw.match(/^["']([^"']+)["']$/);
-  if (phraseOnly) {
-    return phraseOnly[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/**
+ * Tokenize a boolean query.
+ * Tokens: PHRASE, WORD, AND, OR, LP, RP
+ */
+function tokenizeQuery(raw) {
+  const tokens = [];
+  let i = 0;
+  const n = raw.length;
+  while (i < n) {
+    const ch = raw[i];
+    if (/\s/.test(ch)) { i++; continue; }
+    if (ch === '(') { tokens.push({ type: 'LP' }); i++; continue; }
+    if (ch === ')') { tokens.push({ type: 'RP' }); i++; continue; }
+    if (ch === '|') { tokens.push({ type: 'OR' }); i++; continue; }
+    if (ch === '"' || ch === "'") {
+      const q = ch;
+      i++;
+      let s = '';
+      while (i < n && raw[i] !== q) { s += raw[i]; i++; }
+      if (i < n && raw[i] === q) i++; // closing quote
+      tokens.push({ type: 'TERM', value: s });
+      continue;
+    }
+    // Word / operator
+    let w = '';
+    while (i < n && !/\s/.test(raw[i]) && raw[i] !== '(' && raw[i] !== ')' && raw[i] !== '|' && raw[i] !== '"' && raw[i] !== "'") {
+      w += raw[i];
+      i++;
+    }
+    if (!w) { i++; continue; }
+    const up = w.toUpperCase();
+    if (up === 'AND' || up === '&&') tokens.push({ type: 'AND' });
+    else if (up === 'OR' || up === '||') tokens.push({ type: 'OR' });
+    else tokens.push({ type: 'TERM', value: w });
+  }
+  return tokens;
+}
+
+/**
+ * Parse tokens into AST.
+ *   orExpr  := andExpr (OR andExpr)*
+ *   andExpr := unary (AND unary | unary)*   // juxtaposition = AND
+ *   unary   := TERM | PHRASE | ( orExpr )
+ */
+function parseQuery(tokens) {
+  let pos = 0;
+  function peek() { return tokens[pos]; }
+  function take() { return tokens[pos++]; }
+
+  function parseOr() {
+    let left = parseAnd();
+    while (peek() && peek().type === 'OR') {
+      take();
+      const right = parseAnd();
+      left = { op: 'OR', left: left, right: right };
+    }
+    return left;
   }
 
-  const hasSpecial = /[|()*?+[\]{}^$\\"]/.test(raw) || /'[^']+'/.test(raw);
-  if (!hasSpecial) return null;
+  function parseAnd() {
+    let left = parseUnary();
+    if (!left) return null;
+    while (peek()) {
+      const t = peek();
+      if (t.type === 'OR' || t.type === 'RP') break;
+      if (t.type === 'AND') {
+        take();
+        const right = parseUnary();
+        if (!right) break;
+        left = { op: 'AND', left: left, right: right };
+        continue;
+      }
+      // Implicit AND: next term or group
+      if (t.type === 'TERM' || t.type === 'LP') {
+        const right = parseUnary();
+        if (!right) break;
+        left = { op: 'AND', left: left, right: right };
+        continue;
+      }
+      break;
+    }
+    return left;
+  }
 
-  let pattern = raw;
-  // Quoted phrases (double or single) → literal substrings
-  pattern = pattern.replace(/"([^"]+)"/g, function(_, phrase) {
-    return phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  });
-  pattern = pattern.replace(/'([^']+)'/g, function(_, phrase) {
-    return phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  });
-  // Escape literal dots but keep regex operators
-  pattern = pattern.replace(/\./g, '\\.');
-  // Convert * to .* for wildcard
-  pattern = pattern.replace(/\*/g, '.*');
-  return pattern;
+  function parseUnary() {
+    const t = peek();
+    if (!t) return null;
+    if (t.type === 'LP') {
+      take();
+      const inner = parseOr();
+      if (peek() && peek().type === 'RP') take();
+      return inner;
+    }
+    if (t.type === 'TERM') {
+      take();
+      return { op: 'TERM', value: t.value };
+    }
+    // Skip stray AND/OR
+    if (t.type === 'AND' || t.type === 'OR') {
+      take();
+      return parseUnary();
+    }
+    return null;
+  }
+
+  const ast = parseOr();
+  return ast;
+}
+
+/** Evaluate AST against entry text → { matched, positions, terms } */
+function evalQuery(ast, text, caseSensitive) {
+  if (!ast) return { matched: false, positions: [], terms: [] };
+
+  if (ast.op === 'TERM') {
+    const positions = findAllPositions(text, ast.value, caseSensitive);
+    return {
+      matched: positions.length > 0,
+      positions: positions,
+      terms: [ast.value]
+    };
+  }
+
+  if (ast.op === 'OR') {
+    const a = evalQuery(ast.left, text, caseSensitive);
+    const b = evalQuery(ast.right, text, caseSensitive);
+    const matched = a.matched || b.matched;
+    const positions = matched
+      ? Array.from(new Set(a.positions.concat(b.positions))).sort(function(x, y) { return x - y; })
+      : [];
+    // Only keep terms from sides that matched (cleaner highlights)
+    const terms = [];
+    if (a.matched) terms.push.apply(terms, a.terms);
+    if (b.matched) terms.push.apply(terms, b.terms);
+    return { matched: matched, positions: positions, terms: terms };
+  }
+
+  if (ast.op === 'AND') {
+    const a = evalQuery(ast.left, text, caseSensitive);
+    const b = evalQuery(ast.right, text, caseSensitive);
+    const matched = a.matched && b.matched;
+    const positions = matched
+      ? Array.from(new Set(a.positions.concat(b.positions))).sort(function(x, y) { return x - y; })
+      : [];
+    const terms = matched ? a.terms.concat(b.terms) : [];
+    return { matched: matched, positions: positions, terms: terms };
+  }
+
+  return { matched: false, positions: [], terms: [] };
+}
+
+/** Collect leaf terms from AST for highlighting (all leaves). */
+function collectTerms(ast, out) {
+  if (!ast) return out;
+  if (ast.op === 'TERM') { out.push(ast.value); return out; }
+  collectTerms(ast.left, out);
+  collectTerms(ast.right, out);
+  return out;
 }
 
 function doSearch() {
@@ -754,64 +911,37 @@ function doSearch() {
   if (!raw || !diaryData) return;
 
   const caseSensitive = isCaseSensitive();
-  const results = [];
-  const pattern = buildSearchPattern(raw);
+  let ast = null;
+  try {
+    ast = parseQuery(tokenizeQuery(raw));
+  } catch (e) {
+    console.error('Query parse error:', e);
+    ast = null;
+  }
+  if (!ast) return;
 
+  const results = [];
   for (let i = 0; i < diaryData.entries.length; i++) {
     const entry = diaryData.entries[i];
     const text = entry.content || '';
-    const cmpText = caseSensitive ? text : text.toLowerCase();
-    let hitPositions = [];
-    let matched = false;
-
-    if (pattern !== null) {
-      try {
-        hitPositions = collectRegexHits(text, pattern, caseSensitive);
-        if (hitPositions.length > 0) matched = true;
-      } catch (e) {
-        matched = false;
-        hitPositions = [];
-      }
-    }
-
-    if (!matched && pattern === null) {
-      // Plain words: OR groups (via |), each with AND-of-words (spaces)
-      // Example:  conspiracy theory  → both words, any order (not a phrase)
-      // Example:  "conspiracy theory" → handled above as exact phrase
-      const orTerms = raw.split('|').map(function(t) { return t.trim(); }).filter(function(t) { return t.length > 0; });
-      const positions = [];
-      for (let oi = 0; oi < orTerms.length; oi++) {
-        const words = orTerms[oi].split(/\s+/).filter(function(t) { return t.length > 0; })
-          .map(function(w) { return caseSensitive ? w : w.toLowerCase(); });
-        if (words.length === 0) continue;
-        let allMatch = true;
-        const groupPos = [];
-        for (let wi = 0; wi < words.length; wi++) {
-          const word = words[wi];
-          let idx = 0;
-          let found = false;
-          while ((idx = cmpText.indexOf(word, idx)) !== -1) {
-            groupPos.push(idx);
-            found = true;
-            idx += word.length;
-          }
-          if (!found) {
-            allMatch = false;
-            break;
-          }
-        }
-        if (allMatch) {
-          positions.push.apply(positions, groupPos);
-          matched = true;
-        }
-      }
-      if (matched) {
-        hitPositions = Array.from(new Set(positions)).sort(function(a, b) { return a - b; });
-      }
-    }
-
-    if (matched && hitPositions.length > 0) {
-      results.push({ idx: i, entry: entry, hits: hitPositions.length, hitPositions: hitPositions });
+    const ev = evalQuery(ast, text, caseSensitive);
+    if (ev.matched && ev.positions.length > 0) {
+      results.push({
+        idx: i,
+        entry: entry,
+        hits: ev.positions.length,
+        hitPositions: ev.positions,
+        matchTerms: ev.terms
+      });
+    } else if (ev.matched) {
+      // Expression matched but no char offsets (shouldn't happen for TERM leaves)
+      results.push({
+        idx: i,
+        entry: entry,
+        hits: 1,
+        hitPositions: [0],
+        matchTerms: ev.terms
+      });
     }
   }
 
@@ -819,6 +949,7 @@ function doSearch() {
 
   lastSearchResults = results;
   lastSearchQuery = raw;
+  window._lastSearchAst = ast;
   currentHitPositions = {};
   currentHitIdx = {};
 
@@ -1206,20 +1337,28 @@ function highlightWithHits(text, query, resultIdx) {
   if (!query) return escapeHtml(text);
 
   const caseSensitive = isCaseSensitive();
-  let pattern = buildSearchPattern(query);
-  if (pattern === null) {
-    // Plain AND/OR words: highlight any of the tokens
-    const terms = query.split(/[|\s]+/).filter(function(t) { return t.length > 0; });
-    if (terms.length === 0) return escapeHtml(text);
-    const escapedTerms = terms.map(function(t) {
-      return t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    });
-    pattern = escapedTerms.join('|');
+  // Prefer terms that actually matched this result (from boolean eval)
+  let terms = [];
+  const r = window._searchResults && window._searchResults[resultIdx];
+  if (r && r.matchTerms && r.matchTerms.length) {
+    terms = r.matchTerms.slice();
+  } else if (window._lastSearchAst) {
+    terms = collectTerms(window._lastSearchAst, []);
+  } else {
+    terms = [query];
   }
+  // Unique, longest first so phrases win over sub-words
+  terms = Array.from(new Set(terms)).filter(function(t) { return t && t.length; })
+    .sort(function(a, b) { return b.length - a.length; });
+  if (!terms.length) return escapeHtml(text);
 
+  const parts = terms.map(function(t) {
+    if (t.indexOf('*') >= 0) return t.split('*').map(escapeRegex).join('.*');
+    return escapeRegex(t);
+  });
   let regex;
   try {
-    regex = new RegExp('(' + pattern + ')', caseSensitive ? 'g' : 'gi');
+    regex = new RegExp('(' + parts.join('|') + ')', caseSensitive ? 'g' : 'gi');
   } catch (e) {
     return escapeHtml(text);
   }
@@ -1448,18 +1587,24 @@ loadData();
   <div onclick="event.stopPropagation()" style="background:var(--panel);border:2px solid var(--border-2);border-radius:12px;padding:24px 32px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto;color:var(--text);">
     <h2 style="color:var(--accent);margin-bottom:16px;font-size:18px;">🔍 Search Help</h2>
     <table style="width:100%;border-collapse:collapse;font-size:13px;">
-      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">"conspiracy theory"</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0"><b>Exact phrase</b> — use double quotes (or single quotes). Words must appear together in that order. Example: <code>"conspiracy theory"</code></td></tr>
-      <tr><td style="padding:6px 8px;white-space:nowrap;font-family:monospace">conspiracy theory</td><td style="padding:6px 12px"><b>AND (not a phrase)</b> — both words somewhere in the entry, any order, not necessarily adjacent</td></tr>
-      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">word1|word2</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0">OR — either word</td></tr>
-      <tr><td style="padding:6px 8px;white-space:nowrap;font-family:monospace">lab*</td><td style="padding:6px 12px">Wildcard — lab, laboratory, …</td></tr>
-      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">(wuhan|lab)</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0">Regex when special characters are present</td></tr>
+      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">"conspiracy theory"</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0"><b>Exact phrase</b> — double or single quotes; words together in order</td></tr>
+      <tr><td style="padding:6px 8px;white-space:nowrap;font-family:monospace">blue green</td><td style="padding:6px 12px"><b>AND</b> — both words (any order). Same as <code>blue AND green</code></td></tr>
+      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">blue OR green</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0"><b>OR</b> — either word. <code>|</code> is the same: <code>blue|green</code></td></tr>
+      <tr><td style="padding:6px 8px;white-space:nowrap;font-family:monospace">(a OR b) AND c</td><td style="padding:6px 12px"><b>Parentheses</b> — group boolean expressions</td></tr>
+      <tr><td style="padding:6px 8px;background:var(--panel-2);border-radius:4px 0 0 4px;white-space:nowrap;font-family:monospace">lab*</td><td style="padding:6px 12px;background:var(--panel-2);border-radius:0 4px 4px 0">Wildcard inside a term</td></tr>
     </table>
-    <p style="margin-top:14px;font-size:13px;line-height:1.5">
-      <b>Case sensitivity</b> — default is <b>not</b> case sensitive (<code>Conspiracy</code> = <code>conspiracy</code>).
-      Check the <b>Aa case sensitive</b> box next to Search to require exact capitalization
-      (e.g. <code>PEPFAR</code> will not match <code>pepfar</code>).
+    <p style="margin-top:12px;font-size:12px;line-height:1.55;font-family:monospace;background:var(--panel-2);padding:10px 12px;border-radius:6px;color:var(--text)">
+      ((blue OR green) AND (car | train)) OR 'white plane'
     </p>
-    <p style="margin-top:10px;font-size:12px;color:var(--muted);">Results are sorted by hit count. Click a result or highlighted hit to open the PDF page. Use HIT Prev/Next to step through matches.</p>
+    <p style="margin-top:8px;font-size:12px;color:var(--muted);line-height:1.5">
+      Means: (blue or green) together with (car or train), <b>or</b> the exact phrase “white plane”.
+      <code>OR</code>/<code>AND</code> may be written in any case; <code>|</code> = OR; spaces between terms = AND.
+    </p>
+    <p style="margin-top:14px;font-size:13px;line-height:1.5">
+      <b>Case sensitivity</b> — default is <b>off</b> (ignore case). Check <b>Aa case sensitive</b> for exact capitalization.
+      To search for the words AND/OR themselves, put them in quotes: <code>"and"</code>.
+    </p>
+    <p style="margin-top:10px;font-size:12px;color:var(--muted);">Results sorted by hit count. Click a hit to open its PDF page; use HIT Prev/Next to step through matches.</p>
     <button onclick="hideHelp()" style="margin-top:12px;background:var(--accent);color:#fff;border:none;padding:8px 24px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">Got it</button>
   </div>
 </div>
