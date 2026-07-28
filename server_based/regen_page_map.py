@@ -235,7 +235,15 @@ def looks_like_bare_link_reference(rest_of_line, lines, i):
 
 
 def build_page_map():
-    """Build rich page map: start/end + char-offset breaks for hit→page jumps."""
+    """Build rich page map: start/end + char-offset breaks for hit→page jumps.
+
+    Content lines are accumulated per entry *key* (not per "currently active"
+    entry) so that a self-referencing repeat header correctly resumes
+    appending to its own original entry even if a different date's entry was
+    parsed in between (e.g. headers appear out of order as June 24, June 23,
+    June 24 in the source: the second "June 24" chunk must still land back in
+    the June 24 entry, not get folded into June 23's).
+    """
     with open(TEXT_PATH, encoding="utf-8") as f:
         lines = [ln.rstrip("\n") for ln in f.readlines()]
 
@@ -250,24 +258,9 @@ def build_page_map():
     expected_counts = load_expected_entry_counts()
     started_counts = {}
 
-    page_map = {}
-    cur_iso = None
-    cur_raw = None
-    cur_lines = []  # (text, page)
-
-    def finalize():
-        nonlocal cur_iso, cur_raw, cur_lines
-        if cur_iso is None:
-            return
-        raw_content = "\n".join(t for t, _ in cur_lines).strip()
-        corrected_iso = apply_corrections(cur_iso, cur_raw, raw_content)
-        cleaned, breaks, start, end = clean_with_pages(cur_lines)
-        key = corrected_iso + "|" + cur_raw
-        page_map[key] = {
-            "start": start,
-            "end": end,
-            "breaks": breaks,
-        }
+    accum = {}  # key -> list of (text, page)
+    order = []  # keys in first-seen order
+    active_key = None
 
     for i, line in enumerate(lines):
         stripped = line.strip()
@@ -280,20 +273,20 @@ def build_page_map():
             rest_of_line = stripped[m.end():]
 
             if looks_like_bare_link_reference(rest_of_line, lines, i):
-                if cur_iso is not None and not is_strip_line(stripped):
-                    cur_lines.append((line, page_of_line[i]))
+                if active_key is not None and not is_strip_line(stripped):
+                    accum[active_key].append((line, page_of_line[i]))
                 continue
 
             if looks_like_article_date(rest_of_line) or looks_like_article_date(stripped):
-                if cur_iso is not None and not is_strip_line(stripped):
-                    cur_lines.append((line, page_of_line[i]))
+                if active_key is not None and not is_strip_line(stripped):
+                    accum[active_key].append((line, page_of_line[i]))
                 continue
 
             try:
                 month = parse_month(month_txt)
             except KeyError:
-                if cur_iso is not None and not is_strip_line(stripped):
-                    cur_lines.append((line, page_of_line[i]))
+                if active_key is not None and not is_strip_line(stripped):
+                    accum[active_key].append((line, page_of_line[i]))
                 continue
 
             raw_candidate = format_raw_date(month_txt, day, end_day_s, year)
@@ -301,27 +294,45 @@ def build_page_map():
             corrected_candidate_iso = apply_corrections(candidate_iso, raw_candidate, "")
             already_started = started_counts.get(corrected_candidate_iso, 0)
             expected = expected_counts.get(corrected_candidate_iso, 1)
+            # Grouping key uses the *uncorrected* iso (matching the original
+            # cur_iso/cur_raw pairing); content-dependent corrections are
+            # applied once, after all lines for the entry are known, below.
+            key = candidate_iso + "|" + raw_candidate
             if already_started >= expected:
                 # The content JSON says this date already has as many real
                 # entries as expected; this is a same-date self-reference
                 # embedded in pasted press content (a byline, a cartoon-list
-                # date, etc.), not another new entry.
-                if cur_iso is not None and not is_strip_line(stripped):
-                    cur_lines.append((line, page_of_line[i]))
+                # date, etc.), not another new entry. Resume appending to the
+                # entry it belongs to, even if something else is active now.
+                if key in accum:
+                    active_key = key
+                    if rest_of_line.strip():
+                        accum[active_key].append((rest_of_line, page_of_line[i]))
+                elif active_key is not None and not is_strip_line(stripped):
+                    accum[active_key].append((line, page_of_line[i]))
                 continue
 
-            finalize()
             started_counts[corrected_candidate_iso] = already_started + 1
-            cur_raw = raw_candidate
-            cur_iso = candidate_iso
-            cur_lines = []
+            accum[key] = []
+            order.append(key)
+            active_key = key
             if rest_of_line.strip():
-                cur_lines.append((rest_of_line, page_of_line[i]))
+                accum[active_key].append((rest_of_line, page_of_line[i]))
         else:
-            if cur_iso is not None and not is_strip_line(stripped):
-                cur_lines.append((line, page_of_line[i]))
+            if active_key is not None and not is_strip_line(stripped):
+                accum[active_key].append((line, page_of_line[i]))
 
-    finalize()
+    page_map = {}
+    for key in order:
+        iso, raw = key.split("|", 1)
+        raw_content = "\n".join(t for t, _ in accum[key]).strip()
+        corrected_iso = apply_corrections(iso, raw, raw_content)
+        cleaned, breaks, start, end = clean_with_pages(accum[key])
+        page_map[corrected_iso + "|" + raw] = {
+            "start": start,
+            "end": end,
+            "breaks": breaks,
+        }
     return page_map
 
 

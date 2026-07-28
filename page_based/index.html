@@ -355,7 +355,7 @@ mark.hit-current {
 <div class="header">
   <div class="title-block">
     <h1>📖 Tony's Diary Search</h1>
-    <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a> · 860 entries · Dec 2019 – Dec 2022</span>
+    <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a> · 853 entries · Dec 2019 – Dec 2022</span>
   </div>
   <div class="search-bar">
     <input type="text" id="searchInput" placeholder='Phrase: "blue car" · words: happy bunny · help: ?' onkeydown="if(event.key==='Enter')doSearch()">
@@ -408,7 +408,7 @@ mark.hit-current {
   <div class="results-panel" id="resultsPanel">
     <div class="placeholder">
       <h2>Search Tony's Diary</h2>
-      <p>Enter a search term above to find mentions across all 860 diary entries.
+      <p>Enter a search term above to find mentions across all 853 diary entries.
       Results will show the matching JSON text with all hits highlighted, the
       corresponding PDF page, and charts of entries/hits over time.</p>
       <div class="stats" id="entryStats"></div>
@@ -1002,7 +1002,7 @@ function clearSearch() {
   document.getElementById('resultsPanel').innerHTML =
     '<div class="placeholder"><h2>Search Tony\'s Diary</h2>' +
     '<p>Enter a search term above to find mentions across all ' +
-    (diaryData ? diaryData.total_entries : 860) + ' diary entries.</p></div>';
+    (diaryData ? diaryData.total_entries : 853) + ' diary entries.</p></div>';
   lastSearchResults = null;
   lastSearchQuery = '';
   activeResultIdx = -1;
