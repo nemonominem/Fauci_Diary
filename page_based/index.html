@@ -1142,8 +1142,8 @@ function redrawTimelines() {
   // Header labels depend on orientation
   const titleLeft = document.querySelector('.timeline-header-row .th-left .chart-title-main');
   const titleRight = document.querySelector('.timeline-header-row .th-right .chart-title-main');
-  if (titleLeft) titleLeft.textContent = isLandscape ? '← All entries' : 'All entries ↑';
-  if (titleRight) titleRight.textContent = isLandscape ? 'Search hits →' : 'Search hits ↑';
+  if (titleLeft) titleLeft.textContent = isLandscape ? '← All entries' : 'All entries at bottom';
+  if (titleRight) titleRight.textContent = isLandscape ? 'Search hits →' : 'Search hits at top';
 
   if (timelineChart) timelineChart.destroy();
 
@@ -1264,8 +1264,10 @@ function redrawTimelines() {
     });
   } else {
     // ── Portrait: horizontal TIME axis (left→right); vertical bars ──
-    // Entries and hits as two series of upright bars on the shared date axis.
-    const yMax = Math.max(maxEntries, peakHits || 0, 2);
+    // Entries BELOW the zero line, hits ABOVE it (mirrors landscape's
+    // left/right split around x=0) so a day with both an entry and a hit
+    // doesn't render one bar directly on top of the other.
+    const entryNeg = series.entryCounts.map(function(c) { return -c; });
     timelineChart = new Chart(ctx, {
       type: 'bar',
       data: {
@@ -1273,11 +1275,11 @@ function redrawTimelines() {
         datasets: [
           {
             label: 'Entries',
-            data: series.entryCounts,
+            data: entryNeg,
             backgroundColor: series.entryColors,
             borderWidth: 0,
             barPercentage: 1.0,
-            categoryPercentage: 0.9,
+            categoryPercentage: 1.0,
             order: 2,
           },
           {
@@ -1286,7 +1288,7 @@ function redrawTimelines() {
             backgroundColor: hitColors,
             borderWidth: 0,
             barPercentage: 1.0,
-            categoryPercentage: 0.9,
+            categoryPercentage: 1.0,
             order: 1,
           }
         ]
@@ -1306,7 +1308,7 @@ function redrawTimelines() {
             callbacks: {
               title: function(items) { return items[0].label; },
               label: function(item) {
-                const v = item.parsed.y;
+                const v = Math.abs(item.parsed.y);
                 if (item.dataset.label === 'Entries') {
                   return v + (v === 1 ? ' entry' : ' entries');
                 }
@@ -1336,19 +1338,31 @@ function redrawTimelines() {
             },
             border: { display: false },
           },
-          // Counts up
+          // Entries down, hits up, diverging from a shared 0 line
           y: {
-            beginAtZero: true,
-            max: yMax,
+            stacked: false,
+            min: -maxEntries,
+            max: maxHitsScale,
             grace: 0,
             ticks: {
               color: '#666',
               stepSize: 1,
               font: { size: 8 },
               maxTicksLimit: 5,
+              callback: function(v) {
+                if (v === 0) return '0';
+                return Math.abs(v);
+              }
             },
             grid: {
-              color: 'rgba(50,50,50,0.35)',
+              color: function(c) {
+                return c.tick.value === 0
+                  ? 'rgba(233,69,96,0.45)'
+                  : 'rgba(50,50,50,0.35)';
+              },
+              lineWidth: function(c) {
+                return c.tick.value === 0 ? 1.5 : 1;
+              }
             },
             border: { display: false },
           }
