@@ -1117,6 +1117,9 @@ function clearSearch() {
     (diaryData ? diaryData.total_entries : 1988) + ' diary entries.</p></div>';
   lastSearchResults = null;
   lastSearchQuery = '';
+  window._searchResults = null;
+  currentHitPositions = {};
+  currentHitIdx = {};
   activeResultIdx = -1;
   document.getElementById('chartStats').textContent = 'search to filter';
   redrawTimelines();
@@ -1218,28 +1221,22 @@ function jumpToDate(date) {
   }
   if (!foundEntry) return;
 
-  // Jump the PDF to this entry's page
   var pm = pageMaps[foundEntry.source] || {};
   var pg = getPageNum(pm[foundEntry.date + '|' + foundEntry.raw_date]);
-  if (foundEntry.source) switchPdfSource(foundEntry.source);
-  if (pg) renderPdfPage(pg);
 
-  // If this date is in the current search results, display those results
-  // (with search highlights).  Use lastSearchResults (not window._searchResults)
-  // because displayResults overwrites the latter — lastSearchResults is
-  // only set by doSearch/clearSearch and preserves the full result set.
+  // If this date is in the current search results, select it there.
+  // Use lastSearchResults (not window._searchResults) because displayResults
+  // overwrites the latter — lastSearchResults is only set by doSearch/clearSearch.
   if (lastSearchResults) {
-    var matching = [];
+    var hasMatch = false;
     for (var j = 0; j < lastSearchResults.length; j++) {
-      if (lastSearchResults[j].entry.date === date) {
-        matching.push(lastSearchResults[j]);
-      }
+      if (lastSearchResults[j].entry.date === date) { hasMatch = true; break; }
     }
-    if (matching.length > 0) {
+    if (hasMatch) {
       // Keep full search list so successive hit-bar clicks still resolve.
-      // Redisplay only if the panel was replaced (e.g. single-entry jump).
+      // Skip autoSelect so we don't flash PDF page 1 of result #0 first.
       if (window._searchResults !== lastSearchResults) {
-        displayResults(lastSearchResults, lastSearchQuery || '');
+        displayResults(lastSearchResults, lastSearchQuery || '', { autoSelect: false });
       }
       for (var k = 0; k < lastSearchResults.length; k++) {
         if (lastSearchResults[k].entry.date === date) {
@@ -1247,11 +1244,9 @@ function jumpToDate(date) {
           if (el) el.scrollIntoView({ behavior: 'smooth', block: 'top' });
           var r = lastSearchResults[k];
           currentHitIdx[k] = 0;
-          if (typeof updateHitHighlight === 'function') updateHitHighlight(k, 0);
-          var hitPg = (typeof pdfPageForHit === 'function')
-            ? pdfPageForHit(k, 0)
-            : (pg || 1);
-          selectResult(k, hitPg || pg || 1, r.idx);
+          updateHitHighlight(k, 0);
+          // Single PDF jump via selectResult (no pre-render above).
+          selectResult(k, pdfPageForHit(k, 0) || pg || 1, r.idx);
           break;
         }
       }
@@ -1259,7 +1254,7 @@ function jumpToDate(date) {
     }
   }
 
-  // Otherwise, display this entry directly in the results panel
+  // Otherwise, display this entry; autoSelect opens its PDF once.
   displayResults([{
     idx: foundIdx,
     entry: foundEntry,
@@ -1311,11 +1306,21 @@ function redrawTimelines() {
   if (titleLeft) titleLeft.textContent = isLandscape ? '← All entries' : 'All entries at bottom';
   if (titleRight) titleRight.textContent = isLandscape ? 'Search hits →' : 'Search hits at top';
 
+  // Preserve zoom/pan across chart rebuilds (search, resize) when layout is unchanged.
+  var savedZoom = captureTimelineZoom();
+
   if (timelineChart) timelineChart.destroy();
 
   const ctx = document.getElementById('timelineChart').getContext('2d');
+  // Sparse ticks when zoomed out (month starts); full ISO when zoomed in.
   const timeTickCb = function(val) {
-    return this.getLabelForValue(val) || '';
+    const label = this.getLabelForValue(val);
+    if (!label) return '';
+    var lo = this.min, hi = this.max;
+    var visible = (lo != null && hi != null) ? Math.abs(hi - lo) : series.labels.length;
+    if (visible <= 90) return label; // ~3 months or less: show full dates
+    if (label.slice(8) === '01') return label.slice(0, 7); // YYYY-MM
+    return '';
   };
 
   if (isLandscape) {
@@ -1543,6 +1548,37 @@ function redrawTimelines() {
       }
     });
   }
+
+  // Re-apply prior zoom after recreate (same layout only).
+  applyTimelineZoom(savedZoom);
+}
+
+function captureTimelineZoom() {
+  if (!timelineChart) return null;
+  var isLandscape = currentLayout === 'landscape';
+  var scale = isLandscape ? timelineChart.scales.y : timelineChart.scales.x;
+  if (!scale || scale.min == null || scale.max == null) return null;
+  var fullMax = (getTimelineSeries().labels.length || 1) - 1;
+  // Skip save when effectively unzoomed (full range).
+  if (scale.min <= 0.5 && scale.max >= fullMax - 0.5) return null;
+  return { layout: currentLayout, min: scale.min, max: scale.max };
+}
+
+function applyTimelineZoom(saved) {
+  if (!timelineChart || !saved) return;
+  if (saved.layout !== currentLayout) return;
+  var axisId = currentLayout === 'landscape' ? 'y' : 'x';
+  var n = getTimelineSeries().labels.length;
+  var min = Math.max(0, Math.min(saved.min, n - 1));
+  var max = Math.max(0, Math.min(saved.max, n - 1));
+  if (max <= min) return;
+  if (typeof timelineChart.zoomScale === 'function') {
+    timelineChart.zoomScale(axisId, { min: min, max: max }, 'none');
+  } else {
+    timelineChart.options.scales[axisId].min = min;
+    timelineChart.options.scales[axisId].max = max;
+    timelineChart.update('none');
+  }
 }
 
 function drawTimeline() { redrawTimelines(); }
@@ -1552,13 +1588,12 @@ function resetTimelineZoom() {
   if (timelineChart) timelineChart.resetZoom();
 }
 
-// Double-click timeline to reset zoom (backup for plugin onDblClick)
-document.getElementById('timelineChart').addEventListener('dblclick', function() {
-  if (timelineChart) timelineChart.resetZoom();
-});
-
 // Track pointer movement so a pan/drag is not treated as a bar click.
 var _tlPtrDown = null;
+// Defer click action so dblclick (zoom reset) can cancel jumpToDate.
+var _tlClickTimer = null;
+var _tlClickDelayMs = 220;
+
 document.getElementById('timelineChart').addEventListener('pointerdown', function(e) {
   _tlPtrDown = { x: e.clientX, y: e.clientY };
 });
@@ -1594,15 +1629,8 @@ function timelineIndexFromEvent(evt) {
   return Math.round(raw);
 }
 
-document.getElementById('timelineChart').addEventListener('click', function(evt) {
+function handleTimelineClick(evt) {
   if (!timelineChart) return;
-  if (_tlPtrDown) {
-    var dx = evt.clientX - _tlPtrDown.x;
-    var dy = evt.clientY - _tlPtrDown.y;
-    _tlPtrDown = null;
-    // Ignore click if the pointer moved enough that this was a pan/drag.
-    if (dx * dx + dy * dy > 36) return;
-  }
   var series = getTimelineSeries();
   var idx = timelineIndexFromEvent(evt);
   if (idx < 0 || idx >= series.labels.length) {
@@ -1617,6 +1645,40 @@ document.getElementById('timelineChart').addEventListener('click', function(evt)
   if (!date) return;
   var hd = hitCountsForSeries(lastSearchResults);
   if (series.entryCounts[idx] > 0 || (hd[idx] || 0) > 0) jumpToDate(date);
+}
+
+// Double-click resets zoom and cancels any pending single-click navigation.
+document.getElementById('timelineChart').addEventListener('dblclick', function() {
+  if (_tlClickTimer) {
+    clearTimeout(_tlClickTimer);
+    _tlClickTimer = null;
+  }
+  if (timelineChart) timelineChart.resetZoom();
+});
+
+document.getElementById('timelineChart').addEventListener('click', function(evt) {
+  if (!timelineChart) return;
+  if (_tlPtrDown) {
+    var dx = evt.clientX - _tlPtrDown.x;
+    var dy = evt.clientY - _tlPtrDown.y;
+    _tlPtrDown = null;
+    // Ignore click if the pointer moved enough that this was a pan/drag.
+    if (dx * dx + dy * dy > 36) return;
+  }
+  // Snapshot coords: the deferred handler runs after the native event is gone.
+  var snap = {
+    clientX: evt.clientX,
+    clientY: evt.clientY,
+    // Chart.js getRelativePosition also reads these when present
+    offsetX: evt.offsetX,
+    offsetY: evt.offsetY,
+    nativeEvent: evt
+  };
+  if (_tlClickTimer) clearTimeout(_tlClickTimer);
+  _tlClickTimer = setTimeout(function() {
+    _tlClickTimer = null;
+    handleTimelineClick(snap);
+  }, _tlClickDelayMs);
 });
 
 let _timelineResizeTimer = null;
@@ -1733,9 +1795,14 @@ function pdfPageLabel(r) {
   return 'p.' + start;
 }
 
-function displayResults(results, query) {
+function displayResults(results, query, opts) {
+  opts = opts || {};
+  // autoSelect (default true): open first result / jump PDF. Set false when
+  // the caller will select a specific result itself (avoids a PDF flash).
+  var autoSelect = opts.autoSelect !== false;
   const panel = document.getElementById('resultsPanel');
   if (results.length === 0) {
+    window._searchResults = results;
     panel.innerHTML = '<div class="placeholder"><h2>No results</h2>' +
       '<p>No entries found for "' + escapeHtml(query) + '".</p></div>';
     return;
@@ -1830,8 +1897,8 @@ function displayResults(results, query) {
     selectResult(resultIdx, pdfPageForHit(resultIdx, hitIdx), entryIdx);
   };
 
-  // Auto-open first result at first hit's page
-  if (results.length > 0) {
+  // Auto-open first result at first hit's page (unless caller will select).
+  if (autoSelect && results.length > 0) {
     currentHitIdx[0] = 0;
     if (results[0].hits > 0) updateHitHighlight(0, 0);
     selectResult(0, pdfPageForHit(0, 0), results[0].idx);
