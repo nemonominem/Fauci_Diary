@@ -1266,9 +1266,12 @@ function jumpToDate(date) {
       }
       return;
     }
+    // Search is active but this day is not a hit day — do NOT replace the
+    // full result list with a single 0-hit entry (common on dense portrait).
+    return;
   }
 
-  // No active search match: show this entry alone (autoSelect opens PDF).
+  // No active search: show this entry alone (autoSelect opens PDF).
   displayResults([{
     idx: foundIdx,
     entry: foundEntry,
@@ -1625,53 +1628,81 @@ document.getElementById('timelineChart').addEventListener('pointerdown', functio
   _tlPtrDown = { x: e.clientX, y: e.clientY };
 });
 
-// Resolve the calendar day from the click position on the time axis.
-// Bar-element hit-testing fails in landscape: ~8000 day categories make
-// bars sub-pixel tall, and the zoom plugin's pan often steals onClick.
-// Mapping pixel → category index works for both entry and hit sides.
+// Resolve calendar-day index (+ value-axis sign) from a click.
+// Uses the chart's real indexAxis (not currentLayout) and CSS→canvas pixels.
+// Returns { idx, value } where value > 0 is the hit side, < 0 the entry side.
 function timelineIndexFromEvent(evt) {
-  if (!timelineChart) return -1;
-  var pos = (Chart.helpers && Chart.helpers.getRelativePosition)
-    ? Chart.helpers.getRelativePosition(evt, timelineChart)
-    : null;
-  if (!pos) {
-    var rect = timelineChart.canvas.getBoundingClientRect();
-    pos = {
-      x: (evt.clientX - rect.left) * (timelineChart.width / rect.width),
-      y: (evt.clientY - rect.top) * (timelineChart.height / rect.height)
-    };
-  }
-  var isLandscape = currentLayout === 'landscape';
-  var scale = isLandscape ? timelineChart.scales.y : timelineChart.scales.x;
-  if (!scale) return -1;
-  // Reject clicks outside the plot area (axis labels / padding).
+  if (!timelineChart) return { idx: -1, value: 0 };
+  var rect = timelineChart.canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return { idx: -1, value: 0 };
+  var x = (evt.clientX - rect.left) * (timelineChart.width / rect.width);
+  var y = (evt.clientY - rect.top) * (timelineChart.height / rect.height);
   var ca = timelineChart.chartArea;
-  if (isLandscape) {
-    if (pos.y < ca.top || pos.y > ca.bottom) return -1;
-  } else {
-    if (pos.x < ca.left || pos.x > ca.right) return -1;
+  if (x < ca.left || x > ca.right || y < ca.top || y > ca.bottom) {
+    return { idx: -1, value: 0 };
   }
-  var raw = scale.getValueForPixel(isLandscape ? pos.y : pos.x);
-  if (raw == null || isNaN(raw)) return -1;
-  return Math.round(raw);
+  var timeAxis = timelineTimeAxisId(timelineChart);
+  var valueAxis = timeAxis === 'y' ? 'x' : 'y';
+  var timeScale = timelineChart.scales[timeAxis];
+  var valueScale = timelineChart.scales[valueAxis];
+  if (!timeScale) return { idx: -1, value: 0 };
+  var tPixel = timeAxis === 'y' ? y : x;
+  var vPixel = timeAxis === 'y' ? x : y;
+  var raw = timeScale.getValueForPixel(tPixel);
+  if (raw == null || isNaN(raw)) return { idx: -1, value: 0 };
+  var n = getTimelineSeries().labels.length;
+  var idx = Math.round(raw);
+  idx = Math.max(0, Math.min(idx, n - 1));
+  var value = 0;
+  if (valueScale) {
+    var vv = valueScale.getValueForPixel(vPixel);
+    if (vv != null && !isNaN(vv)) value = vv;
+  }
+  return { idx: idx, value: value };
+}
+
+// When the time axis is dense (portrait), a click can land a day or two off a
+// visible hit bar. Snap to the nearest day that actually has hits.
+function snapToNearestHitDay(idx, hd, maxRadius) {
+  if (!hd || idx < 0 || idx >= hd.length) return idx;
+  if ((hd[idx] || 0) > 0) return idx;
+  maxRadius = maxRadius || 20;
+  for (var r = 1; r <= maxRadius; r++) {
+    if (idx - r >= 0 && (hd[idx - r] || 0) > 0) return idx - r;
+    if (idx + r < hd.length && (hd[idx + r] || 0) > 0) return idx + r;
+  }
+  return idx;
 }
 
 function handleTimelineClick(evt) {
   if (!timelineChart) return;
   var series = getTimelineSeries();
-  var idx = timelineIndexFromEvent(evt);
-  if (idx < 0 || idx >= series.labels.length) {
-    // Fallback: nearest bar element (helps if scale mapping is off after zoom).
-    var elements = timelineChart.getElementsAtEventForMode(
-      evt, 'nearest', { intersect: false, axis: currentLayout === 'landscape' ? 'y' : 'x' }, false
-    );
-    if (!elements.length) return;
-    idx = elements[0].index;
-  }
-  var date = series.labels[idx];
-  if (!date) return;
+  var mapped = timelineIndexFromEvent(evt);
+  var idx = mapped.idx;
+  if (idx < 0 || idx >= series.labels.length) return;
+
   var hd = hitCountsForSeries(lastSearchResults);
-  if (series.entryCounts[idx] > 0 || (hd[idx] || 0) > 0) jumpToDate(date);
+  var hasSearch = !!(lastSearchResults && lastSearchResults.length);
+
+  // Hit side of the diverging chart (portrait: above 0; landscape: right of 0).
+  // Snap to a nearby hit day so dense portrait clicks still land on a real bar.
+  if (hasSearch && mapped.value > 0) {
+    idx = snapToNearestHitDay(idx, hd, 25);
+    if ((hd[idx] || 0) > 0) {
+      jumpToDate(series.labels[idx]);
+      return;
+    }
+  }
+
+  // Entry side, or ambiguous centre: only jump when this day is a search hit
+  // (scroll full list) or when there is no active search (browse entry).
+  if ((hd[idx] || 0) > 0) {
+    jumpToDate(series.labels[idx]);
+    return;
+  }
+  if (!hasSearch && series.entryCounts[idx] > 0) {
+    jumpToDate(series.labels[idx]);
+  }
 }
 
 // Double-click resets zoom and cancels any pending single-click navigation.
