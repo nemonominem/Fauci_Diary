@@ -1357,21 +1357,10 @@ function collectTerms(ast, out) {
   return out;
 }
 
-function doSearch() {
-  const raw = document.getElementById('searchInput').value.trim();
-  if (!raw || !diaryData) return;
-
-  const caseSensitive = isCaseSensitive();
-  let ast = null;
-  try {
-    ast = parseQuery(tokenizeQuery(raw));
-  } catch (e) {
-    console.error('Query parse error:', e);
-    ast = null;
-  }
-  if (!ast) return;
-
+/** Run AST against all diary entries → result list (unsorted). */
+function collectSearchResults(ast, caseSensitive) {
   const results = [];
+  if (!ast || !diaryData) return results;
   for (let i = 0; i < diaryData.entries.length; i++) {
     const entry = diaryData.entries[i];
     const text = entry.content || '';
@@ -1385,7 +1374,6 @@ function doSearch() {
         matchTerms: ev.terms
       });
     } else if (ev.matched) {
-      // Expression matched but no char offsets (shouldn't happen for TERM leaves)
       results.push({
         idx: i,
         entry: entry,
@@ -1393,6 +1381,60 @@ function doSearch() {
         hitPositions: [0],
         matchTerms: ev.terms
       });
+    }
+  }
+  return results;
+}
+
+/** Build AND-of-words AST from a multi-word string. */
+function andAstFromWords(phrase) {
+  const words = String(phrase || '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return null;
+  let ast = { op: 'TERM', value: words[0] };
+  for (let i = 1; i < words.length; i++) {
+    ast = { op: 'AND', left: ast, right: { op: 'TERM', value: words[i] } };
+  }
+  return ast;
+}
+
+function doSearch() {
+  const raw = document.getElementById('searchInput').value.trim();
+  if (!raw) return;
+  if (!diaryData) {
+    document.getElementById('resultsPanel').innerHTML =
+      '<div class="placeholder"><h2>Still loading</h2>' +
+      '<p>Diary data is not ready yet (the GitHub Pages build loads ~3&nbsp;MB of JSON). Wait a second and search again.</p></div>';
+    return;
+  }
+
+  const caseSensitive = isCaseSensitive();
+  let ast = null;
+  try {
+    ast = parseQuery(tokenizeQuery(raw));
+  } catch (e) {
+    console.error('Query parse error:', e);
+    ast = null;
+  }
+  if (!ast) return;
+
+  let results = collectSearchResults(ast, caseSensitive);
+  let searchNote = '';
+
+  // Exact multi-word phrase with 0 hits (e.g. "Paul Rand") → fall back to AND
+  // of the words in any order (finds "Rand Paul"). Quoted phrases are a single TERM
+  // whose value contains spaces.
+  if (results.length === 0 && ast.op === 'TERM' && /\s/.test(ast.value)) {
+    const phraseText = ast.value;
+    const andAst = andAstFromWords(phraseText);
+    if (andAst) {
+      const fallback = collectSearchResults(andAst, caseSensitive);
+      if (fallback.length > 0) {
+        results = fallback;
+        ast = andAst;
+        searchNote = 'No exact phrase match for “' + phraseText +
+          '”. Showing entries that contain all of those words in any order ' +
+          '(e.g. “Rand Paul” matches a search for “Paul Rand”).';
+      }
     }
   }
 
@@ -1409,7 +1451,7 @@ function doSearch() {
   currentHitPositions = {};
   currentHitIdx = {};
 
-  displayResults(results, raw);
+  displayResults(results, raw, { note: searchNote });
   redrawTimelines();
 }
 
@@ -2167,12 +2209,21 @@ function displayResults(results, query, opts) {
   if (results.length === 0) {
     window._searchResults = results;
     panel.innerHTML = '<div class="placeholder"><h2>No results</h2>' +
-      '<p>No entries found for "' + escapeHtml(query) + '".</p></div>';
+      '<p>No entries found for “‘ + escapeHtml(query) + '”.</p>' +
+      '<p style="margin-top:12px;font-size:12px;color:var(--muted);max-width:420px;line-height:1.55">' +
+      'Tips: <code>"exact phrase"</code> needs those words <b>in that order</b>. ' +
+      'Without quotes, spaces mean <b>AND</b> (both words, any order). ' +
+      'The diary refers to the senator as <b>Rand Paul</b>, not “Paul Rand”.</p></div>';
     return;
   }
 
   const totalHits = results.reduce((s, r) => s + r.hits, 0);
-  let html = '<div style="margin-bottom:12px;font-size:14px;color:var(--muted)">' +
+  let html = '';
+  if (opts.note) {
+    html += '<div style="margin-bottom:10px;padding:8px 12px;background:var(--panel-2);border:1px solid var(--border-2);border-radius:6px;font-size:12px;color:var(--orange);line-height:1.45">' +
+      escapeHtml(opts.note) + '</div>';
+  }
+  html += '<div style="margin-bottom:12px;font-size:14px;color:var(--muted)">' +
     '<b style="color:var(--accent)">' + results.length + '</b> entries · ' +
     '<b style="color:var(--green)">' + totalHits + '</b> total hits</div>';
 
