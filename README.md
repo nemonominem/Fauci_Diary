@@ -1,6 +1,17 @@
 # Fauci Diary Search
 
-Searchable web app for Dr. Anthony Fauci's diary (Congressional release, Dec 2019 – Dec 2022, 860 entries).
+Searchable web app for Dr. Anthony Fauci's diary (Congressional release by Chairman Rand Paul).
+
+## Coverage
+
+| Release | Period | Entries | PDF pages |
+|---|---|---|---|
+| **Prequel** — Historical Record of HIV/AIDS | Jan 2001 – Jul 2015 | 1,135 | 465 |
+| **Main Diary** — Tony's Diary Package | Dec 2019 – Dec 2022 | 853 | 1,141 |
+| **Combined** | Jan 2001 – Dec 2022 | 1,988 | 1,606 |
+
+Both releases are merged into a single searchable timeline. The PDF viewer
+automatically switches to the correct source PDF when you click a result.
 
 ## Canonical home (important)
 
@@ -20,9 +31,9 @@ Searchable web app for Dr. Anthony Fauci's diary (Congressional release, Dec 201
 
 ## Data
 
-- **Source PDF**: 1,141 pages, ~63 MB (Congressional release by Chairman Rand Paul) — stored locally as `diary.pdf` in both folders
-- **Parsed JSON**: 860 diary entries, each with date, raw_date, content, and optional date_note (typo corrections). Content has PDF line-breaks cleaned for reading.
-- **Page Map**: Each entry mapped to its PDF content-start page (863 mapped keys)
+- **Source PDFs**: stored locally as `diary.pdf` (1,141 pp, ~63 MB) and `diary-prequel.pdf` (465 pp, ~10 MB)
+- **Parsed JSON**: 853 main-diary entries + 1,135 prequel entries (1,988 total), each with date, raw_date, content, and source tag. Content has PDF line-breaks cleaned for reading.
+- **Page Maps**: each entry mapped to its PDF content-start page (separate maps per release)
 
 ## How to use
 

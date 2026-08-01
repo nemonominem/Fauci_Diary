@@ -9,12 +9,16 @@
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR"
 
-# Regenerate page_map.json and clean JSON line breaks
-echo "Regenerating page map..."
+# Regenerate page maps and clean JSON line breaks for both releases
+echo "Regenerating main diary page map..."
 python3 regen_page_map.py
-
-echo "Cleaning JSON line breaks..."
+echo "Cleaning main diary JSON line breaks..."
 python3 clean_json_breaks.py
+
+echo "Regenerating prequel page map..."
+python3 regen_prequel_page_map.py
+echo "Cleaning prequel JSON line breaks..."
+python3 clean_prequel_breaks.py
 
 # Kill any existing instance
 pkill -f "python3 serve.py" 2>/dev/null

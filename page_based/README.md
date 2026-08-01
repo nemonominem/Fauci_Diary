@@ -4,9 +4,12 @@ Self-contained static files. No Python server is required for hosting.
 
 ## Files
 - `index.html` — app UI
-- `2026.07.24_Tonys-Diary-Package.json` — diary entries
-- `page_map.json` — date → PDF page
-- `diary.pdf` — full PDF (~63 MB; track with Git LFS on GitHub)
+- `2026.07.24_Tonys-Diary-Package.json` — main diary entries (2019–2022)
+- `2026.07.27_Diary-Prequel-.json` — prequel entries (2001–2015)
+- `page_map.json` — date → PDF page (main diary)
+- `prequel_page_map.json` — date → PDF page (prequel)
+- `diary.pdf` — main diary PDF (~63 MB; Git LFS)
+- `diary-prequel.pdf` — prequel PDF (~10 MB; Git LFS)
 
 ## Important: do not open `index.html` as a file
 

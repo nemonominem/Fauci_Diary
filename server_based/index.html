@@ -355,7 +355,7 @@ mark.hit-current {
 <div class="header">
   <div class="title-block">
     <h1>📖 Tony's Diary Search</h1>
-    <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a> · 853 entries · Dec 2019 – Dec 2022</span>
+    <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a> &middot; 1,988 entries &middot; Jan 2001 &ndash; Dec 2022</span>
   </div>
   <div class="search-bar">
     <input type="text" id="searchInput" placeholder='Phrase: "blue car" · words: happy bunny · help: ?' onkeydown="if(event.key==='Enter')doSearch()">
@@ -407,9 +407,10 @@ mark.hit-current {
   <!-- ── Results panel ────────────────────────────────────────────── -->
   <div class="results-panel" id="resultsPanel">
     <div class="placeholder">
-      <h2>Search Tony's Diary</h2>
-      <p>Enter a search term above to find mentions across all 853 diary entries.
-      Results will show the matching JSON text with all hits highlighted, the
+      <h2>Search Fauci's Diary</h2>
+      <p>Enter a search term above to find mentions across all diary entries
+      (Jan 2001 &ndash; Dec 2022, two Congressional releases).
+      Results will show the matching text with all hits highlighted, the
       corresponding PDF page, and charts of entries/hits over time.</p>
       <div class="stats" id="entryStats"></div>
     </div>
@@ -421,6 +422,7 @@ mark.hit-current {
   <!-- ── PDF panel ────────────────────────────────────────────────── -->
   <div class="pdf-panel" id="pdfPanel">
     <div class="pdf-toolbar">
+      <span id="pdfSourceLabel" title="Which Congressional release PDF is displayed" style="font-size:11px;color:var(--muted);font-weight:600;margin-right:6px;padding:3px 8px;background:var(--panel-2);border-radius:4px;border:1px solid var(--border-2);white-space:nowrap">Main Diary</span>
       <button id="pdfPrev" onclick="pdfPrevPage()">◀ Prev</button>
       <input type="number" class="pdf-page-input" id="pdfPageInput" value="1" min="1" max="1141" onchange="pdfGoToPage(this.value)">
       <span class="pdf-page-label">/ <span id="pdfTotalPages">1141</span></span>
@@ -446,13 +448,27 @@ mark.hit-current {
 // ============================================================
 // Config & State
 // ============================================================
-const JSON_URL = '2026.07.24_Tonys-Diary-Package.json';
-const PAGE_MAP_URL = 'page_map.json';
-const PDF_URL = 'diary.pdf';
+const SOURCES = {
+  main: {
+    json: '2026.07.24_Tonys-Diary-Package.json',
+    pageMap: 'page_map.json',
+    pdf: 'diary.pdf',
+    label: 'Main Diary',
+  },
+  prequel: {
+    json: '2026.07.27_Diary-Prequel-.json',
+    pageMap: 'prequel_page_map.json',
+    pdf: 'diary-prequel.pdf',
+    label: 'Prequel',
+  },
+};
+const DEFAULT_PDF_SOURCE = 'main';   // which PDF shows on page load
 
-let diaryData = null;
-let pageMap = {};
-let pdfDoc = null;
+let diaryData = null;                 // merged { total_entries, date_range, entries[] }
+let pageMaps = { main: {}, prequel: {} };
+let pdfDocs = { main: null, prequel: null };
+let currentPdfSource = DEFAULT_PDF_SOURCE;
+let pdfDoc = null;                    // always the currently active PDF doc
 let currentPage = 1;
 let pdfScale = 1.2;
 let isRendering = false;
@@ -495,7 +511,7 @@ function loadErrorHelp(err) {
       '<code>http://localhost:8765</code>.';
   } else {
     help =
-      'Could not load <code>' + JSON_URL + '</code>, page map, or PDF from this folder.<br>' +
+      'Could not load the diary data, page maps, or PDFs from this folder.<br>' +
       'For the static <b>page_based</b> build, any HTTP server is enough ' +
       '(GitHub Pages, or <code>python3 -m http.server</code>). ' +
       '<code>serve.py</code> is only for the <b>server_based</b> variant.';
@@ -506,35 +522,100 @@ function loadErrorHelp(err) {
 
 async function loadData() {
   try {
-    const resp = await fetch(JSON_URL);
-    if (!resp.ok) throw new Error('HTTP ' + resp.status + ' for ' + JSON_URL);
-    diaryData = await resp.json();
+    // ── Fetch both datasets in parallel ──
+    const [mainResp, preqResp] = await Promise.all([
+      fetch(SOURCES.main.json),
+      fetch(SOURCES.prequel.json),
+    ]);
+    if (!mainResp.ok) throw new Error('HTTP ' + mainResp.status + ' for ' + SOURCES.main.json);
+    if (!preqResp.ok) throw new Error('HTTP ' + preqResp.status + ' for ' + SOURCES.prequel.json);
+
+    const mainData = await mainResp.json();
+    const preqData = await preqResp.json();
+
+    // Tag every entry with its source, then merge into one timeline
+    mainData.entries.forEach(function(e) { e.source = 'main'; });
+    preqData.entries.forEach(function(e) { e.source = 'prequel'; });
+    const allEntries = preqData.entries.concat(mainData.entries);
+
+    diaryData = {
+      title: "Fauci's Diary",
+      released_by: 'Chairman Rand Paul',
+      total_entries: allEntries.length,
+      date_range: {
+        start: preqData.date_range.start,   // 2001-01-26
+        end: mainData.date_range.end,        // 2022-12-17
+      },
+      entries: allEntries,
+    };
+
     document.getElementById('entryStats').textContent =
-      diaryData.total_entries + ' entries · ' + diaryData.date_range.start + ' to ' + diaryData.date_range.end;
+      diaryData.total_entries + ' entries \u00b7 ' + diaryData.date_range.start + ' to ' + diaryData.date_range.end;
 
     drawTimeline();
 
-    const pmResp = await fetch(PAGE_MAP_URL);
-    if (!pmResp.ok) throw new Error('HTTP ' + pmResp.status + ' for ' + PAGE_MAP_URL);
-    pageMap = await pmResp.json();
+    // ── Fetch both page maps in parallel ──
+    const [pmMainResp, pmPreqResp] = await Promise.all([
+      fetch(SOURCES.main.pageMap),
+      fetch(SOURCES.prequel.pageMap),
+    ]);
+    if (!pmMainResp.ok) throw new Error('HTTP ' + pmMainResp.status + ' for ' + SOURCES.main.pageMap);
+    if (!pmPreqResp.ok) throw new Error('HTTP ' + pmPreqResp.status + ' for ' + SOURCES.prequel.pageMap);
 
-    const loadingTask = pdfjsLib.getDocument(PDF_URL);
-    pdfDoc = await loadingTask.promise;
-    document.getElementById('pdfTotalPages').textContent = pdfDoc.numPages;
+    pageMaps.main = await pmMainResp.json();
+    pageMaps.prequel = await pmPreqResp.json();
+
+    // ── Load the default PDF first for immediate display ──
+    pdfDocs[DEFAULT_PDF_SOURCE] = await pdfjsLib.getDocument(SOURCES[DEFAULT_PDF_SOURCE].pdf).promise;
+    pdfDoc = pdfDocs[DEFAULT_PDF_SOURCE];
+    currentPdfSource = DEFAULT_PDF_SOURCE;
+    updatePdfSourceUI();
+
     document.getElementById('pdfLoading').style.display = 'none';
     document.getElementById('pdfCanvas').style.display = 'block';
-    // Honor any page jump requested before the PDF finished loading
     renderPdfPage(pendingPage || 1);
+
+    // ── Load the other PDF in the background ──
+    var otherSource = (DEFAULT_PDF_SOURCE === 'main') ? 'prequel' : 'main';
+    pdfjsLib.getDocument(SOURCES[otherSource].pdf).promise.then(function(doc) {
+      pdfDocs[otherSource] = doc;
+      // If user already switched to this source, render the pending page
+      if (currentPdfSource === otherSource) {
+        pdfDoc = doc;
+        updatePdfSourceUI();
+        if (pendingPage) renderPdfPage(pendingPage);
+      }
+    }).catch(function(err) {
+      console.error('Background load of ' + otherSource + ' PDF failed:', err);
+    });
+
   } catch (err) {
     console.error('Load error:', err);
     const html = loadErrorHelp(err);
     document.getElementById('pdfLoading').innerHTML = html;
-    // Also surface in the results pane so it is not missed when PDF column is empty
     const panel = document.getElementById('resultsPanel');
     if (panel && !diaryData) {
       panel.innerHTML = '<div class="placeholder">' + html + '</div>';
     }
   }
+}
+
+// ── Switch the PDF viewer to a different source's PDF ──
+function switchPdfSource(source) {
+  if (!source || !SOURCES[source]) return;
+  if (currentPdfSource === source && pdfDoc) return;  // already showing
+  currentPdfSource = source;
+  pdfDoc = pdfDocs[source];
+  updatePdfSourceUI();
+}
+
+function updatePdfSourceUI() {
+  if (!pdfDoc) return;
+  document.getElementById('pdfTotalPages').textContent = pdfDoc.numPages;
+  var inp = document.getElementById('pdfPageInput');
+  if (inp) inp.max = pdfDoc.numPages;
+  var labelEl = document.getElementById('pdfSourceLabel');
+  if (labelEl) labelEl.textContent = SOURCES[currentPdfSource].label;
 }
 
 // ============================================================
@@ -725,7 +806,8 @@ function pageForContentOffset(mapVal, charOffset) {
 
 function pageMapValueForResult(r) {
   if (!r || !r.entry) return null;
-  return pageMap[r.entry.date + '|' + r.entry.raw_date];
+  const pm = pageMaps[r.entry.source] || {};
+  return pm[r.entry.date + '|' + r.entry.raw_date];
 }
 
 function pdfPageForHit(resultIdx, hitIdx) {
@@ -985,7 +1067,12 @@ function doSearch() {
     }
   }
 
-  results.sort(function(a, b) { return b.hits - a.hits; });
+  results.sort(function(a, b) {
+    var da = a.entry.date, db = b.entry.date;
+    if (da === 'prologue') return -1;
+    if (db === 'prologue') return 1;
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
 
   lastSearchResults = results;
   lastSearchQuery = raw;
@@ -1000,9 +1087,9 @@ function doSearch() {
 function clearSearch() {
   document.getElementById('searchInput').value = '';
   document.getElementById('resultsPanel').innerHTML =
-    '<div class="placeholder"><h2>Search Tony\'s Diary</h2>' +
+    '<div class="placeholder"><h2>Search Fauci\'s Diary</h2>' +
     '<p>Enter a search term above to find mentions across all ' +
-    (diaryData ? diaryData.total_entries : 853) + ' diary entries.</p></div>';
+    (diaryData ? diaryData.total_entries : 1988) + ' diary entries.</p></div>';
   lastSearchResults = null;
   lastSearchQuery = '';
   activeResultIdx = -1;
@@ -1035,11 +1122,20 @@ function buildTimelineSeries() {
   }
 
   const yearColors = {
+    '2001': '#ff5e5e',   '2002': '#5eff5e',   '2003': '#ffe14d',
+    '2004': '#5eb5ff',   '2005': '#ff9b3d',   '2006': '#c45eff',
+    '2007': '#5effd9',   '2008': '#ff5ec4',   '2009': '#a8ff5e',
+    '2010': '#5e8fff',   '2011': '#ffd45e',   '2012': '#5effa8',
+    '2013': '#ff7e5e',   '2014': '#9d5eff',   '2015': '#5effe4',
+    '2016': '#ffb35e',   '2017': '#7e5eff',   '2018': '#d4ff5e',
     '2019': 'rgba(160, 170, 240, 1)',
     '2020': 'rgba(255, 90, 120, 1)',
     '2021': 'rgba(110, 235, 195, 1)',
     '2022': 'rgba(255, 195, 60, 1)',
   };
+  function colorForYear(yearStr) {
+    return yearColors[yearStr] || 'rgba(100,100,100,0.8)';
+  }
   const gapColor = 'rgba(80, 80, 80, 0.4)';
 
   const labels = [];
@@ -1054,7 +1150,7 @@ function buildTimelineSeries() {
     const count = dateCounts[iso] || 0;
     labels.push(iso);
     entryCounts.push(count);
-    entryColors.push(count > 0 ? (yearColors[iso.slice(0, 4)] || 'rgba(100,100,100,0.8)') : gapColor);
+    entryColors.push(count > 0 ? colorForYear(iso.slice(0, 4)) : gapColor);
     if (count > 0) entryDays++;
     d.setDate(d.getDate() + 1);
   }
@@ -1088,7 +1184,9 @@ function jumpToDate(date) {
   if (!diaryData) return;
   for (const e of diaryData.entries) {
     if (e.date === date) {
-      const pg = getPageNum(pageMap[e.date + '|' + e.raw_date]);
+      const pm = pageMaps[e.source] || {};
+      const pg = getPageNum(pm[e.date + '|' + e.raw_date]);
+      if (e.source) switchPdfSource(e.source);
       if (pg) renderPdfPage(pg);
       if (window._searchResults) {
         for (let i = 0; i < window._searchResults.length; i++) {
@@ -1518,7 +1616,8 @@ function displayResults(results, query) {
     html += '<div class="result-entry" id="result-' + i + '" data-result-idx="' + i + '" data-pdf-page="' + pdfPage + '" data-entry-idx="' + r.idx + '">';
     html += '<div class="result-header">';
     html += '<span><span class="result-date">' + e.date + '</span>' +
-      '<span class="result-raw-date">' + escapeHtml(e.raw_date) + '</span>';
+      '<span class="result-raw-date">' + escapeHtml(e.raw_date) + '</span>' +
+      (e.source ? '<span style="font-size:10px;color:var(--muted);background:var(--panel-2);padding:2px 6px;border-radius:3px;border:1px solid var(--border-2);margin-left:6px;white-space:nowrap" title="From the ' + (e.source === 'prequel' ? 'Prequel (2001-2015)' : 'Main Diary (2019-2022)') + ' release">' + (e.source === 'prequel' ? 'Prequel' : 'Main') + '</span>' : '');
     if (pageLabel) {
       html += '<span class="result-page-link" title="Open PDF at this entry">📄 ' + pageLabel + '</span>';
     }
@@ -1602,6 +1701,10 @@ function selectResult(resultIdx, pdfPage, entryIdx) {
   const el = document.getElementById('result-' + resultIdx);
   if (el) el.classList.add('active');
   activeResultIdx = resultIdx;
+
+  // Switch to the correct PDF for this entry's source
+  const r = window._searchResults && window._searchResults[resultIdx];
+  if (r && r.entry && r.entry.source) switchPdfSource(r.entry.source);
 
   // Prefer explicit page; else current hit's page; else entry start
   let page = parseInt(pdfPage, 10);
