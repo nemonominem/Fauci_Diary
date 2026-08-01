@@ -225,7 +225,6 @@ body.layout-landscape .panel-resizer:hover::before,
 body.layout-landscape .panel-resizer.dragging::before {
   background: #fff;
 }
-body.layout-portrait .panel-resizer { display: none; }
 
 /* ── Layout: Portrait (stacked) ───────────────────────────────────── */
 body.layout-portrait .content-area { flex-direction: column; }
@@ -248,10 +247,32 @@ body.layout-portrait .charts-panel.collapsed {
   flex: 0 0 auto;
 }
 body.layout-portrait .results-panel {
-  flex: 1; border-right: none; border-bottom: 2px solid var(--border);
+  flex: 1; border-right: none; border-bottom: none; min-height: 80px;
+}
+/* Horizontal drag handle between results and PDF */
+body.layout-portrait .panel-resizer {
+  display: block; width: 100%; height: 10px; flex-shrink: 0; cursor: row-resize;
+  background: #555; position: relative;
+}
+body.layout-portrait .panel-resizer::before {
+  content: '';
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px; height: 3px;
+  background: #6c9ff2; border-radius: 2px;
+  transition: background 0.15s;
+}
+body.layout-portrait .panel-resizer:hover,
+body.layout-portrait .panel-resizer.dragging {
+  background: var(--accent);
+}
+body.layout-portrait .panel-resizer:hover::before,
+body.layout-portrait .panel-resizer.dragging::before {
+  background: #fff;
 }
 body.layout-portrait .pdf-panel {
-  width: 100%; min-width: 0; height: 45%; border-left: none; border-top: none;
+  width: 100%; min-width: 0; height: 45%; min-height: 140px;
+  border-left: none; border-top: none; flex: 0 0 auto;
 }
 
 /* ── Main content area ─────────────────────────────────────────────── */
@@ -474,7 +495,7 @@ mark.hit-current {
   </div>
 
   <!-- ── Drag handle to resize the PDF panel ─────────────────────────── -->
-  <div class="panel-resizer" id="pdfResizer" title="Drag to resize"></div>
+  <div class="panel-resizer" id="pdfResizer" title="Drag to resize PDF panel"></div>
 
   <!-- ── PDF panel ────────────────────────────────────────────────── -->
   <div class="pdf-panel" id="pdfPanel">
@@ -1013,8 +1034,12 @@ function switchLayout() {
   currentLayout = currentLayout === 'landscape' ? 'portrait' : 'landscape';
   document.body.className = 'layout-' + currentLayout;
   updateLayoutToggleLabel();
+  // Clear the size axis that does not apply in the new layout.
+  var pdfPanelEl = document.getElementById('pdfPanel');
   if (currentLayout === 'portrait') {
-    document.getElementById('pdfPanel').style.width = '';
+    pdfPanelEl.style.width = '';
+  } else {
+    pdfPanelEl.style.height = '';
   }
 
   // Keep collapse control consistent with layout
@@ -2022,7 +2047,9 @@ document.addEventListener('keydown', function(e) {
 });
 
 // ============================================================
-// Drag the left border of the PDF panel to resize it (landscape only)
+// Drag the PDF panel edge to resize it
+//   Landscape: left edge → width
+//   Portrait:  top edge  → height
 // ============================================================
 (function() {
   const resizer = document.getElementById('pdfResizer');
@@ -2030,7 +2057,6 @@ document.addEventListener('keydown', function(e) {
   let dragging = false;
 
   resizer.addEventListener('mousedown', function(e) {
-    if (currentLayout !== 'landscape') return;
     dragging = true;
     resizer.classList.add('dragging');
     document.body.style.userSelect = 'none';
@@ -2039,9 +2065,18 @@ document.addEventListener('keydown', function(e) {
   document.addEventListener('mousemove', function(e) {
     if (!dragging) return;
     const contentRect = document.querySelector('.content-area').getBoundingClientRect();
-    let newWidth = contentRect.right - e.clientX;
-    newWidth = Math.max(320, Math.min(contentRect.width - 260, newWidth));
-    pdfPanel.style.width = newWidth + 'px';
+    if (currentLayout === 'landscape') {
+      let newWidth = contentRect.right - e.clientX;
+      newWidth = Math.max(320, Math.min(contentRect.width - 260, newWidth));
+      pdfPanel.style.width = newWidth + 'px';
+      pdfPanel.style.height = '';
+    } else {
+      // Portrait: stack is charts | results | resizer | PDF — drag height of PDF.
+      let newHeight = contentRect.bottom - e.clientY;
+      newHeight = Math.max(140, Math.min(contentRect.height - 220, newHeight));
+      pdfPanel.style.height = newHeight + 'px';
+      pdfPanel.style.width = '';
+    }
   });
   document.addEventListener('mouseup', function() {
     if (!dragging) return;
