@@ -341,16 +341,48 @@ mark.hit-current {
 }
 .pdf-page-label { font-size: 13px; color: var(--muted); }
 .pdf-zoom-label { font-size: 12px; color: var(--muted); margin-left: auto; }
+.pdf-view-mode {
+  background: var(--input); color: #fff; border: 1px solid var(--border-2);
+  border-radius: 4px; padding: 5px 8px; font-size: 12px; font-weight: 600;
+  cursor: pointer; max-width: 150px;
+}
+.pdf-view-mode:hover { border-color: var(--muted); }
 
 .pdf-viewer-container {
-  flex: 1; overflow: auto; display: flex; justify-content: center;
+  flex: 1; overflow: auto; display: flex; justify-content: center; align-items: flex-start;
   padding: 12px; background: #1a1a1a;
+}
+.pdf-viewer-container.pdf-mode-continuous {
+  display: block; /* stack pages full-width of scroller */
 }
 .pdf-viewer-container::-webkit-scrollbar { width: 8px; height: 8px; }
 .pdf-viewer-container::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
-#pdfCanvas {
+.pdf-page-view {
+  display: flex; flex-direction: row; gap: 12px; align-items: flex-start; justify-content: center;
+  flex-wrap: nowrap;
+}
+.pdf-page-view canvas,
+.pdf-continuous-view canvas {
   box-shadow: 0 4px 20px rgba(0,0,0,0.5);
   background: #fff;
+  display: block;
+}
+.pdf-continuous-view {
+  display: none;
+  width: 100%;
+  max-width: 100%;
+}
+.pdf-page-slot {
+  display: flex; flex-direction: column; align-items: center;
+  margin: 0 auto 16px;
+  width: 100%;
+}
+.pdf-page-slot .pdf-page-num {
+  font-size: 11px; color: var(--muted); margin-bottom: 4px; font-weight: 600;
+}
+.pdf-page-slot.is-current canvas {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .pdf-loading {
   color: var(--muted); font-size: 14px; text-align: center; padding: 40px;
@@ -457,13 +489,22 @@ mark.hit-current {
       <button onclick="pdfZoom(0.2)" style="font-size:12px;padding:4px 8px">+</button>
       <button onclick="pdfFit('width')" title="Fit width" style="font-size:12px;padding:4px 8px">↔ Width</button>
       <button onclick="pdfFit('height')" title="Fit height" style="font-size:12px;padding:4px 8px">↕ Height</button>
+      <select id="pdfViewMode" class="pdf-view-mode" onchange="setPdfViewMode(this.value)" title="PDF layout">
+        <option value="single">Single page</option>
+        <option value="double">Double page</option>
+        <option value="continuous">Continuous scroll</option>
+      </select>
     </div>
     <div class="pdf-viewer-container" id="pdfViewerContainer">
       <div class="pdf-loading" id="pdfLoading">
         <div class="spinner"></div>
         <div>Loading PDF...</div>
       </div>
-      <canvas id="pdfCanvas" style="display:none"></canvas>
+      <div class="pdf-page-view" id="pdfPageView" style="display:none">
+        <canvas id="pdfCanvas"></canvas>
+        <canvas id="pdfCanvas2" style="display:none"></canvas>
+      </div>
+      <div class="pdf-continuous-view" id="pdfContinuousView" style="display:none"></div>
     </div>
   </div>
 
@@ -496,8 +537,15 @@ let currentPdfSource = DEFAULT_PDF_SOURCE;
 let pdfDoc = null;                    // always the currently active PDF doc
 let currentPage = 1;
 let pdfScale = 1.2;
+let pdfViewMode = 'single'; // 'single' | 'double' | 'continuous'
 let isRendering = false;
 let pendingPage = null;
+let pdfRenderTask = null;
+let pdfRenderTask2 = null;
+let pdfContinuousIo = null;
+let pdfContinuousKey = '';
+let pdfContinuousScrollTimer = null;
+let pdfPageAspect = 1.3; // height/width, updated from first rendered page
 let timelineChart = null;
 // hitsChart removed: hits are the right half of timelineChart
 let activeResultIdx = -1;
@@ -597,7 +645,7 @@ async function loadData() {
     updatePdfSourceUI();
 
     document.getElementById('pdfLoading').style.display = 'none';
-    document.getElementById('pdfCanvas').style.display = 'block';
+    applyPdfViewModeDom();
     renderPdfPage(pendingPage || 1);
 
     // ── Load the other PDF in the background ──
@@ -631,6 +679,7 @@ function switchPdfSource(source) {
   if (currentPdfSource === source && pdfDoc) return;  // already showing
   currentPdfSource = source;
   pdfDoc = pdfDocs[source];
+  pdfContinuousKey = ''; // force continuous slots to rebuild for new PDF
   updatePdfSourceUI();
 }
 
@@ -644,17 +693,72 @@ function updatePdfSourceUI() {
 }
 
 // ============================================================
-// PDF rendering
+// PDF rendering — single / double / continuous modes
 // ============================================================
-let pdfRenderTask = null;
+function applyPdfViewModeDom() {
+  var container = document.getElementById('pdfViewerContainer');
+  var pageView = document.getElementById('pdfPageView');
+  var contView = document.getElementById('pdfContinuousView');
+  var canvas2 = document.getElementById('pdfCanvas2');
+  if (!container || !pageView || !contView) return;
+  container.classList.toggle('pdf-mode-continuous', pdfViewMode === 'continuous');
+  if (pdfViewMode === 'continuous') {
+    pageView.style.display = 'none';
+    contView.style.display = 'block';
+  } else {
+    contView.style.display = 'none';
+    pageView.style.display = 'flex';
+    if (canvas2) canvas2.style.display = pdfViewMode === 'double' ? 'block' : 'none';
+  }
+  var sel = document.getElementById('pdfViewMode');
+  if (sel && sel.value !== pdfViewMode) sel.value = pdfViewMode;
+}
+
+function setPdfViewMode(mode) {
+  if (mode !== 'single' && mode !== 'double' && mode !== 'continuous') mode = 'single';
+  if (pdfViewMode === mode) return;
+  pdfViewMode = mode;
+  // Continuous structure is scale/source sensitive — force rebuild on enter.
+  if (mode === 'continuous') pdfContinuousKey = '';
+  applyPdfViewModeDom();
+  if (pdfDoc) renderPdfPage(currentPage || 1);
+}
+
+async function paintPdfPageToCanvas(pageNum, canvas, taskSlot) {
+  const page = await pdfDoc.getPage(pageNum);
+  const viewport = page.getViewport({ scale: pdfScale });
+  if (viewport.width > 0) pdfPageAspect = viewport.height / viewport.width;
+  const ctx = canvas.getContext('2d');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  canvas.style.width = viewport.width + 'px';
+  canvas.style.height = viewport.height + 'px';
+  var task = page.render({ canvasContext: ctx, viewport: viewport });
+  if (taskSlot === 2) pdfRenderTask2 = task; else pdfRenderTask = task;
+  try {
+    await task.promise;
+  } finally {
+    if (taskSlot === 2) pdfRenderTask2 = null; else pdfRenderTask = null;
+  }
+}
+
+function cancelPdfTasks() {
+  if (pdfRenderTask) {
+    try { pdfRenderTask.cancel(); } catch (e) { /* ignore */ }
+    pdfRenderTask = null;
+  }
+  if (pdfRenderTask2) {
+    try { pdfRenderTask2.cancel(); } catch (e) { /* ignore */ }
+    pdfRenderTask2 = null;
+  }
+}
 
 async function renderPdfPage(pageNum) {
   pageNum = parseInt(pageNum, 10);
   if (!pageNum || pageNum < 1) return;
 
-  // Always record the latest requested page (coalesce rapid clicks)
   pendingPage = pageNum;
-  if (!pdfDoc) return; // will be re-requested once PDF finishes loading
+  if (!pdfDoc) return;
   if (isRendering) return;
 
   isRendering = true;
@@ -667,35 +771,192 @@ async function renderPdfPage(pageNum) {
     document.getElementById('pdfPageInput').value = target;
 
     try {
-      if (pdfRenderTask) {
-        try { pdfRenderTask.cancel(); } catch (e) { /* ignore */ }
-        pdfRenderTask = null;
+      cancelPdfTasks();
+      applyPdfViewModeDom();
+
+      if (pdfViewMode === 'continuous') {
+        await ensureContinuousStructure();
+        if (pendingPage !== null) continue;
+        scrollContinuousToPage(target, true);
+        markContinuousCurrent(target);
+        // Visible slots render via IntersectionObserver; force near pages.
+        renderContinuousNeighborhood(target);
+      } else if (pdfViewMode === 'double') {
+        const c1 = document.getElementById('pdfCanvas');
+        const c2 = document.getElementById('pdfCanvas2');
+        c2.style.display = (target < pdfDoc.numPages) ? 'block' : 'none';
+        await paintPdfPageToCanvas(target, c1, 1);
+        if (pendingPage !== null) continue;
+        if (target < pdfDoc.numPages) {
+          await paintPdfPageToCanvas(target + 1, c2, 2);
+        }
+      } else {
+        // single
+        document.getElementById('pdfCanvas2').style.display = 'none';
+        await paintPdfPageToCanvas(target, document.getElementById('pdfCanvas'), 1);
       }
-      const page = await pdfDoc.getPage(target);
-      // If a newer page was requested while we awaited getPage, skip paint
-      if (pendingPage !== null) continue;
-
-      const viewport = page.getViewport({ scale: pdfScale });
-      const canvas = document.getElementById('pdfCanvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      canvas.style.width = viewport.width + 'px';
-      canvas.style.height = viewport.height + 'px';
-
-      pdfRenderTask = page.render({ canvasContext: ctx, viewport: viewport });
-      await pdfRenderTask.promise;
-      pdfRenderTask = null;
     } catch (err) {
       if (err && (err.name === 'RenderingCancelledException' || err.message === 'Rendering cancelled')) {
-        // superseded by a newer page request — loop continues if pendingPage set
+        // superseded
       } else {
         console.error('Render error page ' + target + ':', err);
       }
-      pdfRenderTask = null;
+      cancelPdfTasks();
     }
   }
   isRendering = false;
+}
+
+async function ensureContinuousStructure() {
+  if (!pdfDoc) return;
+  var cont = document.getElementById('pdfContinuousView');
+  var key = currentPdfSource + ':' + pdfDoc.numPages + ':' + pdfScale.toFixed(3);
+  if (pdfContinuousKey === key && cont.childElementCount === pdfDoc.numPages) return;
+
+  if (pdfContinuousIo) {
+    pdfContinuousIo.disconnect();
+    pdfContinuousIo = null;
+  }
+  cont.innerHTML = '';
+  pdfContinuousKey = key;
+
+  // Prefer real page-1 metrics when cheap; else use last known aspect.
+  try {
+    var p1 = await pdfDoc.getPage(1);
+    var vp = p1.getViewport({ scale: pdfScale });
+    if (vp.width > 0) pdfPageAspect = vp.height / vp.width;
+  } catch (e) { /* keep prior aspect */ }
+
+  var container = document.getElementById('pdfViewerContainer');
+  var availW = Math.max(120, container.clientWidth - 24);
+  var cssW = Math.min(availW, Math.round(availW)); // full width fit for continuous slots
+  // Continuous mode uses pdfScale for render; slot min-height matches scaled page.
+  var estW = Math.round(612 * pdfScale); // letter-ish fallback
+  try {
+    var page = await pdfDoc.getPage(1);
+    estW = Math.round(page.getViewport({ scale: pdfScale }).width);
+  } catch (e2) { /* fallback */ }
+  var estH = Math.round(estW * pdfPageAspect);
+
+  for (var i = 1; i <= pdfDoc.numPages; i++) {
+    var slot = document.createElement('div');
+    slot.className = 'pdf-page-slot';
+    slot.dataset.page = String(i);
+    slot.style.minHeight = (estH + 20) + 'px';
+    var label = document.createElement('div');
+    label.className = 'pdf-page-num';
+    label.textContent = 'Page ' + i;
+    var canvas = document.createElement('canvas');
+    canvas.dataset.page = String(i);
+    canvas.dataset.renderedScale = '';
+    slot.appendChild(label);
+    slot.appendChild(canvas);
+    cont.appendChild(slot);
+  }
+
+  var root = document.getElementById('pdfViewerContainer');
+  pdfContinuousIo = new IntersectionObserver(function(entries) {
+    for (var e = 0; e < entries.length; e++) {
+      if (!entries[e].isIntersecting) continue;
+      var pg = parseInt(entries[e].target.dataset.page, 10);
+      if (pg) renderContinuousPage(pg);
+    }
+  }, { root: root, rootMargin: '400px 0px', threshold: 0.01 });
+
+  for (var j = 0; j < cont.children.length; j++) {
+    pdfContinuousIo.observe(cont.children[j]);
+  }
+
+  if (!root._pdfScrollBound) {
+    root._pdfScrollBound = true;
+    root.addEventListener('scroll', onPdfContinuousScroll, { passive: true });
+  }
+}
+
+async function renderContinuousPage(pageNum) {
+  if (!pdfDoc || pdfViewMode !== 'continuous') return;
+  var cont = document.getElementById('pdfContinuousView');
+  var slot = cont && cont.querySelector('.pdf-page-slot[data-page="' + pageNum + '"]');
+  if (!slot) return;
+  var canvas = slot.querySelector('canvas');
+  if (!canvas) return;
+  var scaleKey = pdfScale.toFixed(3) + ':' + currentPdfSource;
+  if (canvas.dataset.renderedScale === scaleKey && canvas.width > 0) return;
+  if (canvas.dataset.rendering === '1') return;
+  canvas.dataset.rendering = '1';
+  try {
+    var page = await pdfDoc.getPage(pageNum);
+    if (pdfViewMode !== 'continuous') return;
+    var viewport = page.getViewport({ scale: pdfScale });
+    if (viewport.width > 0) pdfPageAspect = viewport.height / viewport.width;
+    var ctx = canvas.getContext('2d');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.width = viewport.width + 'px';
+    canvas.style.height = viewport.height + 'px';
+    slot.style.minHeight = '';
+    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+    canvas.dataset.renderedScale = scaleKey;
+  } catch (err) {
+    if (!(err && (err.name === 'RenderingCancelledException' || err.message === 'Rendering cancelled'))) {
+      console.error('Continuous render page ' + pageNum + ':', err);
+    }
+  } finally {
+    canvas.dataset.rendering = '0';
+  }
+}
+
+function renderContinuousNeighborhood(center) {
+  if (!pdfDoc) return;
+  var from = Math.max(1, center - 2);
+  var to = Math.min(pdfDoc.numPages, center + 3);
+  for (var p = from; p <= to; p++) renderContinuousPage(p);
+}
+
+function scrollContinuousToPage(pageNum, instant) {
+  var cont = document.getElementById('pdfContinuousView');
+  var slot = cont && cont.querySelector('.pdf-page-slot[data-page="' + pageNum + '"]');
+  var root = document.getElementById('pdfViewerContainer');
+  if (!slot || !root) return;
+  var elRect = slot.getBoundingClientRect();
+  var rootRect = root.getBoundingClientRect();
+  root.scrollTop += elRect.top - rootRect.top - 8;
+}
+
+function markContinuousCurrent(pageNum) {
+  var cont = document.getElementById('pdfContinuousView');
+  if (!cont) return;
+  var slots = cont.querySelectorAll('.pdf-page-slot');
+  for (var i = 0; i < slots.length; i++) {
+    slots[i].classList.toggle('is-current', parseInt(slots[i].dataset.page, 10) === pageNum);
+  }
+}
+
+function onPdfContinuousScroll() {
+  if (pdfViewMode !== 'continuous') return;
+  clearTimeout(pdfContinuousScrollTimer);
+  pdfContinuousScrollTimer = setTimeout(function() {
+    var root = document.getElementById('pdfViewerContainer');
+    var cont = document.getElementById('pdfContinuousView');
+    if (!root || !cont) return;
+    var rootRect = root.getBoundingClientRect();
+    var best = null, bestDist = Infinity;
+    var slots = cont.querySelectorAll('.pdf-page-slot');
+    for (var i = 0; i < slots.length; i++) {
+      var r = slots[i].getBoundingClientRect();
+      // Prefer the page whose top is nearest just below the container top.
+      var dist = Math.abs(r.top - rootRect.top - 8);
+      if (r.bottom > rootRect.top + 20 && r.top < rootRect.bottom && dist < bestDist) {
+        bestDist = dist;
+        best = parseInt(slots[i].dataset.page, 10);
+      }
+    }
+    if (best && best !== currentPage) {
+      currentPage = best;
+      document.getElementById('pdfPageInput').value = best;
+      markContinuousCurrent(best);
+    }
+  }, 80);
 }
 
 function pdfPrevPage() {
@@ -705,7 +966,7 @@ function pdfNextPage() {
   if (pdfDoc && currentPage < pdfDoc.numPages) renderPdfPage(currentPage + 1);
 }
 function pdfGoToPage(pageStr) {
-  const p = parseInt(pageStr);
+  const p = parseInt(pageStr, 10);
   if (p >= 1 && pdfDoc && p <= pdfDoc.numPages) renderPdfPage(p);
 }
 async function pdfFit(mode) {
@@ -713,17 +974,24 @@ async function pdfFit(mode) {
   const page = await pdfDoc.getPage(currentPage);
   const viewport = page.getViewport({ scale: 1 });
   const container = document.getElementById('pdfViewerContainer');
-  const padding = 24; // 12px on each side
-  const availW = container.clientWidth - padding;
-  const availH = container.clientHeight - padding;
+  const padding = 24;
+  const gap = 12;
+  var availW = container.clientWidth - padding;
+  var availH = container.clientHeight - padding;
+  if (pdfViewMode === 'double') {
+    // Two pages side by side with gap
+    availW = (availW - gap) / 2;
+  }
   const scale = mode === 'width' ? availW / viewport.width : availH / viewport.height;
   pdfScale = Math.max(0.4, Math.min(3.0, scale));
   document.getElementById('pdfZoomLabel').textContent = Math.round(pdfScale * 100) + '%';
+  if (pdfViewMode === 'continuous') pdfContinuousKey = '';
   renderPdfPage(currentPage);
 }
 function pdfZoom(delta) {
   pdfScale = Math.max(0.4, Math.min(3.0, pdfScale + delta));
   document.getElementById('pdfZoomLabel').textContent = Math.round(pdfScale * 100) + '%';
+  if (pdfViewMode === 'continuous') pdfContinuousKey = '';
   renderPdfPage(currentPage);
 }
 
