@@ -79,6 +79,24 @@ body {
 .case-toggle:hover { border-color: var(--accent); color: var(--text); }
 .case-toggle input { accent-color: var(--accent); cursor: pointer; }
 .case-toggle strong { color: var(--text); font-weight: 600; }
+.jump-date-bar {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--muted); white-space: nowrap;
+  padding: 4px 8px; border: 1px solid var(--border-2); border-radius: 4px;
+  background: var(--panel-2);
+}
+.jump-date-bar label { font-weight: 600; color: var(--text); font-size: 11px; }
+.jump-date-bar input[type="date"],
+.jump-date-bar input[type="text"] {
+  background: var(--input); color: #fff; border: 1px solid var(--border-2);
+  border-radius: 4px; padding: 4px 8px; font-size: 12px; color-scheme: dark;
+}
+.jump-date-bar input[type="date"] { min-width: 9.5em; }
+.jump-date-bar button {
+  background: var(--accent); color: #fff; border: none; border-radius: 4px;
+  padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.jump-date-bar button:hover { background: #c81e4a; }
 .layout-toggle {
   background: var(--panel-2); color: var(--text); border: 1px solid var(--border-2);
   padding: 5px 12px; border-radius: 4px; cursor: pointer; font-weight: 600;
@@ -449,7 +467,12 @@ mark.hit-current {
     <span class="layout-action">Switch to</span>
     <span class="layout-target">Portrait</span>
   </button>
-  <span class="instructions">Search &rarr; click a result to jump to the PDF page. Use HIT navigation to browse all matches. Scroll wheel on timeline to zoom; double-click to reset.</span>
+  <span class="jump-date-bar" title="Jump to an entry date (nearest previous entry if exact day has none)">
+    <label for="jumpDateInput">Jump to date</label>
+    <input type="date" id="jumpDateInput" min="2001-01-26" max="2022-12-17">
+    <button type="button" id="jumpDateBtn" onclick="goToJumpDate()">Go</button>
+  </span>
+  <span class="instructions">Search &rarr; click a result to jump to the PDF. Click entry or hit bars on the timeline. Jump-to-date finds the nearest entry. Scroll wheel zooms; double-click resets.</span>
 </div>
 
 <div class="content-area">
@@ -646,6 +669,7 @@ async function loadData() {
     document.getElementById('entryStats').textContent =
       diaryData.total_entries + ' entries \u00b7 ' + diaryData.date_range.start + ' to ' + diaryData.date_range.end;
 
+    syncJumpDateInputBounds();
     drawTimeline();
 
     // ── Fetch both page maps in parallel ──
@@ -1510,6 +1534,61 @@ function scrollResultToPanelTop(resultIdx) {
   panel.scrollTop += elRect.top - panelRect.top;
 }
 
+/**
+ * Closest diary entry date to targetIso (YYYY-MM-DD).
+ * Exact match if present; else nearest previous entry day; else next.
+ */
+function findClosestEntryDate(targetIso) {
+  if (!targetIso || !diaryData) return null;
+  var series = getTimelineSeries();
+  var bestPrev = null;
+  var bestNext = null;
+  for (var i = 0; i < series.labels.length; i++) {
+    if ((series.entryCounts[i] || 0) <= 0) continue;
+    var d = series.labels[i];
+    if (d === targetIso) return d;
+    if (d < targetIso) bestPrev = d;
+    else if (d > targetIso && bestNext === null) bestNext = d;
+  }
+  return bestPrev || bestNext || null;
+}
+
+function normalizeJumpDateValue(raw) {
+  raw = String(raw || '').trim();
+  if (!raw) return null;
+  // HTML date input: YYYY-MM-DD
+  var m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!m) return null;
+  var y = m[1];
+  var mo = ('0' + m[2]).slice(-2);
+  var day = ('0' + m[3]).slice(-2);
+  var iso = y + '-' + mo + '-' + day;
+  // Validate calendar day
+  var dt = parseLocalISO(iso);
+  if (isNaN(dt.getTime())) return null;
+  if (formatLocalISO(dt) !== iso) return null;
+  return iso;
+}
+
+function goToJumpDate() {
+  var input = document.getElementById('jumpDateInput');
+  if (!input || !diaryData) return;
+  var iso = normalizeJumpDateValue(input.value);
+  if (!iso) return;
+  var closest = findClosestEntryDate(iso);
+  if (!closest) return;
+  input.value = closest;
+  jumpToDate(closest);
+}
+
+function syncJumpDateInputBounds() {
+  var input = document.getElementById('jumpDateInput');
+  if (!input || !diaryData || !diaryData.date_range) return;
+  input.min = diaryData.date_range.start;
+  input.max = diaryData.date_range.end;
+  if (!input.value) input.value = diaryData.date_range.start;
+}
+
 function jumpToDate(date) {
   if (!diaryData) return;
   // Find the first entry matching this date
@@ -1523,10 +1602,8 @@ function jumpToDate(date) {
   }
   if (!foundEntry) return;
 
-  // Search active: keep the full hit list, scroll so this date's card is the
-  // first one in the results reading area, and open its PDF.
-  // Resolve against lastSearchResults (not window._searchResults), which is
-  // only set by doSearch/clearSearch and survives panel rebuilds.
+  // Search active + this date is a hit: keep full hit list, scroll to card, open PDF.
+  // lastSearchResults (not window._searchResults) survives panel rebuilds.
   if (lastSearchResults) {
     var matchIdx = -1;
     for (var j = 0; j < lastSearchResults.length; j++) {
@@ -1538,7 +1615,6 @@ function jumpToDate(date) {
     if (matchIdx >= 0) {
       var needRebuild = window._searchResults !== lastSearchResults;
       if (needRebuild) {
-        // Restore full list without auto-opening result #0 (avoids PDF flash).
         displayResults(lastSearchResults, lastSearchQuery || '', { autoSelect: false });
       }
       function focusMatch() {
@@ -1549,7 +1625,6 @@ function jumpToDate(date) {
         scrollResultToPanelTop(matchIdx);
       }
       if (needRebuild) {
-        // Two rAFs: wait for layout after innerHTML before measuring scroll.
         requestAnimationFrame(function() {
           requestAnimationFrame(focusMatch);
         });
@@ -1558,12 +1633,11 @@ function jumpToDate(date) {
       }
       return;
     }
-    // Search is active but this day is not a hit day — do NOT replace the
-    // full result list with a single 0-hit entry (common on dense portrait).
-    return;
+    // Search active but this day is not a hit — still open the entry (entry-bar
+    // / jump-to-date browse). lastSearchResults stays so hit bars keep working.
   }
 
-  // No active search: show this entry alone (autoSelect opens PDF).
+  // Show this entry alone (autoSelect opens PDF).
   displayResults([{
     idx: foundIdx,
     entry: foundEntry,
@@ -1944,15 +2018,14 @@ function timelineIndexFromEvent(evt) {
   return { idx: idx, value: value };
 }
 
-// When the time axis is dense (portrait), a click can land a day or two off a
-// visible hit bar. Snap to the nearest day that actually has hits.
-function snapToNearestHitDay(idx, hd, maxRadius) {
-  if (!hd || idx < 0 || idx >= hd.length) return idx;
-  if ((hd[idx] || 0) > 0) return idx;
+// Dense time axis: click can land a day or two off a visible bar.
+function snapToNearestCountedDay(idx, counts, maxRadius) {
+  if (!counts || idx < 0 || idx >= counts.length) return idx;
+  if ((counts[idx] || 0) > 0) return idx;
   maxRadius = maxRadius || 20;
   for (var r = 1; r <= maxRadius; r++) {
-    if (idx - r >= 0 && (hd[idx - r] || 0) > 0) return idx - r;
-    if (idx + r < hd.length && (hd[idx + r] || 0) > 0) return idx + r;
+    if (idx - r >= 0 && (counts[idx - r] || 0) > 0) return idx - r;
+    if (idx + r < counts.length && (counts[idx + r] || 0) > 0) return idx + r;
   }
   return idx;
 }
@@ -1967,25 +2040,25 @@ function handleTimelineClick(evt) {
   var hd = hitCountsForSeries(lastSearchResults);
   var hasSearch = !!(lastSearchResults && lastSearchResults.length);
 
-  // Hit side of the diverging chart (portrait: above 0; landscape: right of 0).
-  // Snap to a nearby hit day so dense portrait clicks still land on a real bar.
+  // Hit side (portrait: above 0; landscape: right of 0) during a search:
+  // snap to a nearby hit day and open that search result.
   if (hasSearch && mapped.value > 0) {
-    idx = snapToNearestHitDay(idx, hd, 25);
+    idx = snapToNearestCountedDay(idx, hd, 25);
     if ((hd[idx] || 0) > 0) {
       jumpToDate(series.labels[idx]);
       return;
     }
   }
 
-  // Entry side, or ambiguous centre: only jump when this day is a search hit
-  // (scroll full list) or when there is no active search (browse entry).
-  if ((hd[idx] || 0) > 0) {
+  // Entry bars (and centre / empty hit side): open that diary day without
+  // requiring a prior search. Snap to nearest day that has an entry.
+  idx = snapToNearestCountedDay(idx, series.entryCounts, 25);
+  if ((series.entryCounts[idx] || 0) > 0) {
     jumpToDate(series.labels[idx]);
     return;
   }
-  if (!hasSearch && series.entryCounts[idx] > 0) {
-    jumpToDate(series.labels[idx]);
-  }
+  // Fallback: a hit-only day (should be rare — hits come from entries).
+  if ((hd[idx] || 0) > 0) jumpToDate(series.labels[idx]);
 }
 
 // Double-click resets zoom and cancels any pending single-click navigation.
@@ -2349,6 +2422,9 @@ function hideHelp() {
 // Enter key in search box triggers search (replaces inline onkeydown)
 document.getElementById('searchInput').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
+});
+document.getElementById('jumpDateInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); goToJumpDate(); }
 });
 loadData();
 </script>
