@@ -51,10 +51,23 @@ body {
 .header .subtitle a { color: #fff; text-decoration: underline; }
 .toolbar {
   background: var(--panel-2); padding: 8px 16px; border-bottom: 2px solid var(--border);
-  display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: nowrap;
 }
+.toolbar-controls {
+  display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+}
+/* Prefer sitting to the right of Go; wrap up to 3 lines in remaining width */
 .toolbar .instructions {
   font-size: 12px; color: var(--muted); line-height: 1.4;
+  flex: 1 1 auto; min-width: 0;
+}
+/* Too narrow for ≤3 lines beside controls → full-width row under them */
+.toolbar.toolbar-instr-below {
+  flex-wrap: wrap;
+}
+.toolbar.toolbar-instr-below .instructions {
+  flex: 1 1 100%;
+  width: 100%;
 }
 .search-bar { flex: 1; display: flex; gap: 8px; max-width: 720px; align-items: center; flex-wrap: wrap; }
 #searchInput {
@@ -462,17 +475,19 @@ mark.hit-current {
   </div>
 </div>
 
-<div class="toolbar">
-  <button class="layout-toggle" id="layoutToggle" type="button" onclick="switchLayout()" title="Switch layout">
-    <span class="layout-action">Switch to</span>
-    <span class="layout-target">Portrait</span>
-  </button>
-  <span class="jump-date-bar" title="Jump to an entry date (nearest previous entry if exact day has none)">
-    <label for="jumpDateInput">Jump to date</label>
-    <input type="date" id="jumpDateInput" min="2001-01-26" max="2022-12-17">
-    <button type="button" id="jumpDateBtn" onclick="goToJumpDate()">Go</button>
-  </span>
-  <span class="instructions">Search &rarr; click a result / hit bar for the PDF. Entry bars only scroll the timeline to that day. Jump-to-date opens the nearest entry. Scroll wheel zooms; double-click resets.</span>
+<div class="toolbar" id="mainToolbar">
+  <div class="toolbar-controls">
+    <button class="layout-toggle" id="layoutToggle" type="button" onclick="switchLayout()" title="Switch layout">
+      <span class="layout-action">Switch to</span>
+      <span class="layout-target">Portrait</span>
+    </button>
+    <span class="jump-date-bar" title="Jump to an entry date (nearest previous entry if exact day has none)">
+      <label for="jumpDateInput">Jump to date</label>
+      <input type="date" id="jumpDateInput" min="2001-01-26" max="2022-12-17">
+      <button type="button" id="jumpDateBtn" onclick="goToJumpDate()">Go</button>
+    </span>
+  </div>
+  <span class="instructions" id="toolbarInstructions">Search &rarr; click a result / hit bar for the PDF. Entry bars only scroll the timeline to that day. Jump-to-date opens the nearest entry. Scroll wheel zooms; double-click resets.</span>
 </div>
 
 <div class="content-area">
@@ -1065,6 +1080,53 @@ function updateLayoutToggleLabel() {
   btn.title = 'Switch to ' + target + ' layout';
 }
 
+/**
+ * Prefer instructions to the right of Go (wrapped, ≤3 lines).
+ * If they would need more than 3 lines in the remaining width, place them
+ * on a full-width row under the Switch-to / Jump-to-date controls.
+ */
+function layoutToolbarInstructions() {
+  var toolbar = document.getElementById('mainToolbar');
+  var controls = toolbar && toolbar.querySelector('.toolbar-controls');
+  var instr = document.getElementById('toolbarInstructions');
+  if (!toolbar || !controls || !instr) return;
+
+  // Measure as if beside controls
+  toolbar.classList.remove('toolbar-instr-below');
+  var style = getComputedStyle(instr);
+  var lh = parseFloat(style.lineHeight);
+  if (!isFinite(lh) || lh <= 0) {
+    var fs = parseFloat(style.fontSize) || 12;
+    lh = fs * 1.4;
+  }
+  var toolbarStyle = getComputedStyle(toolbar);
+  var padL = parseFloat(toolbarStyle.paddingLeft) || 0;
+  var padR = parseFloat(toolbarStyle.paddingRight) || 0;
+  var gap = parseFloat(toolbarStyle.gap) || 14;
+  var avail = toolbar.clientWidth - padL - padR - controls.offsetWidth - gap;
+  if (avail < 100) {
+    toolbar.classList.add('toolbar-instr-below');
+    return;
+  }
+
+  // Off-DOM measure at available width
+  var probe = instr.cloneNode(true);
+  probe.id = '';
+  probe.style.cssText =
+    'position:absolute;left:-9999px;top:0;visibility:hidden;display:block;' +
+    'width:' + avail + 'px;font-size:' + style.fontSize + ';' +
+    'line-height:' + style.lineHeight + ';font-family:' + style.fontFamily + ';' +
+    'font-weight:' + style.fontWeight + ';letter-spacing:' + style.letterSpacing + ';' +
+    'white-space:normal;';
+  document.body.appendChild(probe);
+  var lines = probe.scrollHeight / lh;
+  document.body.removeChild(probe);
+
+  if (lines > 3.05) {
+    toolbar.classList.add('toolbar-instr-below');
+  }
+}
+
 function switchLayout() {
   currentLayout = currentLayout === 'landscape' ? 'portrait' : 'landscape';
   document.body.className = 'layout-' + currentLayout;
@@ -1089,6 +1151,7 @@ function switchLayout() {
 
   // Time axis swaps X↔Y between layouts — never carry zoom across.
   if (!collapsed) redrawTimelines({ preserveZoom: false });
+  layoutToolbarInstructions();
 }
 
 function toggleCharts() {
@@ -2160,6 +2223,7 @@ window.addEventListener('resize', function() {
   clearTimeout(_timelineResizeTimer);
   _timelineResizeTimer = setTimeout(function() {
     if (diaryData) redrawTimelines();
+    layoutToolbarInstructions();
   }, 150);
 });
 
@@ -2486,6 +2550,8 @@ document.getElementById('searchInput').addEventListener('keydown', function(e) {
 document.getElementById('jumpDateInput').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') { e.preventDefault(); goToJumpDate(); }
 });
+layoutToolbarInstructions();
+window.addEventListener('load', layoutToolbarInstructions);
 loadData();
 </script>
 
