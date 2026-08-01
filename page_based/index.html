@@ -487,7 +487,7 @@ mark.hit-current {
       <button type="button" id="jumpDateBtn" onclick="goToJumpDate()">Go</button>
     </span>
   </div>
-  <span class="instructions" id="toolbarInstructions">Search &rarr; click a result / hit bar for the PDF. Entry bars only scroll the timeline to that day. Jump-to-date opens the nearest entry. Scroll wheel zooms; double-click resets.</span>
+  <span class="instructions" id="toolbarInstructions">Search &rarr; click a result / hit bar for matches. Entry bars open that day&rsquo;s entry + PDF (and clear any search). Jump-to-date opens the nearest entry. Scroll wheel zooms; double-click resets.</span>
 </div>
 
 <div class="content-area">
@@ -2148,6 +2148,39 @@ function snapToNearestCountedDay(idx, counts, maxRadius) {
   return -1;
 }
 
+/** Clear search state without wiping the results panel (caller will fill it). */
+function clearSearchStateForBrowse() {
+  var input = document.getElementById('searchInput');
+  if (input) input.value = '';
+  lastSearchResults = null;
+  lastSearchQuery = '';
+  window._searchResults = null;
+  window._lastSearchAst = null;
+  currentHitPositions = {};
+  currentHitIdx = {};
+  activeResultIdx = -1;
+  var stats = document.getElementById('chartStats');
+  if (stats) stats.textContent = 'search to filter';
+}
+
+/**
+ * Open a diary entry from a raw (entry) bar: drop any active search filter,
+ * show that entry's JSON in the results panel, and open its PDF page.
+ */
+function openEntryFromRawBar(date) {
+  if (!date || !diaryData) return;
+  var hadSearch = !!(lastSearchResults && lastSearchResults.length);
+  if (hadSearch || (document.getElementById('searchInput') || {}).value) {
+    clearSearchStateForBrowse();
+    // Rebuild timeline without hit bars (preserve zoom so the day stays in view).
+    redrawTimelines({ preserveZoom: true });
+  }
+  jumpToDate(date);
+  focusTimelineOnDate(date);
+  var jumpInput = document.getElementById('jumpDateInput');
+  if (jumpInput) jumpInput.value = date;
+}
+
 function handleTimelineClick(evt) {
   if (!timelineChart) return;
   var series = getTimelineSeries();
@@ -2160,7 +2193,6 @@ function handleTimelineClick(evt) {
 
   // Hit side (portrait: above 0; landscape: right of 0) during a search:
   // snap to a nearby hit day and open that search result (select + PDF).
-  // Use a small threshold so the zero line still counts as entry-side.
   if (hasSearch && mapped.value > 0.05) {
     var hitIdx = snapToNearestCountedDay(idx, hd, 40);
     if (hitIdx >= 0 && (hd[hitIdx] || 0) > 0) {
@@ -2169,12 +2201,11 @@ function handleTimelineClick(evt) {
     }
   }
 
-  // Entry bars (raw series): zoom/pan timeline to that day only — do not
-  // select the entry or replace search results. Search full range for nearest
-  // entry (gaps between entries can exceed a few weeks).
+  // Entry bars (raw / unfiltered series): clear any search, show that day's
+  // entry JSON in the results panel, and open the PDF.
   var entryIdx = snapToNearestCountedDay(idx, series.entryCounts, -1);
   if (entryIdx >= 0) {
-    focusTimelineOnDate(series.labels[entryIdx]);
+    openEntryFromRawBar(series.labels[entryIdx]);
   }
 }
 
