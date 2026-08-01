@@ -1652,7 +1652,8 @@ function goToJumpDate() {
   var closest = findClosestEntryDate(iso);
   if (!closest) return;
   input.value = closest;
-  jumpToDate(closest);
+  // Same browse window as raw entry-bar clicks (surrounding entries + scroll).
+  openEntryFromRawBar(closest);
 }
 
 function syncJumpDateInputBounds() {
@@ -2175,18 +2176,73 @@ function clearSearchStateForBrowse() {
 }
 
 /**
- * Open a diary entry from a raw (entry) bar: drop any active search filter,
- * show that entry's JSON in the results panel, and open its PDF page.
+ * Build a chronological window of entries around `date` for browse mode.
+ * Returns { results, focusLocal } where focusLocal is the index of the
+ * first entry on that date within `results` (for scroll + PDF).
+ */
+function buildBrowseResultsAroundDate(date, radius) {
+  if (!diaryData || !date) return null;
+  radius = radius == null ? 25 : radius;
+  var entries = diaryData.entries;
+  var center = -1;
+  for (var i = 0; i < entries.length; i++) {
+    if (entries[i].date === date) { center = i; break; }
+  }
+  if (center < 0) return null;
+
+  var from = Math.max(0, center - radius);
+  var to = Math.min(entries.length - 1, center + radius);
+  // Don't split same-day groups at the window edges
+  while (from > 0 && entries[from].date === entries[from - 1].date) from--;
+  while (to < entries.length - 1 && entries[to].date === entries[to + 1].date) to++;
+
+  var results = [];
+  var focusLocal = 0;
+  for (var j = from; j <= to; j++) {
+    if (j === center) focusLocal = results.length;
+    results.push({
+      idx: j,
+      entry: entries[j],
+      hits: 0,
+      hitPositions: [],
+      matchTerms: []
+    });
+  }
+  return { results: results, focusLocal: focusLocal };
+}
+
+/**
+ * Open a diary day from a raw entry bar (or jump-to-date browse):
+ * clear any search, show surrounding entries in the results panel,
+ * scroll to the target entry, and open its PDF — without filtering
+ * the list down to a single card.
  */
 function openEntryFromRawBar(date) {
   if (!date || !diaryData) return;
   var hadSearch = !!(lastSearchResults && lastSearchResults.length);
   if (hadSearch || (document.getElementById('searchInput') || {}).value) {
     clearSearchStateForBrowse();
-    // Rebuild timeline without hit bars (preserve zoom so the day stays in view).
     redrawTimelines({ preserveZoom: true });
   }
-  jumpToDate(date);
+
+  var pack = buildBrowseResultsAroundDate(date, 25);
+  if (!pack || !pack.results.length) return;
+
+  displayResults(pack.results, '', { autoSelect: false });
+
+  var k = pack.focusLocal;
+  if (k < 0 || k >= pack.results.length) k = 0;
+  var r = pack.results[k];
+  var pg = pdfPageForResult(r) || 1;
+
+  // Two rAFs so the results DOM is laid out before we scroll.
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      selectResult(k, pg, r.idx);
+      scrollResultToPanelTop(k);
+    });
+  });
+
   focusTimelineOnDate(date);
   var jumpInput = document.getElementById('jumpDateInput');
   if (jumpInput) jumpInput.value = date;
@@ -2212,8 +2268,8 @@ function handleTimelineClick(evt) {
     }
   }
 
-  // Entry bars (raw / unfiltered series): clear any search, show that day's
-  // entry JSON in the results panel, and open the PDF.
+  // Entry bars (raw / unfiltered series): clear any search, show a window of
+  // surrounding entries, scroll to the clicked day, open its PDF.
   var entryIdx = snapToNearestCountedDay(idx, series.entryCounts, -1);
   if (entryIdx >= 0) {
     openEntryFromRawBar(series.labels[entryIdx]);
