@@ -5,9 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tony's Diary Search</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* ── Custom scrollbars — wider, better contrast ── */
+::-webkit-scrollbar { width: 20px; height: 20px; }
+::-webkit-scrollbar-track { background: var(--panel-2); }
+::-webkit-scrollbar-thumb { background: #555; border-radius: 10px; border: 4px solid var(--panel-2); }
+::-webkit-scrollbar-thumb:hover { background: #6c9ff2; }
+::-webkit-scrollbar-corner { background: var(--panel-2); }
+html { scrollbar-width: auto; scrollbar-color: #555 var(--panel-2); }
 :root {
   --bg:        #0d0d0d;
   --panel:     #1a1a1a;
@@ -15,9 +25,9 @@
   --border:    #2a2a2a;
   --border-2:  #333;
   --input:     #222;
-  --text:      #d0d0d0;
-  --muted:     #888;
-  --muted-2:   #666;
+  --text:      #ffffff;
+  --muted:     #6c9ff2;
+  --muted-2:   #6c9ff2;
   --accent:    #e94560;
   --green:     #4ecca3;
   --orange:    #ffaa00;
@@ -37,8 +47,8 @@ body {
 }
 .title-block { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
 .header h1 { font-size: 26px; color: var(--accent); white-space: nowrap; line-height: 1.15; }
-.header .subtitle { font-size: 12px; color: var(--muted); white-space: nowrap; }
-.header .subtitle a { color: var(--muted); text-decoration: underline; }
+.header .subtitle { font-size: 12px; color: #fff; white-space: nowrap; }
+.header .subtitle a { color: #fff; text-decoration: underline; }
 .toolbar {
   background: var(--panel-2); padding: 8px 16px; border-bottom: 2px solid var(--border);
   display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap;
@@ -127,7 +137,7 @@ body {
   flex: 0 0 1px; align-self: stretch; background: var(--border-2); margin: 0 2px;
 }
 .chart-title-main { font-size: 11px; font-weight: 600; color: var(--text); }
-.chart-block-stats { font-size: 10px; color: var(--muted-2); }
+.chart-block-stats { font-size: 10px; color: #fff; }
 .chart-canvas-wrap {
   position: relative; flex: 1; min-height: 0; width: 100%;
 }
@@ -152,7 +162,7 @@ body.layout-portrait .timeline-header-row .th-center { display: none; }
 body.layout-landscape .content-area { flex-direction: row; }
 /* Vertical timelines: keep panel slim (~40% of prior 300px) */
 body.layout-landscape .charts-panel {
-  width: 120px; min-width: 100px; max-width: 140px;
+  width: 150px; min-width: 130px; max-width: 170px;
   border-right: 2px solid var(--border); border-bottom: none;
   align-self: stretch;
 }
@@ -196,12 +206,24 @@ body.layout-landscape .pdf-panel {
   width: 42%; min-width: 380px; border-left: none; border-top: none;
 }
 body.layout-landscape .panel-resizer {
-  display: block; width: 6px; flex-shrink: 0; cursor: col-resize;
-  background: var(--border); position: relative;
+  display: block; width: 10px; flex-shrink: 0; cursor: col-resize;
+  background: #555; position: relative;
+}
+body.layout-landscape .panel-resizer::before {
+  content: '';
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px; height: 32px;
+  background: #6c9ff2; border-radius: 2px;
+  transition: background 0.15s;
 }
 body.layout-landscape .panel-resizer:hover,
 body.layout-landscape .panel-resizer.dragging {
   background: var(--accent);
+}
+body.layout-landscape .panel-resizer:hover::before,
+body.layout-landscape .panel-resizer.dragging::before {
+  background: #fff;
 }
 body.layout-portrait .panel-resizer { display: none; }
 
@@ -343,11 +365,11 @@ mark.hit-current {
 
 /* ── Placeholder ───────────────────────────────────────────────────── */
 .placeholder {
-  text-align: center; padding: 60px 20px; color: var(--muted-2);
+  text-align: center; padding: 60px 20px; color: #fff;
 }
-.placeholder h2 { font-size: 18px; margin-bottom: 10px; color: var(--muted); }
+.placeholder h2 { font-size: 18px; margin-bottom: 10px; color: #fff; }
 .placeholder p { font-size: 13px; line-height: 1.8; max-width: 400px; margin: 0 auto; }
-.placeholder .stats { margin-top: 20px; font-size: 14px; color: var(--green); }
+.placeholder .stats { margin-top: 20px; font-size: 14px; color: #fff; }
 </style>
 </head>
 <body class="layout-landscape">
@@ -358,7 +380,7 @@ mark.hit-current {
     <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a> &middot; 1,988 entries &middot; Jan 2001 &ndash; Dec 2022</span>
   </div>
   <div class="search-bar">
-    <input type="text" id="searchInput" placeholder='Phrase: "blue car" · words: happy bunny · help: ?' onkeydown="if(event.key==='Enter')doSearch()">
+    <input type="text" id="searchInput" placeholder='Phrase: "blue car" · words: happy bunny · help: ?'>
     <button id="searchBtn" onclick="doSearch()">Search</button>
     <button id="clearBtn" onclick="clearSearch()">Clear</button>
     <label class="case-toggle" title="Off = match any capitalization (default). On = exact capitalization only.">
@@ -374,7 +396,7 @@ mark.hit-current {
     <span class="layout-action">Switch to</span>
     <span class="layout-target">Portrait</span>
   </button>
-  <span class="instructions">Search → click a result to jump to the PDF page. Use HIT navigation to browse all matches in each entry. Press ? for search syntax.</span>
+  <span class="instructions">Search &rarr; click a result to jump to the PDF page. Use HIT navigation to browse all matches. Scroll wheel on timeline to zoom; double-click to reset.</span>
 </div>
 
 <div class="content-area">
@@ -383,7 +405,10 @@ mark.hit-current {
   <div class="charts-panel" id="chartsPanel">
     <div class="panel-header" onclick="toggleCharts()">
       <h2>📊 Dual timeline</h2>
-      <button class="collapse-btn" id="chartsCollapseBtn" title="Collapse timeline">◀</button>
+      <div style="display:flex;align-items:center;gap:4px">
+        <button onclick="event.stopPropagation();resetTimelineZoom()" title="Reset zoom (or double-click chart)" style="background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;padding:0 4px;flex-shrink:0">&#10226;</button>
+        <button class="collapse-btn" id="chartsCollapseBtn" title="Collapse timeline">◀</button>
+      </div>
     </div>
     <div class="charts-content">
       <div class="timeline-header-row">
@@ -1182,25 +1207,50 @@ function hitCountsForSeries(results) {
 
 function jumpToDate(date) {
   if (!diaryData) return;
-  for (const e of diaryData.entries) {
-    if (e.date === date) {
-      const pm = pageMaps[e.source] || {};
-      const pg = getPageNum(pm[e.date + '|' + e.raw_date]);
-      if (e.source) switchPdfSource(e.source);
-      if (pg) renderPdfPage(pg);
-      if (window._searchResults) {
-        for (let i = 0; i < window._searchResults.length; i++) {
-          if (window._searchResults[i].entry.date === date) {
-            const el = document.getElementById('result-' + i);
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'top' });
-            selectResult(i, pg || 1, window._searchResults[i].idx);
-            break;
-          }
-        }
-      }
+  // Find the first entry matching this date
+  var foundEntry = null, foundIdx = -1;
+  for (var i = 0; i < diaryData.entries.length; i++) {
+    if (diaryData.entries[i].date === date) {
+      foundEntry = diaryData.entries[i];
+      foundIdx = i;
       break;
     }
   }
+  if (!foundEntry) return;
+
+  // Jump the PDF to this entry's page
+  var pm = pageMaps[foundEntry.source] || {};
+  var pg = getPageNum(pm[foundEntry.date + '|' + foundEntry.raw_date]);
+  if (foundEntry.source) switchPdfSource(foundEntry.source);
+  if (pg) renderPdfPage(pg);
+
+  // If this date is in the current search results, display those results
+  // (with search highlights).  Use lastSearchResults (not window._searchResults)
+  // because displayResults overwrites the latter — lastSearchResults is
+  // only set by doSearch/clearSearch and preserves the full result set.
+  if (lastSearchResults) {
+    var matching = [];
+    for (var j = 0; j < lastSearchResults.length; j++) {
+      if (lastSearchResults[j].entry.date === date) {
+        matching.push(lastSearchResults[j]);
+      }
+    }
+    if (matching.length > 0) {
+      // Display only the matching results for this date, with highlights.
+      // displayResults auto-selects the first one (jumps PDF to hit page).
+      displayResults(matching, lastSearchQuery || '');
+      return;
+    }
+  }
+
+  // Otherwise, display this entry directly in the results panel
+  displayResults([{
+    idx: foundIdx,
+    entry: foundEntry,
+    hits: 0,
+    hitPositions: [],
+    matchTerms: []
+  }], '');
 }
 
 function redrawTimelines() {
@@ -1227,14 +1277,16 @@ function redrawTimelines() {
   }
 
   const isLandscape = currentLayout === 'landscape';
-  const maxHitsScale = Math.max(maxEntries, peakHits || 0, 2);
+  const maxHitsScale = Math.max(maxEntries, 2);
 
+  // Fixed-height hit bars; color encodes intensity (yellow→red gradient)
+  const hitBarData = hitData.map(function(v) { return v > 0 ? maxEntries : 0; });
   const hitColors = hitData.map(function(v) {
     if (v <= 0) return 'rgba(60, 60, 60, 0.15)';
-    const ratio = v / maxHitsScale;
-    if (ratio > 0.66) return 'rgba(255,80,110,1)';
-    if (ratio > 0.33) return 'rgba(255,190,50,1)';
-    return 'rgba(255,224,90,1)';
+    if (peakHits <= 1) return 'hsl(60, 100%, 50%)';
+    var ratio = (v - 1) / (peakHits - 1);
+    var hue = 60 * (1 - ratio);
+    return 'hsl(' + hue + ', 100%, 50%)';
   });
 
   // Header labels depend on orientation
@@ -1247,9 +1299,7 @@ function redrawTimelines() {
 
   const ctx = document.getElementById('timelineChart').getContext('2d');
   const timeTickCb = function(val) {
-    const label = this.getLabelForValue(val);
-    if (label && label.slice(8) === '01') return label.slice(0, 7);
-    return '';
+    return this.getLabelForValue(val) || '';
   };
   const onBarClick = function(evt, elements) {
     if (!elements.length) return;
@@ -1277,7 +1327,7 @@ function redrawTimelines() {
           },
           {
             label: 'Hits',
-            data: hitData,
+            data: hitBarData,
             backgroundColor: hitColors,
             borderWidth: 0,
             barPercentage: 1.0,
@@ -1305,11 +1355,17 @@ function redrawTimelines() {
                 if (item.dataset.label === 'Entries') {
                   return v + (v === 1 ? ' entry' : ' entries');
                 }
-                return v + (v === 1 ? ' hit' : ' hits');
+                var hv = hitData[item.dataIndex] || 0;
+                return hv + (hv === 1 ? ' hit' : ' hits');
               }
             },
             backgroundColor: '#1a1a1a', titleColor: '#e94560',
-            bodyColor: '#d0d0d0', borderColor: '#333', borderWidth: 1,
+            bodyColor: '#fff', borderColor: '#333', borderWidth: 1,
+          },
+          zoom: {
+            pan: { enabled: true, mode: 'y', threshold: 5 },
+            zoom: { wheel: { enabled: true, speed: 0.1 }, pinch: { enabled: true }, mode: 'y' },
+            onDblClick: function(chart) { chart.resetZoom(); }
           }
         },
         scales: {
@@ -1319,7 +1375,7 @@ function redrawTimelines() {
             max: maxHitsScale,
             grace: 0,
             ticks: {
-              color: '#666',
+              color: '#6c9ff2',
               font: { size: 8 },
               maxTicksLimit: 7,
               callback: function(v) {
@@ -1343,9 +1399,9 @@ function redrawTimelines() {
             reverse: false,
             offset: false,
             ticks: {
-              color: '#888',
+              color: '#fff',
               autoSkip: true,
-              maxTicksLimit: 30,
+              maxTicksLimit: 35,
               font: { size: 8 },
               callback: timeTickCb
             },
@@ -1356,8 +1412,7 @@ function redrawTimelines() {
             },
             border: { display: false },
           }
-        },
-        onClick: onBarClick
+        }
       }
     });
   } else {
@@ -1382,7 +1437,7 @@ function redrawTimelines() {
           },
           {
             label: 'Hits',
-            data: hitData,
+            data: hitBarData,
             backgroundColor: hitColors,
             borderWidth: 0,
             barPercentage: 1.0,
@@ -1410,11 +1465,17 @@ function redrawTimelines() {
                 if (item.dataset.label === 'Entries') {
                   return v + (v === 1 ? ' entry' : ' entries');
                 }
-                return v + (v === 1 ? ' hit' : ' hits');
+                var hv = hitData[item.dataIndex] || 0;
+                return hv + (hv === 1 ? ' hit' : ' hits');
               }
             },
             backgroundColor: '#1a1a1a', titleColor: '#e94560',
-            bodyColor: '#d0d0d0', borderColor: '#333', borderWidth: 1,
+            bodyColor: '#fff', borderColor: '#333', borderWidth: 1,
+          },
+          zoom: {
+            pan: { enabled: true, mode: 'x', threshold: 5 },
+            zoom: { wheel: { enabled: true, speed: 0.1 }, pinch: { enabled: true }, mode: 'x' },
+            onDblClick: function(chart) { chart.resetZoom(); }
           }
         },
         scales: {
@@ -1422,10 +1483,10 @@ function redrawTimelines() {
           x: {
             offset: false,
             ticks: {
-              color: '#888',
-              maxRotation: 0,
+              color: '#fff',
+              maxRotation: 45,
               autoSkip: true,
-              maxTicksLimit: 16,
+              maxTicksLimit: 25,
               font: { size: 9 },
               callback: timeTickCb
             },
@@ -1443,7 +1504,7 @@ function redrawTimelines() {
             max: maxHitsScale,
             grace: 0,
             ticks: {
-              color: '#666',
+              color: '#6c9ff2',
               stepSize: 1,
               font: { size: 8 },
               maxTicksLimit: 5,
@@ -1464,8 +1525,7 @@ function redrawTimelines() {
             },
             border: { display: false },
           }
-        },
-        onClick: onBarClick
+        }
       }
     });
   }
@@ -1473,6 +1533,30 @@ function redrawTimelines() {
 
 function drawTimeline() { redrawTimelines(); }
 function drawHitsChart() { redrawTimelines(); }
+
+function resetTimelineZoom() {
+  if (timelineChart) timelineChart.resetZoom();
+}
+
+// Double-click timeline to reset zoom (backup for plugin onDblClick)
+document.getElementById('timelineChart').addEventListener('dblclick', function() {
+  if (timelineChart) timelineChart.resetZoom();
+});
+
+// Click on any bar (entry or hit) to jump to that date.
+// Uses a canvas listener instead of chart.onClick because the zoom
+// plugin's pan handler can intercept pointer events and block onClick.
+document.getElementById('timelineChart').addEventListener('click', function(evt) {
+  if (!timelineChart) return;
+  var elements = timelineChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, false);
+  if (!elements.length) return;
+  var idx = elements[0].index;
+  var series = getTimelineSeries();
+  var date = series.labels[idx];
+  if (!date) return;
+  var hd = hitCountsForSeries(lastSearchResults);
+  if (series.entryCounts[idx] > 0 || (hd[idx] || 0) > 0) jumpToDate(date);
+});
 
 let _timelineResizeTimer = null;
 window.addEventListener('resize', function() {
@@ -1782,6 +1866,11 @@ function showHelp() {
 function hideHelp() {
   document.getElementById('helpOverlay').style.display = 'none';
 }
+
+// Enter key in search box triggers search (replaces inline onkeydown)
+document.getElementById('searchInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
+});
 loadData();
 </script>
 
