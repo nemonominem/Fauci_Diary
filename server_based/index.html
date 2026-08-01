@@ -1236,9 +1236,25 @@ function jumpToDate(date) {
       }
     }
     if (matching.length > 0) {
-      // Display only the matching results for this date, with highlights.
-      // displayResults auto-selects the first one (jumps PDF to hit page).
-      displayResults(matching, lastSearchQuery || '');
+      // Keep full search list so successive hit-bar clicks still resolve.
+      // Redisplay only if the panel was replaced (e.g. single-entry jump).
+      if (window._searchResults !== lastSearchResults) {
+        displayResults(lastSearchResults, lastSearchQuery || '');
+      }
+      for (var k = 0; k < lastSearchResults.length; k++) {
+        if (lastSearchResults[k].entry.date === date) {
+          var el = document.getElementById('result-' + k);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'top' });
+          var r = lastSearchResults[k];
+          currentHitIdx[k] = 0;
+          if (typeof updateHitHighlight === 'function') updateHitHighlight(k, 0);
+          var hitPg = (typeof pdfPageForHit === 'function')
+            ? pdfPageForHit(k, 0)
+            : (pg || 1);
+          selectResult(k, hitPg || pg || 1, r.idx);
+          break;
+        }
+      }
       return;
     }
   }
@@ -1301,15 +1317,12 @@ function redrawTimelines() {
   const timeTickCb = function(val) {
     return this.getLabelForValue(val) || '';
   };
-  const onBarClick = function(evt, elements) {
-    if (!elements.length) return;
-    const idx = elements[0].index;
-    const date = series.labels[idx];
-    if (series.entryCounts[idx] > 0 || hitData[idx] > 0) jumpToDate(date);
-  };
 
   if (isLandscape) {
     // ── Landscape: vertical TIME axis; entries LEFT of 0, hits RIGHT ──
+    // stacked:true so both series share the full category band (diverging
+    // from x=0). Grouped (stacked:false) halves bar thickness and makes
+    // hit bars nearly unclickable on a dense day axis.
     const entryNeg = series.entryCounts.map(function(c) { return -c; });
     timelineChart = new Chart(ctx, {
       type: 'bar',
@@ -1363,14 +1376,15 @@ function redrawTimelines() {
             bodyColor: '#fff', borderColor: '#333', borderWidth: 1,
           },
           zoom: {
-            pan: { enabled: true, mode: 'y', threshold: 5 },
+            // Higher threshold so a normal click is not treated as a pan.
+            pan: { enabled: true, mode: 'y', threshold: 12 },
             zoom: { wheel: { enabled: true, speed: 0.1 }, pinch: { enabled: true }, mode: 'y' },
             onDblClick: function(chart) { chart.resetZoom(); }
           }
         },
         scales: {
           x: {
-            stacked: false,
+            stacked: true,
             min: -maxEntries,
             max: maxHitsScale,
             grace: 0,
@@ -1473,7 +1487,7 @@ function redrawTimelines() {
             bodyColor: '#fff', borderColor: '#333', borderWidth: 1,
           },
           zoom: {
-            pan: { enabled: true, mode: 'x', threshold: 5 },
+            pan: { enabled: true, mode: 'x', threshold: 12 },
             zoom: { wheel: { enabled: true, speed: 0.1 }, pinch: { enabled: true }, mode: 'x' },
             onDblClick: function(chart) { chart.resetZoom(); }
           }
@@ -1499,7 +1513,7 @@ function redrawTimelines() {
           },
           // Entries down, hits up, diverging from a shared 0 line
           y: {
-            stacked: false,
+            stacked: true,
             min: -maxEntries,
             max: maxHitsScale,
             grace: 0,
@@ -1543,15 +1557,62 @@ document.getElementById('timelineChart').addEventListener('dblclick', function()
   if (timelineChart) timelineChart.resetZoom();
 });
 
-// Click on any bar (entry or hit) to jump to that date.
-// Uses a canvas listener instead of chart.onClick because the zoom
-// plugin's pan handler can intercept pointer events and block onClick.
+// Track pointer movement so a pan/drag is not treated as a bar click.
+var _tlPtrDown = null;
+document.getElementById('timelineChart').addEventListener('pointerdown', function(e) {
+  _tlPtrDown = { x: e.clientX, y: e.clientY };
+});
+
+// Resolve the calendar day from the click position on the time axis.
+// Bar-element hit-testing fails in landscape: ~8000 day categories make
+// bars sub-pixel tall, and the zoom plugin's pan often steals onClick.
+// Mapping pixel → category index works for both entry and hit sides.
+function timelineIndexFromEvent(evt) {
+  if (!timelineChart) return -1;
+  var pos = (Chart.helpers && Chart.helpers.getRelativePosition)
+    ? Chart.helpers.getRelativePosition(evt, timelineChart)
+    : null;
+  if (!pos) {
+    var rect = timelineChart.canvas.getBoundingClientRect();
+    pos = {
+      x: (evt.clientX - rect.left) * (timelineChart.width / rect.width),
+      y: (evt.clientY - rect.top) * (timelineChart.height / rect.height)
+    };
+  }
+  var isLandscape = currentLayout === 'landscape';
+  var scale = isLandscape ? timelineChart.scales.y : timelineChart.scales.x;
+  if (!scale) return -1;
+  // Reject clicks outside the plot area (axis labels / padding).
+  var ca = timelineChart.chartArea;
+  if (isLandscape) {
+    if (pos.y < ca.top || pos.y > ca.bottom) return -1;
+  } else {
+    if (pos.x < ca.left || pos.x > ca.right) return -1;
+  }
+  var raw = scale.getValueForPixel(isLandscape ? pos.y : pos.x);
+  if (raw == null || isNaN(raw)) return -1;
+  return Math.round(raw);
+}
+
 document.getElementById('timelineChart').addEventListener('click', function(evt) {
   if (!timelineChart) return;
-  var elements = timelineChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, false);
-  if (!elements.length) return;
-  var idx = elements[0].index;
+  if (_tlPtrDown) {
+    var dx = evt.clientX - _tlPtrDown.x;
+    var dy = evt.clientY - _tlPtrDown.y;
+    _tlPtrDown = null;
+    // Ignore click if the pointer moved enough that this was a pan/drag.
+    if (dx * dx + dy * dy > 36) return;
+  }
   var series = getTimelineSeries();
+  var idx = timelineIndexFromEvent(evt);
+  if (idx < 0 || idx >= series.labels.length) {
+    // Fallback: nearest bar element (helps if scale mapping is off after zoom).
+    var elements = timelineChart.getElementsAtEventForMode(
+      evt, 'nearest', { intersect: false, axis: currentLayout === 'landscape' ? 'y' : 'x' }, false
+    );
+    if (!elements.length) return;
+    idx = elements[0].index;
+  }
   var date = series.labels[idx];
   if (!date) return;
   var hd = hitCountsForSeries(lastSearchResults);
