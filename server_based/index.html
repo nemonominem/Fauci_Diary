@@ -472,7 +472,7 @@ mark.hit-current {
     <input type="date" id="jumpDateInput" min="2001-01-26" max="2022-12-17">
     <button type="button" id="jumpDateBtn" onclick="goToJumpDate()">Go</button>
   </span>
-  <span class="instructions">Search &rarr; click a result to jump to the PDF. Click entry or hit bars on the timeline. Jump-to-date finds the nearest entry. Scroll wheel zooms; double-click resets.</span>
+  <span class="instructions">Search &rarr; click a result / hit bar for the PDF. Entry bars only scroll the timeline to that day. Jump-to-date opens the nearest entry. Scroll wheel zooms; double-click resets.</span>
 </div>
 
 <div class="content-area">
@@ -1600,6 +1600,58 @@ function syncJumpDateInputBounds() {
   if (!input.value) input.value = diaryData.date_range.start;
 }
 
+/**
+ * Pan/zoom the timeline so `date` is in view (centered when possible).
+ * Does not change search results or select an entry — visual focus only.
+ */
+function focusTimelineOnDate(date) {
+  if (!timelineChart || !date) return;
+  var series = getTimelineSeries();
+  var idx = -1;
+  for (var i = 0; i < series.labels.length; i++) {
+    if (series.labels[i] === date) { idx = i; break; }
+  }
+  if (idx < 0) return;
+
+  var axisId = timelineTimeAxisId(timelineChart);
+  var scale = timelineChart.scales[axisId];
+  if (!scale) return;
+  var fullMax = Math.max(0, series.labels.length - 1);
+  var curMin = scale.min;
+  var curMax = scale.max;
+  var span;
+  if (curMin != null && curMax != null && isFinite(curMin) && isFinite(curMax)) {
+    span = Math.abs(curMax - curMin);
+  } else {
+    span = fullMax;
+  }
+  // Fully zoomed out: zoom into a useful window (~6 months of days).
+  if (!(span > 0) || span >= fullMax - 0.5) {
+    span = Math.min(180, fullMax);
+  }
+  if (span < 14) span = Math.min(14, fullMax); // avoid a 1-day sliver
+  var half = span / 2;
+  var min = idx - half;
+  var max = idx + half;
+  if (min < 0) {
+    min = 0;
+    max = Math.min(fullMax, span);
+  } else if (max > fullMax) {
+    max = fullMax;
+    min = Math.max(0, fullMax - span);
+  }
+  if (typeof timelineChart.zoomScale === 'function') {
+    timelineChart.zoomScale(axisId, { min: min, max: max }, 'none');
+  } else {
+    timelineChart.options.scales[axisId].min = min;
+    timelineChart.options.scales[axisId].max = max;
+    timelineChart.update('none');
+  }
+  // Keep jump-date field in sync with where we looked.
+  var jumpInput = document.getElementById('jumpDateInput');
+  if (jumpInput) jumpInput.value = date;
+}
+
 function jumpToDate(date) {
   if (!diaryData) return;
   // Find the first entry matching this date
@@ -2052,7 +2104,7 @@ function handleTimelineClick(evt) {
   var hasSearch = !!(lastSearchResults && lastSearchResults.length);
 
   // Hit side (portrait: above 0; landscape: right of 0) during a search:
-  // snap to a nearby hit day and open that search result.
+  // snap to a nearby hit day and open that search result (select + PDF).
   if (hasSearch && mapped.value > 0) {
     idx = snapToNearestCountedDay(idx, hd, 25);
     if ((hd[idx] || 0) > 0) {
@@ -2061,15 +2113,12 @@ function handleTimelineClick(evt) {
     }
   }
 
-  // Entry bars (and centre / empty hit side): open that diary day without
-  // requiring a prior search. Snap to nearest day that has an entry.
+  // Entry bars (raw series): only scroll/zoom the full timeline onto that day.
+  // Do not select the entry or change the results panel.
   idx = snapToNearestCountedDay(idx, series.entryCounts, 25);
   if ((series.entryCounts[idx] || 0) > 0) {
-    jumpToDate(series.labels[idx]);
-    return;
+    focusTimelineOnDate(series.labels[idx]);
   }
-  // Fallback: a hit-only day (should be rare — hits come from entries).
-  if ((hd[idx] || 0) > 0) jumpToDate(series.labels[idx]);
 }
 
 // Double-click resets zoom and cancels any pending single-click navigation.
