@@ -1448,6 +1448,8 @@ function doSearch() {
   const raw = document.getElementById('searchInput').value.trim();
   if (!raw || !diaryData) return;
 
+  browseMode = false; // leaving chronological browse for search hits
+
   const caseSensitive = isCaseSensitive();
   let ast = null;
   try {
@@ -1511,6 +1513,7 @@ function clearSearch() {
   currentHitPositions = {};
   currentHitIdx = {};
   activeResultIdx = -1;
+  browseMode = false;
   document.getElementById('chartStats').textContent = 'search to filter';
   redrawTimelines();
 }
@@ -2160,6 +2163,13 @@ function snapToNearestCountedDay(idx, counts, maxRadius) {
   return -1;
 }
 
+// Browse mode: sliding window of diary entries (not search hits).
+// Window is 2*BROWSE_RADIUS+1 ≈ 101 cards; reloads when scrolling near ends.
+var BROWSE_RADIUS = 50;
+var browseMode = false;
+var _browseReloading = false;
+var _browseScrollTimer = null;
+
 /** Clear search state without wiping the results panel (caller will fill it). */
 function clearSearchStateForBrowse() {
   var input = document.getElementById('searchInput');
@@ -2175,23 +2185,15 @@ function clearSearchStateForBrowse() {
   if (stats) stats.textContent = 'search to filter';
 }
 
-/**
- * Build a chronological window of entries around `date` for browse mode.
- * Returns { results, focusLocal } where focusLocal is the index of the
- * first entry on that date within `results` (for scroll + PDF).
- */
-function buildBrowseResultsAroundDate(date, radius) {
-  if (!diaryData || !date) return null;
-  radius = radius == null ? 25 : radius;
+/** Build chronological window around a diaryData.entries index. */
+function buildBrowseResultsAroundIndex(centerIdx, radius) {
+  if (!diaryData || centerIdx == null || centerIdx < 0) return null;
+  radius = radius == null ? BROWSE_RADIUS : radius;
   var entries = diaryData.entries;
-  var center = -1;
-  for (var i = 0; i < entries.length; i++) {
-    if (entries[i].date === date) { center = i; break; }
-  }
-  if (center < 0) return null;
+  if (centerIdx >= entries.length) return null;
 
-  var from = Math.max(0, center - radius);
-  var to = Math.min(entries.length - 1, center + radius);
+  var from = Math.max(0, centerIdx - radius);
+  var to = Math.min(entries.length - 1, centerIdx + radius);
   // Don't split same-day groups at the window edges
   while (from > 0 && entries[from].date === entries[from - 1].date) from--;
   while (to < entries.length - 1 && entries[to].date === entries[to + 1].date) to++;
@@ -2199,7 +2201,7 @@ function buildBrowseResultsAroundDate(date, radius) {
   var results = [];
   var focusLocal = 0;
   for (var j = from; j <= to; j++) {
-    if (j === center) focusLocal = results.length;
+    if (j === centerIdx) focusLocal = results.length;
     results.push({
       idx: j,
       entry: entries[j],
@@ -2208,14 +2210,146 @@ function buildBrowseResultsAroundDate(date, radius) {
       matchTerms: []
     });
   }
-  return { results: results, focusLocal: focusLocal };
+  return { results: results, focusLocal: focusLocal, from: from, to: to, center: centerIdx };
+}
+
+function buildBrowseResultsAroundDate(date, radius) {
+  if (!diaryData || !date) return null;
+  var entries = diaryData.entries;
+  var center = -1;
+  for (var i = 0; i < entries.length; i++) {
+    if (entries[i].date === date) { center = i; break; }
+  }
+  if (center < 0) return null;
+  return buildBrowseResultsAroundIndex(center, radius);
+}
+
+/** Topmost result card still intersecting the results panel viewport. */
+function getTopVisibleBrowseAnchor(panel) {
+  var results = window._searchResults;
+  if (!panel || !results || !results.length) return null;
+  var panelRect = panel.getBoundingClientRect();
+  for (var i = 0; i < results.length; i++) {
+    var el = document.getElementById('result-' + i);
+    if (!el) continue;
+    var rect = el.getBoundingClientRect();
+    if (rect.bottom > panelRect.top + 8) {
+      return {
+        diaryIdx: results[i].idx,
+        offsetFromTop: rect.top - panelRect.top,
+        localIdx: i
+      };
+    }
+  }
+  return {
+    diaryIdx: results[0].idx,
+    offsetFromTop: 0,
+    localIdx: 0
+  };
+}
+
+/**
+ * Rebuild the browse window around centerDiaryIdx, preserving scroll so the
+ * previously visible entry stays put (no jump).
+ */
+function reloadBrowseWindow(centerDiaryIdx, anchor) {
+  if (_browseReloading || !diaryData) return;
+  var pack = buildBrowseResultsAroundIndex(centerDiaryIdx, BROWSE_RADIUS);
+  if (!pack || !pack.results.length) return;
+
+  // Skip no-op if range unchanged
+  var cur = window._searchResults;
+  if (cur && cur.length && pack.results.length === cur.length &&
+      pack.results[0].idx === cur[0].idx &&
+      pack.results[pack.results.length - 1].idx === cur[cur.length - 1].idx) {
+    return;
+  }
+
+  _browseReloading = true;
+  var activeDiaryIdx = -1;
+  if (activeResultIdx >= 0 && cur && cur[activeResultIdx]) {
+    activeDiaryIdx = cur[activeResultIdx].idx;
+  } else if (anchor) {
+    activeDiaryIdx = anchor.diaryIdx;
+  }
+
+  displayResults(pack.results, '', { autoSelect: false });
+  browseMode = true;
+
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      var panel = document.getElementById('resultsPanel');
+      // Restore scroll relative to anchor entry
+      if (anchor && panel) {
+        var local = -1;
+        for (var i = 0; i < pack.results.length; i++) {
+          if (pack.results[i].idx === anchor.diaryIdx) { local = i; break; }
+        }
+        if (local >= 0) {
+          var el = document.getElementById('result-' + local);
+          if (el) {
+            var panelRect = panel.getBoundingClientRect();
+            var elRect = el.getBoundingClientRect();
+            panel.scrollTop += (elRect.top - panelRect.top) - (anchor.offsetFromTop || 0);
+          }
+        }
+      }
+      // Keep active highlight on the same diary entry if still in window
+      if (activeDiaryIdx >= 0) {
+        for (var j = 0; j < pack.results.length; j++) {
+          if (pack.results[j].idx === activeDiaryIdx) {
+            document.querySelectorAll('.result-entry').forEach(function(node) {
+              node.classList.remove('active');
+            });
+            var activeEl = document.getElementById('result-' + j);
+            if (activeEl) activeEl.classList.add('active');
+            activeResultIdx = j;
+            break;
+          }
+        }
+      }
+      _browseReloading = false;
+    });
+  });
+}
+
+/** When scrolling near either end of the browse list, slide the 101-entry window. */
+function maybeSlideBrowseWindow() {
+  if (!browseMode || lastSearchResults || _browseReloading || !diaryData) return;
+  var panel = document.getElementById('resultsPanel');
+  var results = window._searchResults;
+  if (!panel || !results || results.length < 2) return;
+
+  var threshold = Math.max(120, Math.min(320, panel.clientHeight * 0.4));
+  var nearTop = panel.scrollTop < threshold;
+  var nearBottom = panel.scrollTop + panel.clientHeight > panel.scrollHeight - threshold;
+  if (!nearTop && !nearBottom) return;
+
+  var firstIdx = results[0].idx;
+  var lastIdx = results[results.length - 1].idx;
+  var n = diaryData.entries.length;
+  if (nearTop && firstIdx <= 0) nearTop = false;
+  if (nearBottom && lastIdx >= n - 1) nearBottom = false;
+  if (!nearTop && !nearBottom) return;
+
+  var anchor = getTopVisibleBrowseAnchor(panel);
+  if (!anchor) return;
+
+  // Shift window so more content loads in the scroll direction
+  var newCenter = nearTop ? firstIdx : lastIdx;
+  reloadBrowseWindow(newCenter, anchor);
+}
+
+function onBrowseResultsScroll() {
+  if (!browseMode || lastSearchResults) return;
+  clearTimeout(_browseScrollTimer);
+  _browseScrollTimer = setTimeout(maybeSlideBrowseWindow, 80);
 }
 
 /**
  * Open a diary day from a raw entry bar (or jump-to-date browse):
- * clear any search, show surrounding entries in the results panel,
- * scroll to the target entry, and open its PDF — without filtering
- * the list down to a single card.
+ * clear any search, show a sliding window of surrounding entries,
+ * scroll to the target entry, and open its PDF.
  */
 function openEntryFromRawBar(date) {
   if (!date || !diaryData) return;
@@ -2225,9 +2359,10 @@ function openEntryFromRawBar(date) {
     redrawTimelines({ preserveZoom: true });
   }
 
-  var pack = buildBrowseResultsAroundDate(date, 25);
+  var pack = buildBrowseResultsAroundDate(date, BROWSE_RADIUS);
   if (!pack || !pack.results.length) return;
 
+  browseMode = true;
   displayResults(pack.results, '', { autoSelect: false });
 
   var k = pack.focusLocal;
@@ -2235,7 +2370,6 @@ function openEntryFromRawBar(date) {
   var r = pack.results[k];
   var pg = pdfPageForResult(r) || 1;
 
-  // Two rAFs so the results DOM is laid out before we scroll.
   requestAnimationFrame(function() {
     requestAnimationFrame(function() {
       selectResult(k, pg, r.idx);
@@ -2642,6 +2776,7 @@ document.getElementById('searchInput').addEventListener('keydown', function(e) {
 document.getElementById('jumpDateInput').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') { e.preventDefault(); goToJumpDate(); }
 });
+document.getElementById('resultsPanel').addEventListener('scroll', onBrowseResultsScroll, { passive: true });
 layoutToolbarInstructions();
 window.addEventListener('load', layoutToolbarInstructions);
 loadData();
