@@ -1558,7 +1558,8 @@ function redrawTimelines(opts) {
 
   const hitData = hitCountsForSeries(lastSearchResults);
   const peakHits = hitData.reduce(function(m, v) { return v > m ? v : m; }, 0);
-  const maxEntries = Math.max(2, series.entryCounts.reduce(function(m, v) {
+  // Real max entries/day (do not force 2 — that produced a useless ±2 value axis).
+  const maxEntries = Math.max(1, series.entryCounts.reduce(function(m, v) {
     return v > m ? v : m;
   }, 0));
 
@@ -1574,10 +1575,11 @@ function redrawTimelines(opts) {
   }
 
   const isLandscape = currentLayout === 'landscape';
-  const maxHitsScale = Math.max(maxEntries, 2);
+  // Hits are fixed-length markers (colour = intensity); never stretch to entry max.
+  const hitBarMax = 1;
 
   // Fixed-height hit bars; color encodes intensity (yellow→red gradient)
-  const hitBarData = hitData.map(function(v) { return v > 0 ? maxEntries : 0; });
+  const hitBarData = hitData.map(function(v) { return v > 0 ? hitBarMax : 0; });
   const hitColors = hitData.map(function(v) {
     if (v <= 0) return 'rgba(60, 60, 60, 0.15)';
     if (peakHits <= 1) return 'hsl(60, 100%, 50%)';
@@ -1598,15 +1600,17 @@ function redrawTimelines(opts) {
   if (timelineChart) timelineChart.destroy();
 
   const ctx = document.getElementById('timelineChart').getContext('2d');
-  // Sparse ticks when zoomed out (month starts); full ISO when zoomed in.
+  // autoSkip picks evenly spaced day indices — almost never the 1st of a month.
+  // Always label those samples (full date when zoomed in, YYYY-MM / year when out).
   const timeTickCb = function(val) {
     const label = this.getLabelForValue(val);
-    if (!label) return '';
+    if (!label || label.length < 7) return label || '';
     var lo = this.min, hi = this.max;
     var visible = (lo != null && hi != null) ? Math.abs(hi - lo) : series.labels.length;
-    if (visible <= 90) return label; // ~3 months or less: show full dates
-    if (label.slice(8) === '01') return label.slice(0, 7); // YYYY-MM
-    return '';
+    if (visible <= 90) return label;                 // full YYYY-MM-DD
+    if (visible <= 750) return label.slice(0, 7);    // YYYY-MM
+    if (label.slice(5, 10) === '01-01') return label.slice(0, 4); // year on Jan 1
+    return label.slice(0, 7);                        // YYYY-MM for other samples
   };
 
   if (isLandscape) {
@@ -1674,25 +1678,19 @@ function redrawTimelines(opts) {
           }
         },
         scales: {
+          // Value axis: entries left (negative), fixed-length hit markers right.
+          // No numeric ticks — they only clutter (±1/±2) without adding info.
           x: {
             stacked: true,
             min: -maxEntries,
-            max: maxHitsScale,
+            max: hitBarMax,
             grace: 0,
-            ticks: {
-              color: '#6c9ff2',
-              font: { size: 8 },
-              maxTicksLimit: 7,
-              callback: function(v) {
-                if (v === 0) return '0';
-                return Math.abs(v);
-              }
-            },
+            ticks: { display: false },
             grid: {
               color: function(c) {
                 return c.tick.value === 0
                   ? 'rgba(233,69,96,0.45)'
-                  : 'rgba(50,50,50,0.35)';
+                  : 'rgba(50,50,50,0.25)';
               },
               lineWidth: function(c) {
                 return c.tick.value === 0 ? 1.5 : 1;
@@ -1706,7 +1704,8 @@ function redrawTimelines(opts) {
             ticks: {
               color: '#fff',
               autoSkip: true,
-              maxTicksLimit: 35,
+              autoSkipPadding: 4,
+              maxTicksLimit: 40,
               font: { size: 8 },
               callback: timeTickCb
             },
@@ -1791,7 +1790,8 @@ function redrawTimelines(opts) {
               color: '#fff',
               maxRotation: 45,
               autoSkip: true,
-              maxTicksLimit: 25,
+              autoSkipPadding: 6,
+              maxTicksLimit: 30,
               font: { size: 9 },
               callback: timeTickCb
             },
@@ -1802,27 +1802,18 @@ function redrawTimelines(opts) {
             },
             border: { display: false },
           },
-          // Entries down, hits up, diverging from a shared 0 line
+          // Entries down, hits up — no numeric ticks (colour encodes hit intensity)
           y: {
             stacked: true,
             min: -maxEntries,
-            max: maxHitsScale,
+            max: hitBarMax,
             grace: 0,
-            ticks: {
-              color: '#6c9ff2',
-              stepSize: 1,
-              font: { size: 8 },
-              maxTicksLimit: 5,
-              callback: function(v) {
-                if (v === 0) return '0';
-                return Math.abs(v);
-              }
-            },
+            ticks: { display: false },
             grid: {
               color: function(c) {
                 return c.tick.value === 0
                   ? 'rgba(233,69,96,0.45)'
-                  : 'rgba(50,50,50,0.35)';
+                  : 'rgba(50,50,50,0.25)';
               },
               lineWidth: function(c) {
                 return c.tick.value === 0 ? 1.5 : 1;
