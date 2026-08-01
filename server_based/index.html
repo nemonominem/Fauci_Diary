@@ -1208,6 +1208,16 @@ function hitCountsForSeries(results) {
   return series.labels.map(function(iso) { return byDate[iso] || 0; });
 }
 
+// Scroll a result card so it sits at the top of the results reading area.
+function scrollResultToPanelTop(resultIdx) {
+  var panel = document.getElementById('resultsPanel');
+  var el = document.getElementById('result-' + resultIdx);
+  if (!panel || !el) return;
+  var elRect = el.getBoundingClientRect();
+  var panelRect = panel.getBoundingClientRect();
+  panel.scrollTop += elRect.top - panelRect.top;
+}
+
 function jumpToDate(date) {
   if (!diaryData) return;
   // Find the first entry matching this date
@@ -1221,24 +1231,44 @@ function jumpToDate(date) {
   }
   if (!foundEntry) return;
 
-  // If this date is in the current search, show that date's hit card(s) with
-  // highlights and open the PDF (displayResults autoSelect). Use lastSearchResults
-  // — not window._searchResults — so successive hit-bar clicks still resolve
-  // after the panel was narrowed to a previous date.
+  // Search active: keep the full hit list, scroll so this date's card is the
+  // first one in the results reading area, and open its PDF.
+  // Resolve against lastSearchResults (not window._searchResults), which is
+  // only set by doSearch/clearSearch and survives panel rebuilds.
   if (lastSearchResults) {
-    var matching = [];
+    var matchIdx = -1;
     for (var j = 0; j < lastSearchResults.length; j++) {
       if (lastSearchResults[j].entry.date === date) {
-        matching.push(lastSearchResults[j]);
+        matchIdx = j;
+        break;
       }
     }
-    if (matching.length > 0) {
-      displayResults(matching, lastSearchQuery || '');
+    if (matchIdx >= 0) {
+      var needRebuild = window._searchResults !== lastSearchResults;
+      if (needRebuild) {
+        // Restore full list without auto-opening result #0 (avoids PDF flash).
+        displayResults(lastSearchResults, lastSearchQuery || '', { autoSelect: false });
+      }
+      function focusMatch() {
+        var r = lastSearchResults[matchIdx];
+        currentHitIdx[matchIdx] = 0;
+        updateHitHighlight(matchIdx, 0);
+        selectResult(matchIdx, pdfPageForHit(matchIdx, 0), r.idx);
+        scrollResultToPanelTop(matchIdx);
+      }
+      if (needRebuild) {
+        // Two rAFs: wait for layout after innerHTML before measuring scroll.
+        requestAnimationFrame(function() {
+          requestAnimationFrame(focusMatch);
+        });
+      } else {
+        focusMatch();
+      }
       return;
     }
   }
 
-  // Otherwise, display this entry; autoSelect opens its PDF once.
+  // No active search match: show this entry alone (autoSelect opens PDF).
   displayResults([{
     idx: foundIdx,
     entry: foundEntry,
