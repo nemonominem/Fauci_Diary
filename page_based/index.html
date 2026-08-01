@@ -1221,35 +1221,19 @@ function jumpToDate(date) {
   }
   if (!foundEntry) return;
 
-  var pm = pageMaps[foundEntry.source] || {};
-  var pg = getPageNum(pm[foundEntry.date + '|' + foundEntry.raw_date]);
-
-  // If this date is in the current search results, select it there.
-  // Use lastSearchResults (not window._searchResults) because displayResults
-  // overwrites the latter — lastSearchResults is only set by doSearch/clearSearch.
+  // If this date is in the current search, show that date's hit card(s) with
+  // highlights and open the PDF (displayResults autoSelect). Use lastSearchResults
+  // — not window._searchResults — so successive hit-bar clicks still resolve
+  // after the panel was narrowed to a previous date.
   if (lastSearchResults) {
-    var hasMatch = false;
+    var matching = [];
     for (var j = 0; j < lastSearchResults.length; j++) {
-      if (lastSearchResults[j].entry.date === date) { hasMatch = true; break; }
+      if (lastSearchResults[j].entry.date === date) {
+        matching.push(lastSearchResults[j]);
+      }
     }
-    if (hasMatch) {
-      // Keep full search list so successive hit-bar clicks still resolve.
-      // Skip autoSelect so we don't flash PDF page 1 of result #0 first.
-      if (window._searchResults !== lastSearchResults) {
-        displayResults(lastSearchResults, lastSearchQuery || '', { autoSelect: false });
-      }
-      for (var k = 0; k < lastSearchResults.length; k++) {
-        if (lastSearchResults[k].entry.date === date) {
-          var el = document.getElementById('result-' + k);
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'top' });
-          var r = lastSearchResults[k];
-          currentHitIdx[k] = 0;
-          updateHitHighlight(k, 0);
-          // Single PDF jump via selectResult (no pre-render above).
-          selectResult(k, pdfPageForHit(k, 0) || pg || 1, r.idx);
-          break;
-        }
-      }
+    if (matching.length > 0) {
+      displayResults(matching, lastSearchQuery || '');
       return;
     }
   }
