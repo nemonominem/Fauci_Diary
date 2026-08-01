@@ -1668,51 +1668,53 @@ function syncJumpDateInputBounds() {
  * Does not change search results or select an entry — visual focus only.
  */
 function focusTimelineOnDate(date) {
-  if (!timelineChart || !date) return;
+  if (!timelineChart || !date) return false;
   var series = getTimelineSeries();
-  var idx = -1;
-  for (var i = 0; i < series.labels.length; i++) {
-    if (series.labels[i] === date) { idx = i; break; }
-  }
-  if (idx < 0) return;
+  var idx = series.labels.indexOf(date);
+  if (idx < 0) return false;
 
   var axisId = timelineTimeAxisId(timelineChart);
   var scale = timelineChart.scales[axisId];
-  if (!scale) return;
-  var fullMax = Math.max(0, series.labels.length - 1);
-  var curMin = scale.min;
-  var curMax = scale.max;
-  var span;
-  if (curMin != null && curMax != null && isFinite(curMin) && isFinite(curMax)) {
-    span = Math.abs(curMax - curMin);
-  } else {
-    span = fullMax;
+  var fullMax = Math.max(1, series.labels.length - 1);
+
+  // Keep current zoom span if already zoomed in; otherwise open ~4 months.
+  var span = Math.min(120, fullMax);
+  if (scale && scale.min != null && scale.max != null &&
+      isFinite(scale.min) && isFinite(scale.max)) {
+    var cur = Math.abs(Number(scale.max) - Number(scale.min));
+    if (cur >= 14 && cur < fullMax - 1) span = cur;
   }
-  // Fully zoomed out: zoom into a useful window (~6 months of days).
-  if (!(span > 0) || span >= fullMax - 0.5) {
-    span = Math.min(180, fullMax);
+  span = Math.max(14, Math.min(span, fullMax));
+
+  var min = Math.max(0, Math.min(idx - span / 2, fullMax - span));
+  var max = Math.min(fullMax, min + span);
+  min = Math.max(0, max - span);
+  if (!(max > min)) {
+    min = Math.max(0, idx - 7);
+    max = Math.min(fullMax, idx + 7);
   }
-  if (span < 14) span = Math.min(14, fullMax); // avoid a 1-day sliver
-  var half = span / 2;
-  var min = idx - half;
-  var max = idx + half;
-  if (min < 0) {
-    min = 0;
-    max = Math.min(fullMax, span);
-  } else if (max > fullMax) {
-    max = fullMax;
-    min = Math.max(0, fullMax - span);
+
+  // Set scale limits both via plugin API and options (plugin alone can no-op
+  // on a fresh category scale before any wheel-zoom has run).
+  var optScale = timelineChart.options.scales && timelineChart.options.scales[axisId];
+  if (optScale) {
+    optScale.min = min;
+    optScale.max = max;
   }
-  if (typeof timelineChart.zoomScale === 'function') {
-    timelineChart.zoomScale(axisId, { min: min, max: max }, 'none');
-  } else {
-    timelineChart.options.scales[axisId].min = min;
-    timelineChart.options.scales[axisId].max = max;
+  try {
+    if (typeof timelineChart.zoomScale === 'function') {
+      timelineChart.zoomScale(axisId, { min: min, max: max }, 'none');
+    } else {
+      timelineChart.update('none');
+    }
+  } catch (err) {
+    console.warn('focusTimelineOnDate zoom failed:', err);
     timelineChart.update('none');
   }
-  // Keep jump-date field in sync with where we looked.
+
   var jumpInput = document.getElementById('jumpDateInput');
   if (jumpInput) jumpInput.value = date;
+  return true;
 }
 
 function jumpToDate(date) {
@@ -2144,16 +2146,17 @@ function timelineIndexFromEvent(evt) {
   return { idx: idx, value: value };
 }
 
-// Dense time axis: click can land a day or two off a visible bar.
+// Dense time axis: click can land off a visible bar. Search outward for a
+// day with count > 0 (full series if maxRadius omitted).
 function snapToNearestCountedDay(idx, counts, maxRadius) {
-  if (!counts || idx < 0 || idx >= counts.length) return idx;
+  if (!counts || idx < 0 || idx >= counts.length) return -1;
   if ((counts[idx] || 0) > 0) return idx;
-  maxRadius = maxRadius || 20;
-  for (var r = 1; r <= maxRadius; r++) {
+  var limit = (maxRadius == null || maxRadius < 0) ? counts.length : maxRadius;
+  for (var r = 1; r <= limit; r++) {
     if (idx - r >= 0 && (counts[idx - r] || 0) > 0) return idx - r;
     if (idx + r < counts.length && (counts[idx + r] || 0) > 0) return idx + r;
   }
-  return idx;
+  return -1;
 }
 
 function handleTimelineClick(evt) {
@@ -2168,19 +2171,21 @@ function handleTimelineClick(evt) {
 
   // Hit side (portrait: above 0; landscape: right of 0) during a search:
   // snap to a nearby hit day and open that search result (select + PDF).
-  if (hasSearch && mapped.value > 0) {
-    idx = snapToNearestCountedDay(idx, hd, 25);
-    if ((hd[idx] || 0) > 0) {
-      jumpToDate(series.labels[idx]);
+  // Use a small threshold so the zero line still counts as entry-side.
+  if (hasSearch && mapped.value > 0.05) {
+    var hitIdx = snapToNearestCountedDay(idx, hd, 40);
+    if (hitIdx >= 0 && (hd[hitIdx] || 0) > 0) {
+      jumpToDate(series.labels[hitIdx]);
       return;
     }
   }
 
-  // Entry bars (raw series): only scroll/zoom the full timeline onto that day.
-  // Do not select the entry or change the results panel.
-  idx = snapToNearestCountedDay(idx, series.entryCounts, 25);
-  if ((series.entryCounts[idx] || 0) > 0) {
-    focusTimelineOnDate(series.labels[idx]);
+  // Entry bars (raw series): zoom/pan timeline to that day only — do not
+  // select the entry or replace search results. Search full range for nearest
+  // entry (gaps between entries can exceed a few weeks).
+  var entryIdx = snapToNearestCountedDay(idx, series.entryCounts, -1);
+  if (entryIdx >= 0) {
+    focusTimelineOnDate(series.labels[entryIdx]);
   }
 }
 
