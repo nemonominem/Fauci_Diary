@@ -759,8 +759,8 @@ function switchLayout() {
     cbtn.textContent = collapsed ? '▶' : '▼';
   }
 
-  // Same dual timelines — reflow + redraw for the new orientation
-  if (!collapsed) redrawTimelines();
+  // Time axis swaps X↔Y between layouts — never carry zoom across.
+  if (!collapsed) redrawTimelines({ preserveZoom: false });
 }
 
 function toggleCharts() {
@@ -1264,8 +1264,9 @@ function jumpToDate(date) {
   }], '');
 }
 
-function redrawTimelines() {
+function redrawTimelines(opts) {
   if (!diaryData) return;
+  opts = opts || {};
   const series = getTimelineSeries();
   document.getElementById('timelineStats').textContent =
     series.entryDays + ' entry-days · ' + series.totalDays + ' days';
@@ -1306,8 +1307,8 @@ function redrawTimelines() {
   if (titleLeft) titleLeft.textContent = isLandscape ? '← All entries' : 'All entries at bottom';
   if (titleRight) titleRight.textContent = isLandscape ? 'Search hits →' : 'Search hits at top';
 
-  // Preserve zoom/pan across chart rebuilds (search, resize) when layout is unchanged.
-  var savedZoom = captureTimelineZoom();
+  // Preserve zoom across search/resize only — never when layout flips (axes swap).
+  var savedZoom = (opts.preserveZoom === false) ? null : captureTimelineZoom();
 
   if (timelineChart) timelineChart.destroy();
 
@@ -1553,25 +1554,37 @@ function redrawTimelines() {
   applyTimelineZoom(savedZoom);
 }
 
+// Time axis = Chart indexAxis (category/day scale), NOT currentLayout.
+// currentLayout is flipped before redraw on layout switch while the old
+// chart still exists — using currentLayout here used to read the value
+// axis (≈ -2..2) and re-apply it as a day zoom, collapsing the timeline.
+function timelineTimeAxisId(chart) {
+  if (!chart || !chart.options) return 'x';
+  return chart.options.indexAxis === 'y' ? 'y' : 'x';
+}
+
 function captureTimelineZoom() {
   if (!timelineChart) return null;
-  var isLandscape = currentLayout === 'landscape';
-  var scale = isLandscape ? timelineChart.scales.y : timelineChart.scales.x;
+  var axisId = timelineTimeAxisId(timelineChart);
+  var scale = timelineChart.scales[axisId];
   if (!scale || scale.min == null || scale.max == null) return null;
   var fullMax = (getTimelineSeries().labels.length || 1) - 1;
-  // Skip save when effectively unzoomed (full range).
+  // Only treat as zoom if range is a real day-index window.
+  if (scale.min < -0.5 || scale.max < 1) return null;
   if (scale.min <= 0.5 && scale.max >= fullMax - 0.5) return null;
-  return { layout: currentLayout, min: scale.min, max: scale.max };
+  return { indexAxis: axisId, min: scale.min, max: scale.max };
 }
 
 function applyTimelineZoom(saved) {
   if (!timelineChart || !saved) return;
-  if (saved.layout !== currentLayout) return;
-  var axisId = currentLayout === 'landscape' ? 'y' : 'x';
+  var axisId = timelineTimeAxisId(timelineChart);
+  // Refuse restore when orientation changed (or capture was from value axis).
+  if (saved.indexAxis !== axisId) return;
   var n = getTimelineSeries().labels.length;
-  var min = Math.max(0, Math.min(saved.min, n - 1));
-  var max = Math.max(0, Math.min(saved.max, n - 1));
-  if (max <= min) return;
+  if (n < 2) return;
+  var min = Math.max(0, Math.min(Number(saved.min), n - 1));
+  var max = Math.max(0, Math.min(Number(saved.max), n - 1));
+  if (!(max > min)) return;
   if (typeof timelineChart.zoomScale === 'function') {
     timelineChart.zoomScale(axisId, { min: min, max: max }, 'none');
   } else {
