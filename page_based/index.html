@@ -69,7 +69,7 @@ body {
   flex: 1 1 100%;
   width: 100%;
 }
-.search-bar { flex: 1; display: flex; gap: 8px; max-width: 720px; align-items: center; flex-wrap: wrap; }
+.search-bar { flex: 1; display: flex; gap: 8px; max-width: 720px; align-items: center; flex-wrap: wrap; margin: 0; }
 #searchInput {
   flex: 1; min-width: 160px; padding: 8px 12px; background: var(--input); border: 1px solid var(--border-2);
   color: #fff; border-radius: 4px; font-size: 14px; outline: none;
@@ -463,16 +463,16 @@ mark.hit-current {
     <h1>📖 Tony's Diary Search</h1>
     <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a> &middot; 1,988 entries &middot; Jan 2001 &ndash; Dec 2022</span>
   </div>
-  <div class="search-bar">
-    <input type="text" id="searchInput" placeholder='Phrase: "blue car" · words: happy bunny · help: ?'>
-    <button id="searchBtn" onclick="doSearch()">Search</button>
-    <button id="clearBtn" onclick="clearSearch()">Clear</button>
+  <form class="search-bar" id="searchForm" onsubmit="doSearch(); return false;">
+    <input type="text" id="searchInput" enterkeyhint="search" autocomplete="off" placeholder='Phrase: "blue car" · words: happy bunny · help: ?'>
+    <button type="submit" id="searchBtn">Search</button>
+    <button type="button" id="clearBtn" onclick="clearSearch()">Clear</button>
     <label class="case-toggle" title="Off = match any capitalization (default). On = exact capitalization only.">
       <input type="checkbox" id="caseSensitive" onchange="if(document.getElementById('searchInput').value.trim())doSearch()">
       <span><strong>Aa</strong> case sensitive</span>
     </label>
-    <button id="helpBtn" onclick="showHelp()" title="Search help" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border-2);padding:8px 12px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">?</button>
-  </div>
+    <button type="button" id="helpBtn" onclick="showHelp()" title="Search help" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border-2);padding:8px 12px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">?</button>
+  </form>
 </div>
 
 <div class="toolbar" id="mainToolbar">
@@ -590,6 +590,7 @@ const SOURCES = {
 const DEFAULT_PDF_SOURCE = 'main';   // which PDF shows on page load
 
 let diaryData = null;                 // merged { total_entries, date_range, entries[] }
+let pendingSearch = false;            // a search was requested while data was still loading
 let pageMaps = { main: {}, prequel: {} };
 let pdfDocs = { main: null, prequel: null };
 let currentPdfSource = DEFAULT_PDF_SOURCE;
@@ -681,11 +682,20 @@ async function loadData() {
       entries: allEntries,
     };
 
-    document.getElementById('entryStats').textContent =
+    // entryStats lives inside #resultsPanel, which clearSearch()/doSearch()
+    // may have rewritten before the data finished loading — don't crash then.
+    const statsEl = document.getElementById('entryStats');
+    if (statsEl) statsEl.textContent =
       diaryData.total_entries + ' entries \u00b7 ' + diaryData.date_range.start + ' to ' + diaryData.date_range.end;
 
     syncJumpDateInputBounds();
     drawTimeline();
+
+    // Run any search the user requested while the data was loading
+    if (pendingSearch) {
+      pendingSearch = false;
+      doSearch();
+    }
 
     // ── Fetch both page maps in parallel ──
     const [pmMainResp, pmPreqResp] = await Promise.all([
@@ -1435,7 +1445,18 @@ function collectTerms(ast, out) {
 
 function doSearch() {
   const raw = document.getElementById('searchInput').value.trim();
-  if (!raw || !diaryData) return;
+  if (!raw) return;
+  if (!diaryData) {
+    // Data still loading — never silently no-op (this hits fast typists who
+    // press Enter right after the page opens). NOTE: write into #entryStats
+    // instead of replacing #resultsPanel.innerHTML — entryStats LIVES inside
+    // resultsPanel, and clobbering it makes loadData() throw when it finishes.
+    // Queue the search so it runs automatically once the data arrives.
+    pendingSearch = true;
+    const stats = document.getElementById('entryStats');
+    if (stats) stats.textContent = 'Still loading the diary — your search will run in a few seconds…';
+    return;
+  }
 
   browseMode = false; // leaving chronological browse for search hits
 
@@ -2758,10 +2779,13 @@ function hideHelp() {
   document.getElementById('helpOverlay').style.display = 'none';
 }
 
-// Enter key in search box triggers search (replaces inline onkeydown)
-document.getElementById('searchInput').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
-});
+// Enter in the search box is handled natively: #searchInput lives inside
+// #searchForm, so every keyboard/IME/mobile "Enter" triggers implicit form
+// submission — the browser clicks the submit button for us, funneling Enter
+// and the Search button through the exact same path (form onsubmit → doSearch).
+// (A keydown listener sniffing e.key === 'Enter' was unreliable: mobile
+// keyboards like Gboard report key 'Unidentified'/keyCode 229, and autofill
+// popups can swallow the event.)
 document.getElementById('jumpDateInput').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') { e.preventDefault(); goToJumpDate(); }
 });
