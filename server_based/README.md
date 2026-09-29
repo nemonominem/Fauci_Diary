@@ -30,6 +30,13 @@ python3 merge_prequel_duplicates.py # merge same-date entries
 python3 regen_prequel_page_map.py   # rebuild page map
 ```
 
+### Ebola extract (Mar 2016)
+```bash
+python3 reparse_ebola.py          # OCR text → fixed JSON (8 diary entries + appendix)
+python3 clean_ebola_breaks.py     # collapse PDF line-breaks
+python3 regen_ebola_page_map.py   # rebuild page map
+```
+
 | File | Role |
 |---|---|
 | `2026.07.24_Tonys-Diary-Package.txt` | Main diary OCR source text |
@@ -42,3 +49,8 @@ python3 regen_prequel_page_map.py   # rebuild page map
 | `2026.07.27_Diary-Prequel-.json` | Prequel app load file (cleaned) |
 | `prequel_page_map.json` | Prequel: date\|raw_date → PDF page |
 | `diary-prequel.pdf` | Local copy of the prequel Congressional PDF |
+| `2026.09.28_Ebola-Doc-Release_Full-Package.txt` | Ebola extract OCR source text |
+| `2026.09.28_Ebola-Doc-Release_Full-Package_fixed.json` | Ebola parsed entries (pre-clean) |
+| `2026.09.28_Ebola-Doc-Release_Full-Package.json` | Ebola app load file (cleaned) |
+| `ebola_page_map.json` | Ebola: date\|raw_date → PDF page |
+| `diary-ebola.pdf` | Local copy of the Ebola Congressional PDF (short name) |

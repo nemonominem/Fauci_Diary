@@ -7,10 +7,11 @@ Searchable web app for Dr. Anthony Fauci's diary (Congressional release by Chair
 | Release | Period | Entries | PDF pages |
 |---|---|---|---|
 | **Prequel** — Historical Record of HIV/AIDS | Jan 2001 – Jul 2015 | 1,135 | 465 |
+| **Ebola extract** — Zika / filovirus notes + supporting emails & NIAID report | Mar 3–10, 2016 (+ appendix) | 9 (8 diary + appendix) | 26 |
 | **Main Diary** — Tony's Diary Package | Dec 2019 – Dec 2022 | 853 | 1,141 |
-| **Combined** | Jan 2001 – Dec 2022 | 1,988 | 1,606 |
+| **Combined** | Jan 2001 – Dec 2022 | 1,997 | 1,632 |
 
-Both releases are merged into a single searchable timeline. The PDF viewer
+All three releases are merged into a single searchable timeline. The PDF viewer
 automatically switches to the correct source PDF when you click a result.
 
 ## Canonical home (important)
@@ -31,8 +32,8 @@ automatically switches to the correct source PDF when you click a result.
 
 ## Data
 
-- **Source PDFs**: stored locally as `diary.pdf` (1,141 pp, ~63 MB) and `diary-prequel.pdf` (465 pp, ~10 MB)
-- **Parsed JSON**: 853 main-diary entries + 1,135 prequel entries (1,988 total), each with date, raw_date, content, and source tag. Content has PDF line-breaks cleaned for reading.
+- **Source PDFs**: stored locally as `diary.pdf` (1,141 pp, ~63 MB), `diary-prequel.pdf` (465 pp, ~10 MB), and `diary-ebola.pdf` (26 pp, ~3 MB; short name for `2026.09.28_Ebola-Doc-Release_Full-Package.pdf`)
+- **Parsed JSON**: 853 main-diary entries + 1,135 prequel entries + 9 ebola entries (1,997 total), each with date, raw_date, content, and source tag. Content has PDF line-breaks cleaned for reading.
 - **Page Maps**: each entry mapped to its PDF content-start page (separate maps per release)
 
 ## How to use

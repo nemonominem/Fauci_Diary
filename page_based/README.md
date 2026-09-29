@@ -6,10 +6,14 @@ Self-contained static files. No Python server is required for hosting.
 - `index.html` — app UI
 - `2026.07.24_Tonys-Diary-Package.json` — main diary entries (2019–2022)
 - `2026.07.27_Diary-Prequel-.json` — prequel entries (2001–2015)
+- `2026.09.28_Ebola-Doc-Release_Full-Package.json` — ebola extract entries (Mar 2016, 8 diary entries + appendix)
 - `page_map.json` — date → PDF page (main diary)
 - `prequel_page_map.json` — date → PDF page (prequel)
+- `ebola_page_map.json` — date → PDF page (ebola extract)
 - `diary.pdf` — main diary PDF (~63 MB; Git LFS)
 - `diary-prequel.pdf` — prequel PDF (~10 MB; Git LFS)
+- `diary-ebola.pdf` — ebola extract PDF, short name (~3 MB; Git LFS; original: `2026.09.28_Ebola-Doc-Release_Full-Package.pdf`)
+- `2026.09.28_Ebola-Doc-Release_Full-Package.pdf` — original Congressional filename (reference copy)
 
 ## Important: do not open `index.html` as a file
 
