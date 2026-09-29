@@ -2509,11 +2509,22 @@ window.addEventListener('resize', function() {
 });
 
 // ============================================================
-// PDF page navigation via arrow keys (ignored while typing)
+// PDF page navigation via arrow keys
+// Only when focus is NOT inside a scrollable reading area: the
+// results list, charts, or help overlay keep native arrow scrolling.
+// (Previously Up/Down flipped PDF pages even right after clicking
+// a result, making the match list impossible to scroll by keyboard.)
 // ============================================================
+function eventInScrollablePanel(e) {
+  var el = e.target && e.target.closest ? e.target.closest(
+    '#resultsPanel, #chartsPanel, #helpOverlay, .result-content, .pdf-continuous-view'
+  ) : null;
+  return !!el;
+}
 document.addEventListener('keydown', function(e) {
   const tag = (e.target.tagName || '').toLowerCase();
-  if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+  if (eventInScrollablePanel(e)) return;  // let the panel scroll natively
   if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
     e.preventDefault();
     pdfPrevPage();
