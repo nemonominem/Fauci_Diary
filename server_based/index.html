@@ -2509,12 +2509,36 @@ window.addEventListener('resize', function() {
 });
 
 // ============================================================
-// PDF page navigation via arrow keys
-// Only when focus is NOT inside a scrollable reading area: the
-// results list, charts, or help overlay keep native arrow scrolling.
-// (Previously Up/Down flipped PDF pages even right after clicking
-// a result, making the match list impossible to scroll by keyboard.)
+// Arrow-key navigation
+//   Up/Down: move the active (red) result box when results are on
+//     screen — click + Down now walks down the match list, jumping
+//     the PDF to each entry. (Result cards are plain <div>s, so
+//     clicking one never moves keyboard focus inside #resultsPanel;
+//     testing e.target for panel membership therefore never fires,
+//     which is why Up/Down kept flipping PDF pages.)
+//   Left/Right: PDF prev/next page (except while typing).
+//   With no results on screen, Up/Down fall back to PDF paging
+//     unless focus is inside a scrollable reading area.
 // ============================================================
+function stepActiveResult(dir) {
+  var results = window._searchResults;
+  if (!results || !results.length) return false;
+  var idx = (typeof activeResultIdx === 'number') ? activeResultIdx : -1;
+  if (idx < 0 || idx >= results.length) idx = dir > 0 ? -1 : results.length;
+  var next = idx + dir;
+  if (next < 0) next = 0;
+  if (next >= results.length) next = results.length - 1;
+  if (next === activeResultIdx) {
+    scrollResultToPanelTop(next);
+    return true;
+  }
+  if (currentHitIdx[next] === undefined) currentHitIdx[next] = 0;
+  updateHitHighlight(next, currentHitIdx[next] || 0);
+  var r = results[next];
+  selectResult(next, pdfPageForHit(next, currentHitIdx[next] || 0), r.idx);
+  scrollResultToPanelTop(next);
+  return true;
+}
 function eventInScrollablePanel(e) {
   var el = e.target && e.target.closest ? e.target.closest(
     '#resultsPanel, #chartsPanel, #helpOverlay, .result-content, .pdf-continuous-view'
@@ -2524,11 +2548,19 @@ function eventInScrollablePanel(e) {
 document.addEventListener('keydown', function(e) {
   const tag = (e.target.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
-  if (eventInScrollablePanel(e)) return;  // let the panel scroll natively
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    if (window._searchResults && window._searchResults.length) {
+      e.preventDefault();
+      stepActiveResult(e.key === 'ArrowDown' ? 1 : -1);
+      return;
+    }
+    if (eventInScrollablePanel(e)) return;  // let the panel scroll natively
+    e.preventDefault();
+    if (e.key === 'ArrowUp') pdfPrevPage(); else pdfNextPage();
+  } else if (e.key === 'ArrowLeft') {
     e.preventDefault();
     pdfPrevPage();
-  } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+  } else if (e.key === 'ArrowRight') {
     e.preventDefault();
     pdfNextPage();
   }
