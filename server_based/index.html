@@ -376,21 +376,34 @@ hr.email-sep {
 .hit-nav-btn:disabled { opacity: 0.4; cursor: default; }
 .hit-nav-label { color: var(--green); font-weight: 600; white-space: nowrap; }
 
+.result-content-wrap { position: relative; }
 .result-content {
-  padding: 10px 14px; font-size: 13px; line-height: 1.7; color: var(--text);
+  padding: 10px 20px 10px 14px; font-size: 13px; line-height: 1.7; color: var(--text);
   max-height: min(380px, 42vh); overflow-y: auto; word-wrap: break-word; overflow-wrap: break-word;
-  /* always-visible slim scrollbar: the entry box scrolls on its own so a long
-     email/diary/report never pushes the next match out of the list */
-  scrollbar-width: thin; scrollbar-color: var(--border-2) var(--panel-2);
+  /* The native scrollbar is hidden: macOS overlay bars only appear while you
+     scroll, and the Up/Down keys are reserved for moving between entries.
+     A custom always-visible, draggable bar (.box-scrollbar) is used instead. */
+  scrollbar-width: none; -ms-overflow-style: none;
   overscroll-behavior: contain;
 }
-.result-content::-webkit-scrollbar { width: 8px; }
-.result-content::-webkit-scrollbar-track { background: var(--panel-2); }
-.result-content::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
-.result-content::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+.result-content::-webkit-scrollbar { width: 0; height: 0; display: none; }
 .result-content p { margin-bottom: 8px; }
 /* Expanded: full text, no inner scrolling */
 .result-entry.expanded .result-content { max-height: none; overflow-y: visible; }
+.result-entry.expanded .box-scrollbar { display: none; }
+/* Custom scrollbar for the entry box: drag the thumb, click the track to page */
+.box-scrollbar {
+  position: absolute; top: 3px; right: 3px; bottom: 3px; width: 11px;
+  background: rgba(255,255,255,0.05); border-radius: 6px; cursor: pointer;
+}
+.box-scrollbar.no-scroll { display: none; }
+.box-thumb {
+  position: absolute; left: 2px; right: 2px; top: 0; min-height: 26px;
+  background: var(--border-2); border-radius: 4px; cursor: grab;
+}
+.box-scrollbar:hover .box-thumb,
+.box-scrollbar.dragging .box-thumb { background: var(--accent); }
+.box-scrollbar.dragging .box-thumb { cursor: grabbing; }
 /* Sticky "there is more below" hint + expander in the card header */
 .result-hits-group { display: inline-flex; align-items: center; }
 .expand-btn {
@@ -2633,35 +2646,109 @@ function stepActiveResult(dir) {
   return true;
 }
 // Each entry box scrolls on its own so a long email/diary/report is fully
-// readable without pushing the other matches out of the results list.
-// Show the "⤢ Full text" expander and the "more text below" hint only when the
-// text actually overflows, and hide the hint once the reader reaches the end.
-function updateScrollHint(box, card) {
-  if (!box || !card) return;
-  const hint = card.querySelector('[data-scroll-hint]');
-  if (!hint) return;
+// readable without pushing the other matches out of the list. The native
+// scrollbar is hidden (macOS overlay bars only show while you scroll, and the
+// Up/Down keys are reserved for moving between entries), so every box carries
+// its own always-visible scrollbar: drag the thumb, or click the track to page.
+// Wheeling inside a box scrolls that box only; PageUp/PageDown page it.
+function syncBoxScrollbar(box) {
+  if (!box) return;
+  const wrap = box.closest('.result-content-wrap');
+  if (!wrap) return;
+  const bar = wrap.querySelector('.box-scrollbar');
+  if (!bar) return;
+  const thumb = bar.querySelector('.box-thumb');
+  const card = box.closest('.result-entry');
+  const expanded = card && card.classList.contains('expanded');
+  const overflows = box.scrollHeight > box.clientHeight + 4;
+  bar.classList.toggle('no-scroll', !overflows || !!expanded);
+
+  const trackH = bar.clientHeight;
+  const ratio = box.clientHeight / Math.max(1, box.scrollHeight);
+  const thumbH = Math.max(26, Math.round(trackH * ratio));
+  if (thumb) {
+    thumb.style.height = thumbH + 'px';
+    const maxTop = Math.max(0, trackH - thumbH);
+    const span = Math.max(0, box.scrollHeight - box.clientHeight);
+    const frac = (maxTop && span) ? box.scrollTop / span : 0;
+    thumb.style.top = Math.round(frac * maxTop) + 'px';
+  }
+  if (!card) return;
   const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 4;
-  const expanded = card.classList.contains('expanded');
-  hint.hidden = expanded || !box.scrollHeight || atEnd;
+  const hint = card.querySelector('[data-scroll-hint]');
+  if (hint) hint.hidden = !overflows || atEnd || !!expanded;
+  const btn = card.querySelector('[data-expand-toggle]');
+  if (btn) btn.hidden = !overflows;
 }
-function markScrollableResults(panel) {
-  if (!panel) return;
-  panel.querySelectorAll('.result-content').forEach(function(box) {
-    const card = box.closest('.result-entry');
-    if (!card) return;
-    const overflows = box.scrollHeight > box.clientHeight + 4;
-    const btn = card.querySelector('[data-expand-toggle]');
-    if (btn) btn.hidden = !overflows;
-    box.addEventListener('scroll', function() { updateScrollHint(box, card); });
-    // Images/fonts can settle a tick later; re-measure once
-    setTimeout(function() {
-      const over = box.scrollHeight > box.clientHeight + 4;
-      const b = card.querySelector('[data-expand-toggle]');
-      if (b) b.hidden = !over;
-      updateScrollHint(box, card);
-    }, 0);
-    updateScrollHint(box, card);
+function attachBoxScrollbar(box) {
+  const wrap = box.closest('.result-content-wrap');
+  if (!wrap) return;
+  const bar = wrap.querySelector('.box-scrollbar');
+  if (!bar) return;
+  const thumb = bar.querySelector('.box-thumb');
+  let dragging = false, startY = 0, startTop = 0;
+
+  if (thumb) {
+    thumb.addEventListener('pointerdown', function(ev) {
+      ev.preventDefault(); ev.stopPropagation();
+      dragging = true;
+      startY = ev.clientY; startTop = box.scrollTop;
+      bar.classList.add('dragging');
+      try { thumb.setPointerCapture(ev.pointerId); } catch (e) {}
+    });
+    thumb.addEventListener('pointermove', function(ev) {
+      if (!dragging) return;
+      ev.preventDefault(); ev.stopPropagation();
+      const maxTop = Math.max(1, bar.clientHeight - thumb.offsetHeight);
+      const span = Math.max(0, box.scrollHeight - box.clientHeight);
+      box.scrollTop = startTop + ((ev.clientY - startY) / maxTop) * span;
+    });
+    var stopDrag = function(ev) {
+      if (!dragging) return;
+      dragging = false; bar.classList.remove('dragging');
+      try { thumb.releasePointerCapture(ev.pointerId); } catch (e) {}
+    };
+    thumb.addEventListener('pointerup', stopDrag);
+    thumb.addEventListener('pointercancel', stopDrag);
+  }
+  // Click the track above/below the thumb to page through the box
+  bar.addEventListener('pointerdown', function(ev) {
+    ev.preventDefault(); ev.stopPropagation();
+    const rect = bar.getBoundingClientRect();
+    const pos = ev.clientY - rect.top;
+    if (thumb && pos < thumb.offsetTop) box.scrollTop -= box.clientHeight * 0.85;
+    else box.scrollTop += box.clientHeight * 0.85;
   });
+  // Wheel inside a box scrolls that box, never the results list
+  box.addEventListener('wheel', function(ev) { ev.stopPropagation(); }, { passive: true });
+  box.addEventListener('scroll', function() { syncBoxScrollbar(box); });
+  syncBoxScrollbar(box);
+}
+function setupResultBoxes(panel) {
+  if (!panel) return;
+  panel.querySelectorAll('.result-content').forEach(attachBoxScrollbar);
+  // layout can settle a tick later (fonts, panel resize): re-measure
+  requestAnimationFrame(function() {
+    panel.querySelectorAll('.result-content').forEach(syncBoxScrollbar);
+  });
+  setTimeout(function() {
+    panel.querySelectorAll('.result-content').forEach(syncBoxScrollbar);
+  }, 150);
+  window.addEventListener('resize', function() {
+    panel.querySelectorAll('.result-content').forEach(syncBoxScrollbar);
+  });
+}
+// The entry box the reader is working in: the one under the pointer, else the
+// active entry's box. PageUp/PageDown use it; Up/Down stay on prev/next entry.
+function entryBoxForKey(e) {
+  let el = (e.target && e.target.closest) ? e.target.closest('.result-content') : null;
+  if (!el && typeof e.clientX === 'number' && e.clientX) {
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    const box = under && under.closest ? under.closest('.result-content') : null;
+    if (box) el = box;
+  }
+  if (!el) el = document.querySelector('.result-entry.active .result-content');
+  return el;
 }
 function eventInScrollablePanel(e) {
   var el = e.target && e.target.closest ? e.target.closest(
@@ -2672,6 +2759,15 @@ function eventInScrollablePanel(e) {
 document.addEventListener('keydown', function(e) {
   const tag = (e.target.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+  if (e.key === 'PageDown' || e.key === 'PageUp') {
+    const box = entryBoxForKey(e);
+    if (box) {
+      e.preventDefault();
+      box.scrollTop += (e.key === 'PageDown' ? 1 : -1) * box.clientHeight * 0.85;
+      syncBoxScrollbar(box);
+      return;
+    }
+  }
   if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
     if (window._searchResults && window._searchResults.length) {
       e.preventDefault();
@@ -2835,7 +2931,7 @@ function displayResults(results, query, opts) {
     }
     html += '</span>';
     html += '<span class="result-hits">' + r.hits + ' hit' + (r.hits > 1 ? 's' : '') + '</span>';
-    // Expander: shown only when the text does not fit (see markScrollableResults)
+    // Expander: shown only when the text does not fit (see syncBoxScrollbar)
     html += '<span class="result-hits-group">';
     html += '<button type="button" class="expand-btn" data-expand-toggle="' + i + '" hidden title="Show the full text of this entry">⤢ Full text</button>';
     html += '</span>';
@@ -2856,6 +2952,7 @@ function displayResults(results, query, opts) {
     const highlighted = highlightWithHits(content, query, i);
     // Split into paragraphs and wrap in <p>
     const paragraphs = highlighted.split(/\n\n/);
+    html += '<div class="result-content-wrap">';
     html += '<div class="result-content" id="content-' + i + '">';
     if (e.kind === 'email') {
       // Email layout: From/To/Cc/Subject (+ Sent with local + ET time) block,
@@ -2875,7 +2972,12 @@ function displayResults(results, query, opts) {
       }
     }
     html += '</div>';
-    // "More text below" hint, revealed by markScrollableResults() when the
+    // Custom, always-visible scrollbar for this box (drag the thumb). Native
+    // overlay scrollbars are invisible at rest and Up/Down move between
+    // entries, so the box gets its own real scrollbar.
+    html += '<div class="box-scrollbar no-scroll" data-box-scrollbar="' + i + '" title="Scroll inside this entry"><div class="box-thumb"></div></div>';
+    html += '</div>';
+    // "More text below" hint, revealed by syncBoxScrollbar() when the
     // text does not fit in the box (and hidden once scrolled to the end).
     html += '<div class="scroll-hint" data-scroll-hint="' + i + '" hidden>↕ scroll inside this box for more text</div>';
     // Thread links. Up: what THIS message answers/forwards (its own act).
@@ -2909,7 +3011,7 @@ function displayResults(results, query, opts) {
 
   window._searchResults = results;
   panel.innerHTML = html;
-  markScrollableResults(panel);
+  setupResultBoxes(panel);
 
   // ⤢ Full text: expand/collapse a single entry box (full message visible)
   panel.onclick = function(ev) {
@@ -2924,7 +3026,14 @@ function displayResults(results, query, opts) {
       expBtn.textContent = expanded ? '⤡ Collapse' : '⤢ Full text';
       expBtn.title = expanded ? 'Back to the scrolling excerpt' : 'Show the full text of this entry';
       if (expanded) box.scrollTop = 0;
-      updateScrollHint(box, card);
+      syncBoxScrollbar(box);
+      return;
+    }
+    const sb = ev.target.closest('.box-scrollbar');
+    if (sb) {
+      // dragging/clicking the box's own scrollbar must not jump the PDF
+      ev.preventDefault();
+      ev.stopPropagation();
       return;
     }
     const entry = ev.target.closest('.result-entry');
