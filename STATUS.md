@@ -18,6 +18,8 @@
 - **Thread links bidirectional**: up-links (`reply_to`, or `forwarded_from` when the subject is `FW:`/`Fwd:`, plus `attachment_ref`) and downward **arrays** (`replied_by`, `forwarded_by`, `attached_by`) — an email can be replied to and/or forwarded again later, possibly several times and from another source. The parser inverts within its release; the app re-inverts across all merged sources at load (`rebuildThreadDownLinks`), with source-qualified keys
 - **Mixed-source standards documented**: `EMAILS.md` specifies document kinds, thread splitting, time-zone rules with the evidence table, entry shape, page-map key discipline, and recipes for adding new releases or new source types (feeds/chat exports)
 - **Web app merged (3 sources)**: all releases combined into one searchable timeline (2,016 entries); PDF viewer auto-switches between the three source PDFs (Ebola badge; on-demand PDF load; report sorted last; synthetic entries excluded from timeline)
+- **Entry boxes scroll + expand**: each result card's text box has its own always-visible slim scrollbar (`overscroll-behavior: contain`, so wheeling inside it no longer drags the results list); a `⤢ Full text` button (shown only when the text overflows) removes the height cap, and an italic "↕ scroll inside this box for more text" hint appears while content remains below
+- **PDF line-wrap joins fixed**: `clean_ebola_breaks.py` now decides a wrap by asking whether **both** flanking tokens are real words — system dictionary (Web2 + proper names) plus terms frequent in the two diary corpora — instead of corpus frequency alone; "Tony", "Cliff", "vulnerability", "lung pathology" and "assumption" join correctly, and no word is wrongly split
 - Pushed to `origin/main`
 
 ## Optional later

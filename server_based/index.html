@@ -378,11 +378,31 @@ hr.email-sep {
 
 .result-content {
   padding: 10px 14px; font-size: 13px; line-height: 1.7; color: var(--text);
-  max-height: 350px; overflow-y: auto; word-wrap: break-word; overflow-wrap: break-word;
+  max-height: min(380px, 42vh); overflow-y: auto; word-wrap: break-word; overflow-wrap: break-word;
+  /* always-visible slim scrollbar: the entry box scrolls on its own so a long
+     email/diary/report never pushes the next match out of the list */
+  scrollbar-width: thin; scrollbar-color: var(--border-2) var(--panel-2);
+  overscroll-behavior: contain;
 }
-.result-content::-webkit-scrollbar { width: 6px; }
-.result-content::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
+.result-content::-webkit-scrollbar { width: 8px; }
+.result-content::-webkit-scrollbar-track { background: var(--panel-2); }
+.result-content::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
+.result-content::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 .result-content p { margin-bottom: 8px; }
+/* Expanded: full text, no inner scrolling */
+.result-entry.expanded .result-content { max-height: none; overflow-y: visible; }
+/* Sticky "there is more below" hint + expander in the card header */
+.result-hits-group { display: inline-flex; align-items: center; }
+.expand-btn {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border-2);
+  padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 8px;
+  white-space: nowrap;
+}
+.expand-btn:hover { border-color: var(--accent); color: var(--accent); }
+.scroll-hint {
+  padding: 3px 14px; font-size: 11px; color: var(--muted); font-style: italic;
+  border-top: 1px solid var(--border-2); background: var(--panel-2);
+}
 
 mark {
   background: var(--mark-bg); color: var(--mark-tx); padding: 1px 2px; border-radius: 2px;
@@ -2612,6 +2632,37 @@ function stepActiveResult(dir) {
   scrollResultToPanelTop(next);
   return true;
 }
+// Each entry box scrolls on its own so a long email/diary/report is fully
+// readable without pushing the other matches out of the results list.
+// Show the "⤢ Full text" expander and the "more text below" hint only when the
+// text actually overflows, and hide the hint once the reader reaches the end.
+function updateScrollHint(box, card) {
+  if (!box || !card) return;
+  const hint = card.querySelector('[data-scroll-hint]');
+  if (!hint) return;
+  const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 4;
+  const expanded = card.classList.contains('expanded');
+  hint.hidden = expanded || !box.scrollHeight || atEnd;
+}
+function markScrollableResults(panel) {
+  if (!panel) return;
+  panel.querySelectorAll('.result-content').forEach(function(box) {
+    const card = box.closest('.result-entry');
+    if (!card) return;
+    const overflows = box.scrollHeight > box.clientHeight + 4;
+    const btn = card.querySelector('[data-expand-toggle]');
+    if (btn) btn.hidden = !overflows;
+    box.addEventListener('scroll', function() { updateScrollHint(box, card); });
+    // Images/fonts can settle a tick later; re-measure once
+    setTimeout(function() {
+      const over = box.scrollHeight > box.clientHeight + 4;
+      const b = card.querySelector('[data-expand-toggle]');
+      if (b) b.hidden = !over;
+      updateScrollHint(box, card);
+    }, 0);
+    updateScrollHint(box, card);
+  });
+}
 function eventInScrollablePanel(e) {
   var el = e.target && e.target.closest ? e.target.closest(
     '#resultsPanel, #chartsPanel, #helpOverlay, .result-content, .pdf-continuous-view'
@@ -2784,6 +2835,10 @@ function displayResults(results, query, opts) {
     }
     html += '</span>';
     html += '<span class="result-hits">' + r.hits + ' hit' + (r.hits > 1 ? 's' : '') + '</span>';
+    // Expander: shown only when the text does not fit (see markScrollableResults)
+    html += '<span class="result-hits-group">';
+    html += '<button type="button" class="expand-btn" data-expand-toggle="' + i + '" hidden title="Show the full text of this entry">⤢ Full text</button>';
+    html += '</span>';
     html += '</div>';
 
     // Hit navigation bar
@@ -2820,6 +2875,9 @@ function displayResults(results, query, opts) {
       }
     }
     html += '</div>';
+    // "More text below" hint, revealed by markScrollableResults() when the
+    // text does not fit in the box (and hidden once scrolled to the end).
+    html += '<div class="scroll-hint" data-scroll-hint="' + i + '" hidden>↕ scroll inside this box for more text</div>';
     // Thread links. Up: what THIS message answers/forwards (its own act).
     // Down: later messages that replied to / forwarded it - ARRAYS, because
     // the same email can be picked up and replied to or forwarded again,
@@ -2851,9 +2909,24 @@ function displayResults(results, query, opts) {
 
   window._searchResults = results;
   panel.innerHTML = html;
+  markScrollableResults(panel);
 
-  // Event delegation: any click in a result card jumps the PDF (to the hit's page)
+  // ⤢ Full text: expand/collapse a single entry box (full message visible)
   panel.onclick = function(ev) {
+    const expBtn = ev.target.closest('[data-expand-toggle]');
+    if (expBtn) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const card = expBtn.closest('.result-entry');
+      const box = card && card.querySelector('.result-content');
+      if (!card || !box) return;
+      const expanded = card.classList.toggle('expanded');
+      expBtn.textContent = expanded ? '⤡ Collapse' : '⤢ Full text';
+      expBtn.title = expanded ? 'Back to the scrolling excerpt' : 'Show the full text of this entry';
+      if (expanded) box.scrollTop = 0;
+      updateScrollHint(box, card);
+      return;
+    }
     const entry = ev.target.closest('.result-entry');
     if (!entry || !panel.contains(entry)) return;
 

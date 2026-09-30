@@ -17,6 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import reparse_ebola as R  # noqa: E402
+import clean_ebola_breaks as CB  # noqa: E402
 
 TEXT_PATH = os.path.join(HERE, "2026.09.28_Ebola-Doc-Release_Full-Package.txt")
 JSON_PATH = os.path.join(HERE, "2026.09.28_Ebola-Doc-Release_Full-Package.json")
@@ -25,41 +26,33 @@ OUT_PATH = os.path.join(HERE, "ebola_page_map.json")
 PAGE_MARKER_RE = re.compile(r"^---\s*Page\s+(\d+)\s*---\s*$")
 
 def clean_with_pages(line_pages):
-    """Mirror clean_ebola_breaks.clean_content while tracking the PDF page of
-    every cleaned character."""
-    paragraphs, current = [], []
-    def flush():
-        if current:
-            paragraphs.append(list(current))
-            del current[:]
-    for line, page in line_pages:
-        s = line.strip()
-        if not s:
-            flush(); continue
-        if s.upper().startswith("PRESS:") or (s.endswith(":") and len(s) < 80):
-            flush(); current.append((s, page)); continue
-        current.append((s, page))
-    flush()
-    parts, char_pages = [], []
-    for pi, para in enumerate(paragraphs):
-        if pi:
-            parts.append("\n\n"); char_pages.extend([para[0][1]] * 2)
-        first = True
-        for text, page in para:
-            if not first:
-                parts.append(" "); char_pages.append(page)
-            t = re.sub(r"\s+", " ", text).strip()
-            parts.append(t); char_pages.extend([page] * len(t))
-            first = False
-    cleaned = "".join(parts)
-    if len(cleaned) != len(char_pages):
-        pages = sorted({p for _, p in line_pages}) or [1]
-        return cleaned, [[0, pages[0]]], pages[0], pages[-1]
+    """Same text as clean_ebola_breaks.clean_content (shared paragraph/join
+    logic), with the PDF page tracked for every output character."""
+    texts = [t for t, _ in line_pages]
+    para_texts = []
+    para_pages = []
+    for a, b in CB.paragraph_ranges(texts):
+        text, pages = CB.join_items(line_pages[a:b])
+        if not text:
+            continue
+        para_texts.append(text)
+        para_pages.append(pages)
+    out, out_pages = [], []
+    for i, (text, pages) in enumerate(zip(para_texts, para_pages)):
+        if i:
+            out.append("\n\n")
+            out_pages.extend([pages[0] if pages else 1] * 2)
+        out.append(text)
+        out_pages.extend(pages if pages else [1] * len(text))
+    cleaned = "".join(out)
     breaks, prev = [], None
-    for i, p in enumerate(char_pages):
+    for i, p in enumerate(out_pages):
         if p != prev:
-            breaks.append([i, p]); prev = p
-    return cleaned, breaks, (breaks[0][1] if breaks else 1), (breaks[-1][1] if breaks else 1)
+            breaks.append([i, p])
+            prev = p
+    start = breaks[0][1] if breaks else 1
+    end = breaks[-1][1] if breaks else start
+    return cleaned, breaks, start, end
 
 def read_pairs():
     """(line, pdf page) for every non-boilerplate line."""
