@@ -32,7 +32,7 @@ python3 regen_prequel_page_map.py   # rebuild page map
 
 ### Ebola extract (Mar 2016)
 ```bash
-python3 reparse_ebola.py          # OCR text → fixed JSON (8 diary entries + appendix)
+python3 reparse_ebola.py          # OCR text → fixed JSON (8 diary + 19 threaded emails + report)
 python3 clean_ebola_breaks.py     # collapse PDF line-breaks
 python3 regen_ebola_page_map.py   # rebuild page map
 ```

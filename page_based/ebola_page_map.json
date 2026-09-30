@@ -87,64 +87,226 @@
       ]
     ]
   },
-  "appendix|Appendix": {
+  "2016-03-10|06:13 · RE: Hello from France": {
     "start": 5,
-    "end": 26,
+    "end": 5,
     "breaks": [
       [
         0,
         5
-      ],
+      ]
+    ]
+  },
+  "2016-03-09|23:41 · Re: Hello from France": {
+    "start": 5,
+    "end": 5,
+    "breaks": [
       [
-        1166,
+        0,
+        5
+      ]
+    ]
+  },
+  "2016-03-10|01:29 · Fauci (inline quote)": {
+    "start": 5,
+    "end": 5,
+    "breaks": [
+      [
+        0,
+        5
+      ]
+    ]
+  },
+  "2016-03-09|19:11 · Hello from France": {
+    "start": 5,
+    "end": 5,
+    "breaks": [
+      [
+        0,
+        5
+      ]
+    ]
+  },
+  "2016-03-10|17:30 · Re: Hello from France": {
+    "start": 6,
+    "end": 6,
+    "breaks": [
+      [
+        0,
         6
-      ],
+      ]
+    ]
+  },
+  "2016-03-10|03:19 · Fauci (inline quote)": {
+    "start": 6,
+    "end": 6,
+    "breaks": [
       [
-        1833,
+        0,
+        6
+      ]
+    ]
+  },
+  "2016-03-10|23:15 · Re: Aerosolized Ebola": {
+    "start": 14,
+    "end": 14,
+    "breaks": [
+      [
+        0,
         14
-      ],
+      ]
+    ]
+  },
+  "2016-03-10|14:34 · Lane (inline quote)": {
+    "start": 14,
+    "end": 14,
+    "breaks": [
       [
-        2831,
+        0,
+        14
+      ]
+    ]
+  },
+  "2016-03-12|12:24 · Re: Further thoughts on aerosol / vaccine vulnerability": {
+    "start": 16,
+    "end": 16,
+    "breaks": [
+      [
+        0,
+        16
+      ]
+    ]
+  },
+  "2016-03-12|12:08 · RE: Further thoughts on aerosol / vaccine vulnerability": {
+    "start": 16,
+    "end": 16,
+    "breaks": [
+      [
+        0,
+        16
+      ]
+    ]
+  },
+  "2016-03-11|13:21 · Further thoughts on aerosol / vaccine vulnerability": {
+    "start": 16,
+    "end": 17,
+    "breaks": [
+      [
+        0,
         16
       ],
       [
-        5765,
+        1363,
         17
-      ],
+      ]
+    ]
+  },
+  "2016-03-14|17:22 · RE: Can we discuss Ebola vaccines and the IRF?": {
+    "start": 18,
+    "end": 18,
+    "breaks": [
       [
-        6257,
+        0,
+        18
+      ]
+    ]
+  },
+  "2016-03-14|15:58 · RE: Can we discuss Ebola vaccines and the IRF?": {
+    "start": 18,
+    "end": 18,
+    "breaks": [
+      [
+        0,
+        18
+      ]
+    ]
+  },
+  "2016-03-14|15:58 · FW: Can we discuss Ebola vaccines and the IRF?": {
+    "start": 18,
+    "end": 18,
+    "breaks": [
+      [
+        0,
+        18
+      ]
+    ]
+  },
+  "2016-03-14|15:57 · Can we discuss Ebola vaccines and the IRF?": {
+    "start": 18,
+    "end": 19,
+    "breaks": [
+      [
+        0,
         18
       ],
       [
-        8257,
+        159,
         19
-      ],
+      ]
+    ]
+  },
+  "2016-03-19|16:58 · RE: Ebola report you requested": {
+    "start": 20,
+    "end": 20,
+    "breaks": [
       [
-        8603,
+        0,
         20
-      ],
+      ]
+    ]
+  },
+  "2016-03-18|18:20 · Ebola report you requested": {
+    "start": 20,
+    "end": 20,
+    "breaks": [
       [
-        10447,
+        0,
+        20
+      ]
+    ]
+  },
+  "report|Report": {
+    "start": 21,
+    "end": 24,
+    "breaks": [
+      [
+        0,
         21
       ],
       [
-        14033,
+        3584,
         22
       ],
       [
-        17866,
+        7416,
         23
       ],
       [
-        20959,
+        10508,
         24
-      ],
+      ]
+    ]
+  },
+  "2016-03-22|09:18 · RE: rVSV studies": {
+    "start": 25,
+    "end": 25,
+    "breaks": [
       [
-        21656,
+        0,
+        25
+      ]
+    ]
+  },
+  "2016-03-22|08:26 · rVSV studies": {
+    "start": 25,
+    "end": 26,
+    "breaks": [
+      [
+        0,
         25
       ],
       [
-        24024,
+        779,
         26
       ]
     ]

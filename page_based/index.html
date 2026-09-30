@@ -343,6 +343,17 @@ body.layout-portrait .pdf-panel {
 .result-note {
   font-size: 11px; color: var(--orange); margin-top: 4px; font-style: italic;
 }
+.entry-kind {
+  font-size: 10px; color: var(--orange); background: var(--panel-2);
+  padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-2);
+  margin-left: 6px; white-space: nowrap;
+}
+.reply-ref {
+  padding: 6px 14px; border-top: 1px dashed var(--border-2);
+  font-size: 12px; color: var(--muted);
+}
+.reply-ref a { color: var(--blue); text-decoration: underline; cursor: pointer; }
+.reply-ref a:hover { color: var(--accent); }
 
 /* ── Hit navigation bar ────────────────────────────────────────────── */
 .hit-nav {
@@ -461,7 +472,7 @@ mark.hit-current {
 <div class="header">
   <div class="title-block">
     <h1>📖 Tony's Diary Search</h1>
-    <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a> &middot; 1,997 entries &middot; Jan 2001 &ndash; Dec 2022</span>
+    <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a> &middot; 2,016 entries &middot; Jan 2001 &ndash; Dec 2022</span>
   </div>
   <form class="search-bar" id="searchForm" onsubmit="doSearch(); return false;">
     <input type="text" id="searchInput" enterkeyhint="search" autocomplete="off" placeholder='Phrase: "blue car" · words: happy bunny · help: ?'>
@@ -596,7 +607,7 @@ const SOURCES = {
     pdf: 'diary-ebola.pdf',
     label: 'Ebola',
     badge: 'Ebola',
-    badgeTitle: 'Ebola extract (Mar 2016)',
+    badgeTitle: 'Ebola extract: diary + emails (Mar 2016)',
   },
 };
 const DEFAULT_PDF_SOURCE = 'main';   // which PDF shows on page load
@@ -1538,9 +1549,12 @@ function doSearch() {
     var da = a.entry.date, db = b.entry.date;
     if (da === 'prologue') return -1;
     if (db === 'prologue') return 1;
-    if (da === 'appendix') return 1;
-    if (db === 'appendix') return -1;
-    return da < db ? -1 : da > db ? 1 : 0;
+    if (da === 'appendix' || da === 'report') return 1;
+    if (db === 'appendix' || db === 'report') return -1;
+    // Dated entries: chronological; emails carry a time for same-day order.
+    if (da !== db) return da < db ? -1 : 1;
+    var ta = a.entry.time || '', tb = b.entry.time || '';
+    return ta < tb ? -1 : ta > tb ? 1 : 0;
   });
 
   lastSearchResults = results;
@@ -1558,7 +1572,7 @@ function clearSearch() {
   document.getElementById('resultsPanel').innerHTML =
     '<div class="placeholder"><h2>Search Fauci\'s Diary</h2>' +
     '<p>Enter a search term above to find mentions across all ' +
-    (diaryData ? diaryData.total_entries : 1997) + ' diary entries.</p></div>';
+    (diaryData ? diaryData.total_entries : 2016) + ' diary entries.</p></div>';
   lastSearchResults = null;
   lastSearchQuery = '';
   window._searchResults = null;
@@ -1591,7 +1605,7 @@ let timelineSeries = null; // { labels, entryCounts, entryColors, entryDays, tot
 function buildTimelineSeries() {
   const dateCounts = {};
   for (const e of diaryData.entries) {
-    // Skip synthetic entries ('prologue', 'appendix') — not calendar days.
+    // Skip synthetic entries ('prologue', 'appendix', 'report') — not calendar days.
     if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date)) continue;
     dateCounts[e.date] = (dateCounts[e.date] || 0) + 1;
   }
@@ -2701,7 +2715,8 @@ function displayResults(results, query, opts) {
     html += '<div class="result-header">';
     html += '<span><span class="result-date">' + e.date + '</span>' +
       '<span class="result-raw-date">' + escapeHtml(e.raw_date) + '</span>' +
-      (e.source && SOURCES[e.source] ? '<span style="font-size:10px;color:var(--muted);background:var(--panel-2);padding:2px 6px;border-radius:3px;border:1px solid var(--border-2);margin-left:6px;white-space:nowrap" title="From the ' + SOURCES[e.source].badgeTitle + ' release">' + SOURCES[e.source].badge + '</span>' : '');
+      (e.source && SOURCES[e.source] ? '<span style="font-size:10px;color:var(--muted);background:var(--panel-2);padding:2px 6px;border-radius:3px;border:1px solid var(--border-2);margin-left:6px;white-space:nowrap" title="From the ' + SOURCES[e.source].badgeTitle + ' release">' + SOURCES[e.source].badge + '</span>' : '') +
+      (e.kind && e.kind !== 'diary' ? '<span class="entry-kind" title="Document type">' + (e.kind === 'email' ? '✉ email' : '📄 report') + '</span>' : '');
     if (pageLabel) {
       html += '<span class="result-page-link" title="Open PDF at this entry">📄 ' + pageLabel + '</span>';
     }
@@ -2732,6 +2747,16 @@ function displayResults(results, query, opts) {
       html += '<p>' + p + '</p>';
     }
     html += '</div>';
+    // Reply-chain pointer: an email card shows only the text its author
+    // wrote that day; the message it answers is a separate dated entry.
+    if (e.reply_to) {
+      html += '<div class="reply-ref">↩ In reply to: <a data-entry-ref="' +
+        escapeHtml(e.reply_to) + '">' + escapeHtml(e.reply_to_label || e.reply_to) + '</a></div>';
+    }
+    if (e.attachment_ref) {
+      html += '<div class="reply-ref">📎 Attachment: <a data-entry-ref="' +
+        escapeHtml(e.attachment_ref) + '">' + escapeHtml(e.attachment_label || e.attachment_ref) + '</a></div>';
+    }
     html += '</div>';
   }
 
@@ -2745,6 +2770,15 @@ function displayResults(results, query, opts) {
 
     const resultIdx = parseInt(entry.getAttribute('data-result-idx'), 10);
     const entryIdx = parseInt(entry.getAttribute('data-entry-idx'), 10);
+
+    // Reply-chain / attachment links: open the referenced entry
+    const refLink = ev.target.closest('[data-entry-ref]');
+    if (refLink) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      openEntryRef(refLink.getAttribute('data-entry-ref'));
+      return;
+    }
 
     // Hit Prev/Next: step highlight + PDF page for THAT hit
     const navBtn = ev.target.closest('[data-hit-nav]');
@@ -2775,6 +2809,21 @@ function displayResults(results, query, opts) {
     if (results[0].hits > 0) updateHitHighlight(0, 0);
     selectResult(0, pdfPageForHit(0, 0), results[0].idx);
   }
+}
+
+// ============================================================
+// Open a single entry by its "date|raw_date" key (reply-chain links)
+// ============================================================
+function openEntryRef(key) {
+  if (!key || !diaryData) return false;
+  for (var i = 0; i < diaryData.entries.length; i++) {
+    var e = diaryData.entries[i];
+    if ((e.date + '|' + e.raw_date) === key) {
+      displayResults([{ idx: i, entry: e, hits: 0, hitPositions: [], matchTerms: [] }], '');
+      return true;
+    }
+  }
+  return false;
 }
 
 // ============================================================
