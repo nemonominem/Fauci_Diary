@@ -654,6 +654,44 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dis
 // ============================================================
 // Load data
 // ============================================================
+/**
+ * Invert every up-link into downward links over ALL entries:
+ *   replied_by    <- reply_to
+ *   forwarded_by  <- forwarded_from
+ *   attached_by   <- attachment_ref
+ * Each is an ARRAY of {key, label} - an entry may be replied to or forwarded
+ * any number of times, including from another source. Downward keys are
+ * source-qualified ("ebola|2016-03-10|...") so they stay unambiguous when
+ * date|raw_date labels collide across releases.
+ */
+function rebuildThreadDownLinks(entries) {
+  entries.forEach(function(e) {
+    delete e.replied_by;
+    delete e.forwarded_by;
+    delete e.attached_by;
+  });
+  const qualified = {};
+  const plain = {};
+  entries.forEach(function(e) {
+    qualified[e.source + '|' + e.date + '|' + e.raw_date] = e;
+    plain[e.date + '|' + e.raw_date] = e;  // fallback for parser-era unqualified refs
+  });
+  function add(e, refKey, field) {
+    if (!refKey) return;
+    const t = qualified[e.source + '|' + refKey] || plain[refKey];
+    if (!t || t === e) return;
+    (t[field] = t[field] || []).push({
+      key: e.source + '|' + e.date + '|' + e.raw_date,
+      label: e.date + ' ' + e.raw_date,
+    });
+  }
+  entries.forEach(function(e) {
+    add(e, e.reply_to, 'replied_by');
+    add(e, e.forwarded_from, 'forwarded_by');
+    add(e, e.attachment_ref, 'attached_by');
+  });
+}
+
 function loadErrorHelp(err) {
   const msg = (err && err.message) ? err.message : String(err);
   const isFile = location.protocol === 'file:';
@@ -706,6 +744,14 @@ async function loadData() {
     ebolaData.entries.forEach(function(e) { e.source = 'ebola'; });
     const allEntries = preqData.entries.concat(ebolaData.entries, mainData.entries);
 
+    // Rebuild thread DOWN-links over the merged timeline. Up-links
+    // (reply_to / forwarded_from / attachment_ref) are written per release by
+    // its parser; downward links are their inverse and may be MULTIPLE - the
+    // same email can be replied to and/or forwarded again later, possibly from
+    // another source entirely (a new release quoting an old one), so they are
+    // re-derived here rather than trusted from the JSON.
+    rebuildThreadDownLinks(allEntries);
+
     diaryData = {
       title: "Fauci's Diary",
       released_by: 'Chairman Rand Paul',
@@ -756,8 +802,12 @@ async function loadData() {
     applyPdfViewModeDom();
     renderPdfPage(pendingPage || 1);
 
-    // ── Load the other PDFs in the background ──
-    ['prequel', 'ebola'].filter(function(s) { return s !== DEFAULT_PDF_SOURCE; }).forEach(function(otherSource) {
+    // ── Load the other source PDFs in the background ──
+    // Derived from SOURCES so a new source only needs a SOURCES entry;
+    // sources without a `pdf` (e.g. feeds with no document to show) are skipped.
+    Object.keys(SOURCES).filter(function(s) {
+      return s !== DEFAULT_PDF_SOURCE && SOURCES[s].pdf;
+    }).forEach(function(otherSource) {
       pdfjsLib.getDocument(SOURCES[otherSource].pdf).promise.then(function(doc) {
         pdfDocs[otherSource] = doc;
         // If user already switched to this source, render the pending page
@@ -785,6 +835,7 @@ async function loadData() {
 // ── Switch the PDF viewer to a different source's PDF ──
 function switchPdfSource(source, optPage) {
   if (!source || !SOURCES[source]) return;
+  if (!SOURCES[source].pdf) return;  // source has no page images (e.g. a feed)
   if (currentPdfSource === source && pdfDoc) {
     if (optPage) renderPdfPage(optPage);
     return;  // already showing
@@ -2769,15 +2820,31 @@ function displayResults(results, query, opts) {
       }
     }
     html += '</div>';
-    // Reply-chain pointer: an email card shows only the text its author
-    // wrote that day; the message it answers is a separate dated entry.
+    // Thread links. Up: what THIS message answers/forwards (its own act).
+    // Down: later messages that replied to / forwarded it - ARRAYS, because
+    // the same email can be picked up and replied to or forwarded again,
+    // possibly several times and even from another source (rebuilt across
+    // all sources in loadData).
     if (e.reply_to) {
       html += '<div class="reply-ref">↩ In reply to: <a data-entry-ref="' +
         escapeHtml(e.reply_to) + '">' + escapeHtml(e.reply_to_label || e.reply_to) + '</a></div>';
     }
+    if (e.forwarded_from) {
+      html += '<div class="reply-ref">↪ Forwarding: <a data-entry-ref="' +
+        escapeHtml(e.forwarded_from) + '">' + escapeHtml(e.forwarded_from_label || e.forwarded_from) + '</a></div>';
+    }
     if (e.attachment_ref) {
       html += '<div class="reply-ref">📎 Attachment: <a data-entry-ref="' +
         escapeHtml(e.attachment_ref) + '">' + escapeHtml(e.attachment_label || e.attachment_ref) + '</a></div>';
+    }
+    if (e.replied_by && e.replied_by.length) {
+      html += '<div class="reply-ref">↩ Replied by: ' + refLinksHtml(e.replied_by) + '</div>';
+    }
+    if (e.forwarded_by && e.forwarded_by.length) {
+      html += '<div class="reply-ref">↪ Forwarded by: ' + refLinksHtml(e.forwarded_by) + '</div>';
+    }
+    if (e.attached_by && e.attached_by.length) {
+      html += '<div class="reply-ref">📎 Referenced by: ' + refLinksHtml(e.attached_by) + '</div>';
     }
     html += '</div>';
   }
@@ -2834,13 +2901,32 @@ function displayResults(results, query, opts) {
 }
 
 // ============================================================
-// Open a single entry by its "date|raw_date" key (reply-chain links)
+/** Render a list of thread-link targets [{key,label}] as inline <a> links. */
+function refLinksHtml(list) {
+  return list.map(function(x) {
+    return '<a data-entry-ref="' + escapeHtml(x.key) + '">' + escapeHtml(x.label || x.key) + '</a>';
+  }).join(' · ');
+}
+
+// Open a single entry by its "date|raw_date" key (reply-chain links).
+// Keys may be source-qualified ("ebola|2016-03-10|06:13 ET · ...") - the
+// downward links loadData builds are - or plain, for parser-supplied refs.
 // ============================================================
 function openEntryRef(key) {
   if (!key || !diaryData) return false;
+  var src = null, rest = key;
+  var firstSep = key.indexOf('|');
+  if (firstSep > 0) {
+    var head = key.slice(0, firstSep);
+    if (Object.prototype.hasOwnProperty.call(SOURCES, head)) {
+      src = head;
+      rest = key.slice(firstSep + 1);
+    }
+  }
   for (var i = 0; i < diaryData.entries.length; i++) {
     var e = diaryData.entries[i];
-    if ((e.date + '|' + e.raw_date) === key) {
+    if (src && e.source !== src) continue;
+    if ((e.date + '|' + e.raw_date) === rest) {
       displayResults([{ idx: i, entry: e, hits: 0, hitPositions: [], matchTerms: [] }], '');
       return true;
     }
@@ -2859,7 +2945,11 @@ function selectResult(resultIdx, pdfPage, entryIdx) {
 
   // Switch to the correct PDF for this entry's source
   const r = window._searchResults && window._searchResults[resultIdx];
-  if (r && r.entry && r.entry.source) switchPdfSource(r.entry.source);
+  const src = r && r.entry ? r.entry.source : null;
+  if (src) switchPdfSource(src);
+  // Sources with no page images (e.g. an imported feed) leave the current
+  // document where it is instead of jumping it to a meaningless page.
+  if (src && SOURCES[src] && !SOURCES[src].pdf) return;
 
   // Prefer explicit page; else current hit's page; else entry start
   let page = parseInt(pdfPage, 10);

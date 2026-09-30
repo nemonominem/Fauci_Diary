@@ -15,6 +15,12 @@ Self-contained static files. No Python server is required for hosting.
 - `diary-ebola.pdf` — ebola extract PDF, short name (~3 MB; Git LFS; original: `2026.09.28_Ebola-Doc-Release_Full-Package.pdf`)
 - `2026.09.28_Ebola-Doc-Release_Full-Package.pdf` — original Congressional filename (reference copy)
 
+## Standards
+
+Email, thread and time-zone conventions for every source (document kinds,
+reply-chain links, ET normalisation with local stamps, page-map rules, and how
+to add a new source type): **[`../EMAILS.md`](../EMAILS.md)**.
+
 ## Important: do not open `index.html` as a file
 
 Browsers block `fetch()` of local JSON/PDF under `file://`, which produces

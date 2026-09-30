@@ -34,8 +34,13 @@ python3 regen_prequel_page_map.py   # rebuild page map
 ```bash
 python3 reparse_ebola.py          # OCR text → fixed JSON (8 diary + 19 threaded emails + report)
 python3 clean_ebola_breaks.py     # collapse PDF line-breaks
-python3 regen_ebola_page_map.py   # rebuild page map
+python3 regen_ebola_page_map.py   # rebuild page map (imports the parser; asserts content equality)
 ```
+
+> Emails, mail threads and their time-zone handling (local stamp + New York
+> normalisation, reply-chain links, printable header block) are specified in
+> **[`../EMAILS.md`](../EMAILS.md)** — follow it for any new release that
+> contains emails, or when adding a new kind of source.
 
 | File | Role |
 |---|---|

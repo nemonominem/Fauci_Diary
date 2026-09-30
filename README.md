@@ -14,6 +14,17 @@ Searchable web app for Dr. Anthony Fauci's diary (Congressional release by Chair
 All three releases are merged into a single searchable timeline. The PDF viewer
 automatically switches to the correct source PDF when you click a result.
 
+## Mixed sources: emails, threads, time zones
+
+Emails are first-class entries, not appendix blobs: each message is its own
+dated card holding only what its author wrote, linked to the message it answers,
+with timestamps normalised to New York time (local time shown alongside).
+
+**→ [`EMAILS.md`](EMAILS.md)** is the specification — document kinds, thread
+splitting, zone rules and evidence table, entry shape, and the recipe for adding
+new releases or new source types (Twitter/Bluesky threads, Slack/Signal exports)
+to the same timeline. Read it before adding anything mail- or feed-shaped.
+
 ## Canonical home (important)
 
 **This repository is the sole home of the diary app and its data.**
@@ -29,6 +40,8 @@ automatically switches to the correct source PDF when you click a result.
 |---|---|
 | `server_based/` | Local version — run `bash start_search.sh` to serve on port 8765. Local `diary.pdf` + reparse/clean/page-map scripts. |
 | `page_based/` | Static GitHub Pages version — self-contained, includes the PDF. |
+
+Email/thread/timezone conventions for the data model: [`EMAILS.md`](EMAILS.md).
 
 ## Data
 

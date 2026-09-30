@@ -368,10 +368,30 @@ def segment_tail(tail_lines):
 def entry_key(e):
     return e["date"] + "|" + e["raw_date"]
 
+FORWARD_SUBJ_RE = re.compile(r"^(?:fw|fwd)\.?\s*:", re.IGNORECASE)
+
+def _ref_subject(entry):
+    raw = entry.get("raw_date", "")
+    return raw.split(" \u00b7 ", 1)[1] if " \u00b7 " in raw else ""
+
 def link_thread(entries):
-    """Wire reply-chain pointers. A thread starts at an outer (RFC 'Date:')
-    email; following nested/inline messages are its quoted history in
-    document order. Each entry points at the next one down the chain."""
+    """Wire the thread pointers, both directions.
+
+    A thread starts at an outer (RFC 'Date:') email; the following nested /
+    inline messages are its quoted history in document order (newest first),
+    so message i refers upward to message i+1:
+
+      * subject starts with FW:/Fwd: -> this message FORWARDED that one
+        (up-link stored as forwarded_from)
+      * otherwise                    -> it REPLIED to it (reply_to)
+
+    Downward, every reference is inverted into ARRAYS - the same email may be
+    replied to and/or forwarded again later, possibly several times, and a
+    later release may quote it too (the app re-inverts across all sources):
+
+      replied_by / forwarded_by / attached_by
+        = [{key, label}, ...]  (may hold several entries)
+    """
     by_key = {}
     for e in entries:
         k = entry_key(e)
@@ -382,8 +402,14 @@ def link_thread(entries):
     thread = []
     def flush():
         for a, b in zip(thread, thread[1:]):
-            a["reply_to"] = entry_key(b)
-            a["reply_to_label"] = b["date"] + " " + b["raw_date"]
+            key = entry_key(b)
+            label = b["date"] + " " + b["raw_date"]
+            if FORWARD_SUBJ_RE.match(_ref_subject(a)):
+                a["forwarded_from"] = key
+                a["forwarded_from_label"] = label
+            else:
+                a["reply_to"] = key
+                a["reply_to_label"] = label
     for e in entries:
         if e["kind"] == "report":
             flush(); thread = []
@@ -398,6 +424,20 @@ def link_thread(entries):
         if e["kind"] == "email" and e["raw_date"].endswith("Ebola report you requested") and e.get("_style") == "nested":
             e["attachment_ref"] = "report|Report"
             e["attachment_label"] = "NIAID Filovirus Aerosol-Challenge Report (pp. 21-24)"
+    # Invert every up-link into downward (possibly multiple) links.
+    for e in entries:
+        for ref, field in ((e.get("reply_to"), "replied_by"),
+                           (e.get("forwarded_from"), "forwarded_by"),
+                           (e.get("attachment_ref"), "attached_by")):
+            if not ref:
+                continue
+            target = by_key.get(ref)
+            if target is None or target is e:
+                continue
+            target.setdefault(field, []).append({
+                "key": entry_key(e),
+                "label": e["date"] + " " + e["raw_date"],
+            })
     for e in entries:
         e.pop("_order", None); e.pop("_style", None)
     return entries
@@ -473,9 +513,21 @@ def main():
     print("entries: %d (diary %d, emails %d, report %d)" % (len(real), len(diary), len(mail), len(report)))
     print("date range:", out["date_range"])
     for e in real:
-        link = " -> " + e["reply_to_label"] if e.get("reply_to_label") else ""
-        att = " [att: report]" if e.get("attachment_ref") else ""
-        print("  %-10s %-5s %-48s %5d chars%s%s" % (e["date"], e.get("time", ""),
-              e["raw_date"][:48], len(e["content"]), link, att))
+        up = ""
+        if e.get("reply_to_label"):
+            up = "  <-reply- " + e["reply_to_label"]
+        if e.get("forwarded_from_label"):
+            up = "  <-fwd- " + e["forwarded_from_label"]
+        if e.get("attachment_ref"):
+            up += "  [att-> report]"
+        down = ""
+        if e.get("replied_by"):
+            down += "  ->replied-by x%d" % len(e["replied_by"])
+        if e.get("forwarded_by"):
+            down += "  ->fwd-by x%d" % len(e["forwarded_by"])
+        if e.get("attached_by"):
+            down += "  ->refs x%d" % len(e["attached_by"])
+        print("  %-10s %-5s %-44s %5d%s%s" % (e["date"], e.get("time", ""),
+              e["raw_date"][:44], len(e["content"]), up, down))
 if __name__ == "__main__":
     main()
