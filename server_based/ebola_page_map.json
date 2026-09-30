@@ -87,7 +87,7 @@
       ]
     ]
   },
-  "2016-03-10|06:13 · RE: Hello from France": {
+  "2016-03-10|06:13 ET · RE: Hello from France": {
     "start": 5,
     "end": 5,
     "breaks": [
@@ -97,7 +97,7 @@
       ]
     ]
   },
-  "2016-03-09|23:41 · Re: Hello from France": {
+  "2016-03-10|23:41 PT Mar 9 → 02:41 ET · Re: Hello from France": {
     "start": 5,
     "end": 5,
     "breaks": [
@@ -107,7 +107,7 @@
       ]
     ]
   },
-  "2016-03-10|01:29 · Fauci (inline quote)": {
+  "2016-03-10|01:29 ET · Fauci (inline quote)": {
     "start": 5,
     "end": 5,
     "breaks": [
@@ -117,7 +117,7 @@
       ]
     ]
   },
-  "2016-03-09|19:11 · Hello from France": {
+  "2016-03-09|19:11 CET → 13:11 ET · Hello from France": {
     "start": 5,
     "end": 5,
     "breaks": [
@@ -127,7 +127,7 @@
       ]
     ]
   },
-  "2016-03-10|17:30 · Re: Hello from France": {
+  "2016-03-10|17:30 ET · Re: Hello from France": {
     "start": 6,
     "end": 6,
     "breaks": [
@@ -137,7 +137,7 @@
       ]
     ]
   },
-  "2016-03-10|03:19 · Fauci (inline quote)": {
+  "2016-03-10|03:19 ET · Fauci (inline quote)": {
     "start": 6,
     "end": 6,
     "breaks": [
@@ -147,7 +147,7 @@
       ]
     ]
   },
-  "2016-03-10|23:15 · Re: Aerosolized Ebola": {
+  "2016-03-10|23:15 ET · Re: Aerosolized Ebola": {
     "start": 14,
     "end": 14,
     "breaks": [
@@ -157,7 +157,7 @@
       ]
     ]
   },
-  "2016-03-10|14:34 · Lane (inline quote)": {
+  "2016-03-10|14:34 ET · Lane (inline quote)": {
     "start": 14,
     "end": 14,
     "breaks": [
@@ -167,7 +167,7 @@
       ]
     ]
   },
-  "2016-03-12|12:24 · Re: Further thoughts on aerosol / vaccine vulnerability": {
+  "2016-03-12|12:24 ET · Re: Further thoughts on aerosol / vaccine vulnerability": {
     "start": 16,
     "end": 16,
     "breaks": [
@@ -177,7 +177,7 @@
       ]
     ]
   },
-  "2016-03-12|12:08 · RE: Further thoughts on aerosol / vaccine vulnerability": {
+  "2016-03-12|12:08 ET · RE: Further thoughts on aerosol / vaccine vulnerability": {
     "start": 16,
     "end": 16,
     "breaks": [
@@ -187,7 +187,7 @@
       ]
     ]
   },
-  "2016-03-11|13:21 · Further thoughts on aerosol / vaccine vulnerability": {
+  "2016-03-11|13:21 ET · Further thoughts on aerosol / vaccine vulnerability": {
     "start": 16,
     "end": 17,
     "breaks": [
@@ -196,12 +196,12 @@
         16
       ],
       [
-        1363,
+        1394,
         17
       ]
     ]
   },
-  "2016-03-14|17:22 · RE: Can we discuss Ebola vaccines and the IRF?": {
+  "2016-03-14|17:22 ET · RE: Can we discuss Ebola vaccines and the IRF?": {
     "start": 18,
     "end": 18,
     "breaks": [
@@ -211,7 +211,7 @@
       ]
     ]
   },
-  "2016-03-14|15:58 · RE: Can we discuss Ebola vaccines and the IRF?": {
+  "2016-03-14|15:58 ET · RE: Can we discuss Ebola vaccines and the IRF?": {
     "start": 18,
     "end": 18,
     "breaks": [
@@ -221,7 +221,7 @@
       ]
     ]
   },
-  "2016-03-14|15:58 · FW: Can we discuss Ebola vaccines and the IRF?": {
+  "2016-03-14|15:58 ET · FW: Can we discuss Ebola vaccines and the IRF?": {
     "start": 18,
     "end": 18,
     "breaks": [
@@ -231,7 +231,7 @@
       ]
     ]
   },
-  "2016-03-14|15:57 · Can we discuss Ebola vaccines and the IRF?": {
+  "2016-03-14|15:57 ET · Can we discuss Ebola vaccines and the IRF?": {
     "start": 18,
     "end": 19,
     "breaks": [
@@ -240,12 +240,12 @@
         18
       ],
       [
-        159,
+        188,
         19
       ]
     ]
   },
-  "2016-03-19|16:58 · RE: Ebola report you requested": {
+  "2016-03-19|16:58 ET · RE: Ebola report you requested": {
     "start": 20,
     "end": 20,
     "breaks": [
@@ -255,7 +255,7 @@
       ]
     ]
   },
-  "2016-03-18|18:20 · Ebola report you requested": {
+  "2016-03-18|18:20 ET · Ebola report you requested": {
     "start": 20,
     "end": 20,
     "breaks": [
@@ -287,7 +287,7 @@
       ]
     ]
   },
-  "2016-03-22|09:18 · RE: rVSV studies": {
+  "2016-03-22|09:18 ET · RE: rVSV studies": {
     "start": 25,
     "end": 25,
     "breaks": [
@@ -297,7 +297,7 @@
       ]
     ]
   },
-  "2016-03-22|08:26 · rVSV studies": {
+  "2016-03-22|08:26 ET · rVSV studies": {
     "start": 25,
     "end": 26,
     "breaks": [
@@ -306,7 +306,7 @@
         25
       ],
       [
-        779,
+        809,
         26
       ]
     ]

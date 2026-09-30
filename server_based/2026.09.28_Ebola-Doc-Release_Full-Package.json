@@ -58,138 +58,138 @@
     },
     {
       "date": "2016-03-09",
-      "time": "1911",
+      "time": "1311",
       "kind": "email",
-      "raw_date": "19:11 · Hello from France",
-      "content": "From: Michael, Nelson Sent: Wednesday, March 09, 2016 7:11 PM To: Fauci, Anthony (NIH/NIAID) [E] Subject: Hello from France Had to miss the VTC as I am at a dengue vaccine correlates meeting along with Peter Gilbert to impart our HIV vaccine wisdom to this crowd. Julie Ake, my #2 and a brilliant ID doc, just gave me the download from the call. You, Cliff, Julie and I are of very like mind on this. NLM"
-    },
-    {
-      "date": "2016-03-09",
-      "time": "2341",
-      "kind": "email",
-      "raw_date": "23:41 · Re: Hello from France",
-      "content": "From: Lane, Cliff (NIH/NIAID) [E] Sent: Wednesday, March 09, 2016 11:41 PM To: Fauci, Anthony (NIH/NIAID) [E] Subject: Re: Hello from France I am guessing the NSC meeting on Ebola vaccine.",
-      "reply_to": "2016-03-10|01:29 · Fauci (inline quote)",
-      "reply_to_label": "2016-03-10 01:29 · Fauci (inline quote)"
+      "raw_date": "19:11 CET → 13:11 ET · Hello from France",
+      "content": "From: Michael, Nelson\n\nTo: Fauci, Anthony (NIH/NIAID) [E]\n\nSubject: Hello from France\n\nSent: Wednesday, March 09, 2016 7:11 PM CET (assumed) → 13:11 ET (Mar 9)\n\n----------\n\nHad to miss the VTC as I am at a dengue vaccine correlates meeting along with Peter Gilbert to impart our HIV vaccine wisdom to this crowd. Julie Ake, my #2 and a brilliant ID doc, just gave me the download from the call. You, Cliff, Julie and I are of very like mind on this. NLM"
     },
     {
       "date": "2016-03-10",
       "time": "0129",
       "kind": "email",
-      "raw_date": "01:29 · Fauci (inline quote)",
+      "raw_date": "01:29 ET · Fauci (inline quote)",
       "date_note": "Recovered from an inline quote (no full header in the release)",
-      "content": "What call is he talking about?",
-      "reply_to": "2016-03-09|19:11 · Hello from France",
-      "reply_to_label": "2016-03-09 19:11 · Hello from France"
+      "content": "From: Fauci, Anthony (from an inline quote)\n\nSent: Mar 10, 2016 01:29 AM (ET, assumed)\n\n----------\n\nWhat call is he talking about?",
+      "reply_to": "2016-03-09|19:11 CET → 13:11 ET · Hello from France",
+      "reply_to_label": "2016-03-09 19:11 CET → 13:11 ET · Hello from France"
+    },
+    {
+      "date": "2016-03-10",
+      "time": "0241",
+      "kind": "email",
+      "raw_date": "23:41 PT Mar 9 → 02:41 ET · Re: Hello from France",
+      "content": "From: Lane, Cliff (NIH/NIAID) [E]\n\nTo: Fauci, Anthony (NIH/NIAID) [E]\n\nSubject: Re: Hello from France\n\nSent: Wednesday, March 09, 2016 11:41 PM PT (assumed) → 02:41 ET (Mar 10)\n\n----------\n\nI am guessing the NSC meeting on Ebola vaccine.",
+      "reply_to": "2016-03-10|01:29 ET · Fauci (inline quote)",
+      "reply_to_label": "2016-03-10 01:29 ET · Fauci (inline quote)"
     },
     {
       "date": "2016-03-10",
       "time": "0319",
       "kind": "email",
-      "raw_date": "03:19 · Fauci (inline quote)",
+      "raw_date": "03:19 ET · Fauci (inline quote)",
       "date_note": "Recovered from an inline quote (no full header in the release)",
-      "content": "Is there any point on your lengthy trip that we can talk by phone? I will fill y ou in on the entire me eting. The DoD folks said that they wanted to publish the data. I said tha t I thought that it should be classified and the NSC people blew them out of the water and said that they agreed with me."
+      "content": "From: Fauci, Anthony (from an inline quote)\n\nSent: Mar 10, 2016 03:19 AM (ET, assumed)\n\n----------\n\nIs there any point on your lengthy trip that we can talk by phone? I will fill y ou in on the entire me eting. The DoD folks said that they wanted to publish the data. I said tha t I thought that it should be classified and the NSC people blew them out of the water and said that they agreed with me."
     },
     {
       "date": "2016-03-10",
       "time": "0613",
       "kind": "email",
-      "raw_date": "06:13 · RE: Hello from France",
-      "content": "From: \"Fauci, Anthony (NIH/NIAID) [E]\" </O=NIH/OU=NIHEXCHANGE/CN=NIAID/CN=AFAUCI> To: \"Lane, Cliff (NIH/NIAID) [E]\" @niaid.nih.gov> Subject: RE: Hello from France Date: Thu, 10 Mar 2016 06:13:36 -0500 Importance: Normal Yes. We need to talk. When the DoD people presented the data and the NSC White House people asked them who funded the study, they said that they did together with NIAID!!!! No one followed up on that, but I almost fell off my chair",
-      "reply_to": "2016-03-09|23:41 · Re: Hello from France",
-      "reply_to_label": "2016-03-09 23:41 · Re: Hello from France"
+      "raw_date": "06:13 ET · RE: Hello from France",
+      "content": "From: \"Fauci, Anthony (NIH/NIAID) [E]\"\n\nTo: \"Lane, Cliff (NIH/NIAID) [E]\" @niaid.nih.gov>\n\nSubject: RE: Hello from France\n\nSent: Thu, 10 Mar 2016 06:13:36 -0500 (ET)\n\n----------\n\nYes. We need to talk. When the DoD people presented the data and the NSC White House people asked them who funded the study, they said that they did together with NIAID!!!! No one followed up on that, but I almost fell off my chair",
+      "reply_to": "2016-03-10|23:41 PT Mar 9 → 02:41 ET · Re: Hello from France",
+      "reply_to_label": "2016-03-10 23:41 PT Mar 9 → 02:41 ET · Re: Hello from France"
     },
     {
       "date": "2016-03-10",
       "time": "1434",
       "kind": "email",
-      "raw_date": "14:34 · Lane (inline quote)",
+      "raw_date": "14:34 ET · Lane (inline quote)",
       "date_note": "Recovered from an inline quote (no full header in the release)",
-      "content": "Peter/Lisa, I would not move forward on any experiments in this area until a bit of dust settles (if it does). One might consider this dual use research. Please do not get into discussions outside the two of you until we have a chance to talk. Clif f"
+      "content": "From: Lane, Cliff (from an inline quote)\n\nSent: Mar 10, 2016 02:34 PM (ET, assumed)\n\n----------\n\nPeter/Lisa, I would not move forward on any experiments in this area until a bit of dust settles (if it does). One might consider this dual use research. Please do not get into discussions outside the two of you until we have a chance to talk. Clif f"
     },
     {
       "date": "2016-03-10",
       "time": "1730",
       "kind": "email",
-      "raw_date": "17:30 · Re: Hello from France",
-      "content": "From: \"Lane, Cliff (NIH/NIAID) [E]\" @niaid.nih.gov> To: \"Fauci, Anthony (NIH/NIAID) [E]\" <AFAUCI@niaid.nih.gov> Subject: Re: Hello from France Date: Thu, 10 Mar 2016 17:30:55 -0500 Importance: Normal Just landed in San Francisco. Should be able to call in about 30 minutes.",
-      "reply_to": "2016-03-10|03:19 · Fauci (inline quote)",
-      "reply_to_label": "2016-03-10 03:19 · Fauci (inline quote)"
+      "raw_date": "17:30 ET · Re: Hello from France",
+      "content": "From: \"Lane, Cliff (NIH/NIAID) [E]\" @niaid.nih.gov>\n\nTo: \"Fauci, Anthony (NIH/NIAID) [E]\" <AFAUCI@niaid.nih.gov>\n\nSubject: Re: Hello from France\n\nSent: Thu, 10 Mar 2016 17:30:55 -0500 (ET)\n\n----------\n\nJust landed in San Francisco. Should be able to call in about 30 minutes.",
+      "reply_to": "2016-03-10|03:19 ET · Fauci (inline quote)",
+      "reply_to_label": "2016-03-10 03:19 ET · Fauci (inline quote)"
     },
     {
       "date": "2016-03-10",
       "time": "2315",
       "kind": "email",
-      "raw_date": "23:15 · Re: Aerosolized Ebola",
-      "content": "From: \"Jahrling, Peter (NIH/NIAID) [E]\" @niaid.nih.gov> To: \"Lane, Cliff (NIH/NIAID) [E]\" @niaid.nih.gov> Cc: \"Hensley, Lisa (NIH/NIAID) [E]\" @nih.gov> Subject: Re: Aerosolized Ebola Date: Thu, 10 Mar 2016 23:15:37 -0500 Importance: Normal Cliff, Understood but if this is dual use research then the entire DTRA portfolio which calls for aerosol challenge against MCM for BioDefense pathogens is dual use. If the bioterrorist threat involves an aerosol attack I don't see how anyone could criticize us for asking the question. As an aside, I have serious concerns about the RIID experiment and its interpretation. Peter Sent from my iPhone",
-      "reply_to": "2016-03-10|14:34 · Lane (inline quote)",
-      "reply_to_label": "2016-03-10 14:34 · Lane (inline quote)"
+      "raw_date": "23:15 ET · Re: Aerosolized Ebola",
+      "content": "From: \"Jahrling, Peter (NIH/NIAID) [E]\" @niaid.nih.gov>\n\nTo: \"Lane, Cliff (NIH/NIAID) [E]\" @niaid.nih.gov>\n\nCc: \"Hensley, Lisa (NIH/NIAID) [E]\" @nih.gov>\n\nSubject: Re: Aerosolized Ebola\n\nSent: Thu, 10 Mar 2016 23:15:37 -0500 (ET)\n\n----------\n\nCliff, Understood but if this is dual use research then the entire DTRA portfolio which calls for aerosol challenge against MCM for BioDefense pathogens is dual use. If the bioterrorist threat involves an aerosol attack I don't see how anyone could criticize us for asking the question. As an aside, I have serious concerns about the RIID experiment and its interpretation. Peter Sent from my iPhone",
+      "reply_to": "2016-03-10|14:34 ET · Lane (inline quote)",
+      "reply_to_label": "2016-03-10 14:34 ET · Lane (inline quote)"
     },
     {
       "date": "2016-03-11",
       "time": "1321",
       "kind": "email",
-      "raw_date": "13:21 · Further thoughts on aerosol / vaccine vulnerability",
-      "content": "From: Kurilla, Michael (NIH/NIAID) [E] Sent: Friday, March 11, 2016 1:21 PM To: Fauci, Anthony (NIH/NIAID) [E] Cc: Bryant, Paula (NIH/NIAID) [E] Subject: Further thoughts on aerosol / vaccine vulnerability Ton y, The mor e I ponder this issue, the more I have come to the conclusion this has nothing to do with “revealing” a vulnerability. In the 1s t case, we are not deploying a vaccine because there is no licensed vaccine, so what exactly is vulnerable? If we kept this finding a secret would DOD seriously consider deploying a vaccine that doesn’t perform as intended? 2nd, wha t appears to be going on here is a common misperception I find with non-technical people who make the assumption that there is only “one” way to achieve immunity and therefore if a vaccine causes an adverse event (like lung pathology), then all vaccines will have this problem and vaccines are forever off the table. I don’t believe this is credible. The immune system is too diverse and redundant to have only “one” way. To do anything. Wha t is really going on here is the specific immunological mechanism of immunity we are targeting with these vaccines has an associated adverse immunological response that will need to be characterized and factored out of the next generation of filovirus vaccine. Again, no vulnerability, just emerging science with new technical challenges. Finally, if vaccination can result in enhanced lung disease upon challenge, then it’s possible that the same thing could happen to survivors if re-exposed. Michael G Kurilla, M D-PhD Director, Office of BioDefense, Research Resources, and Translational Research Associate Director for BioDefense Product Development DMID, NIAID, NIH, DHHS D 20852 We spend the first year of a child’s life teaching it to walk and talk and the rest of its life to shut up and sit down. - Neil deGrasse Tyson"
+      "raw_date": "13:21 ET · Further thoughts on aerosol / vaccine vulnerability",
+      "content": "From: Kurilla, Michael (NIH/NIAID) [E]\n\nTo: Fauci, Anthony (NIH/NIAID) [E]\n\nCc: Bryant, Paula (NIH/NIAID) [E]\n\nSubject: Further thoughts on aerosol / vaccine vulnerability\n\nSent: Friday, March 11, 2016 1:21 PM (ET, assumed)\n\n----------\n\nTon y, The mor e I ponder this issue, the more I have come to the conclusion this has nothing to do with “revealing” a vulnerability. In the 1s t case, we are not deploying a vaccine because there is no licensed vaccine, so what exactly is vulnerable? If we kept this finding a secret would DOD seriously consider deploying a vaccine that doesn’t perform as intended? 2nd, wha t appears to be going on here is a common misperception I find with non-technical people who make the assumption that there is only “one” way to achieve immunity and therefore if a vaccine causes an adverse event (like lung pathology), then all vaccines will have this problem and vaccines are forever off the table. I don’t believe this is credible. The immune system is too diverse and redundant to have only “one” way. To do anything. Wha t is really going on here is the specific immunological mechanism of immunity we are targeting with these vaccines has an associated adverse immunological response that will need to be characterized and factored out of the next generation of filovirus vaccine. Again, no vulnerability, just emerging science with new technical challenges. Finally, if vaccination can result in enhanced lung disease upon challenge, then it’s possible that the same thing could happen to survivors if re-exposed. Michael G Kurilla, M D-PhD Director, Office of BioDefense, Research Resources, and Translational Research Associate Director for BioDefense Product Development DMID, NIAID, NIH, DHHS D 20852 We spend the first year of a child’s life teaching it to walk and talk and the rest of its life to shut up and sit down. - Neil deGrasse Tyson"
     },
     {
       "date": "2016-03-12",
       "time": "1208",
       "kind": "email",
-      "raw_date": "12:08 · RE: Further thoughts on aerosol / vaccine vulnerability",
-      "content": "From: Fauci, Anthony (NIH/NIAID) [E] Sent: Saturday, March 12, 2016 12:08 PM To: Kurilla, Michael (NIH/NIAID) [E] Cc: Bryant, Paula (NIH/NIAID) [E]; Lane, Cliff (NIH/NIAID) [E] Subject: RE: Further thoughts on aerosol / vaccine vulnerability See yellow highlight. Y ou are still missing the point about the difference between bioterror exposure to aerosolized Ebola and an Ebola survivor getting re-exposed in the usual way in the natural exposure situation. The latter would almost certainly NOT be exposed to a 2.5 micron aerosolized virus that makes its way to the alveolar spaces without getting stopped in the nose or throat or even the trachea.",
-      "reply_to": "2016-03-11|13:21 · Further thoughts on aerosol / vaccine vulnerability",
-      "reply_to_label": "2016-03-11 13:21 · Further thoughts on aerosol / vaccine vulnerability"
+      "raw_date": "12:08 ET · RE: Further thoughts on aerosol / vaccine vulnerability",
+      "content": "From: Fauci, Anthony (NIH/NIAID) [E]\n\nTo: Kurilla, Michael (NIH/NIAID) [E]\n\nCc: Bryant, Paula (NIH/NIAID) [E]; Lane, Cliff (NIH/NIAID) [E]\n\nSubject: RE: Further thoughts on aerosol / vaccine vulnerability\n\nSent: Saturday, March 12, 2016 12:08 PM (ET, assumed)\n\n----------\n\nSee yellow highlight. Y ou are still missing the point about the difference between bioterror exposure to aerosolized Ebola and an Ebola survivor getting re-exposed in the usual way in the natural exposure situation. The latter would almost certainly NOT be exposed to a 2.5 micron aerosolized virus that makes its way to the alveolar spaces without getting stopped in the nose or throat or even the trachea.",
+      "reply_to": "2016-03-11|13:21 ET · Further thoughts on aerosol / vaccine vulnerability",
+      "reply_to_label": "2016-03-11 13:21 ET · Further thoughts on aerosol / vaccine vulnerability"
     },
     {
       "date": "2016-03-12",
       "time": "1224",
       "kind": "email",
-      "raw_date": "12:24 · Re: Further thoughts on aerosol / vaccine vulnerability",
-      "content": "From: \"Kurilla, Michael (NIH/NIAID) [E]\" @niaid.nih.gov> To: \"Fauci, Anthony (NIH/NIAID) [E]\" <AFAUCI@niaid.nih.gov> Cc: \"Bryant, Paula (NIH/NIAID) [E]\" @nih.gov>, \"Lane, Cliff (NIH/NIAID) [E]\" @niaid.nih.gov> Subject: Re: Further thoughts on aerosol / vaccine vulnerability Date: Sat, 12 Mar 2016 12:24:51 -0500 Importance: Normal Understood, although my line of reasoning was focused on the issue of classification for the aerosol results and why it makes no sense to classify. On the other hand, my reference to re-exposure in survivors was hypothetical in the sense of an aerosol challenge and not the more routine likelihood of natural infection. The situation of a natural filovirus outbreak is completely different and needs to be separated from the aerosol challenge, although I suspect some people will argue that large particle intranasal exposure is still an open question that should be addressed.",
-      "reply_to": "2016-03-12|12:08 · RE: Further thoughts on aerosol / vaccine vulnerability",
-      "reply_to_label": "2016-03-12 12:08 · RE: Further thoughts on aerosol / vaccine vulnerability"
+      "raw_date": "12:24 ET · Re: Further thoughts on aerosol / vaccine vulnerability",
+      "content": "From: \"Kurilla, Michael (NIH/NIAID) [E]\" @niaid.nih.gov>\n\nTo: \"Fauci, Anthony (NIH/NIAID) [E]\" <AFAUCI@niaid.nih.gov>\n\nCc: \"Bryant, Paula (NIH/NIAID) [E]\" @nih.gov>, \"Lane, Cliff (NIH/NIAID) [E]\" @niaid.nih.gov>\n\nSubject: Re: Further thoughts on aerosol / vaccine vulnerability\n\nSent: Sat, 12 Mar 2016 12:24:51 -0500 (ET)\n\n----------\n\nUnderstood, although my line of reasoning was focused on the issue of classification for the aerosol results and why it makes no sense to classify. On the other hand, my reference to re-exposure in survivors was hypothetical in the sense of an aerosol challenge and not the more routine likelihood of natural infection. The situation of a natural filovirus outbreak is completely different and needs to be separated from the aerosol challenge, although I suspect some people will argue that large particle intranasal exposure is still an open question that should be addressed.",
+      "reply_to": "2016-03-12|12:08 ET · RE: Further thoughts on aerosol / vaccine vulnerability",
+      "reply_to_label": "2016-03-12 12:08 ET · RE: Further thoughts on aerosol / vaccine vulnerability"
     },
     {
       "date": "2016-03-14",
       "time": "1557",
       "kind": "email",
-      "raw_date": "15:57 · Can we discuss Ebola vaccines and the IRF?",
-      "content": "From: Kurilla, Michael (NIH/NIAID) [E] Sent: Monday, March 14, 2016 3:57 PM To: Lane, Cliff (NIH/NIAID) [E] Subject: Can we discuss Ebola vaccines and the IRF? Michael G Kurilla, MD-PhD Director, Office of BioDefense, Research Resources, and Translational Research Associate Director for BioDefense Product Development DMID, NIAID, NIH, DHHS Rockville, MD 20852 We spend the first year of a child’s life teaching it to walk and talk and the rest of its life to shut up and sit down. - Neil deGrasse Tyson"
+      "raw_date": "15:57 ET · Can we discuss Ebola vaccines and the IRF?",
+      "content": "From: Kurilla, Michael (NIH/NIAID) [E]\n\nTo: Lane, Cliff (NIH/NIAID) [E]\n\nSubject: Can we discuss Ebola vaccines and the IRF?\n\nSent: Monday, March 14, 2016 3:57 PM (ET, assumed)\n\n----------\n\nMichael G Kurilla, MD-PhD Director, Office of BioDefense, Research Resources, and Translational Research Associate Director for BioDefense Product Development DMID, NIAID, NIH, DHHS Rockville, MD 20852 We spend the first year of a child’s life teaching it to walk and talk and the rest of its life to shut up and sit down. - Neil deGrasse Tyson"
     },
     {
       "date": "2016-03-14",
       "time": "1558",
       "kind": "email",
-      "raw_date": "15:58 · RE: Can we discuss Ebola vaccines and the IRF?",
-      "content": "From: Hensley, Lisa (NIH/NIAID) [E] Sent: Monday, March 14, 2016 3:58 PM To: Lane, Cliff (NIH/NIAID) [E] @niaid.nih.gov>; Jahrling, Peter (NIH/NIAID) [E] @niaid.nih.gov> Subject: RE: Can we discuss Ebola vaccines and the IRF? A lot of discussion but nothing definitive in my mind. Lisa E. Hensley Associate Director, Science NIH/NIAID/IRF Ft Detrick MD\n\nph: b be\n\nrry:",
-      "reply_to": "2016-03-14|15:58 · FW: Can we discuss Ebola vaccines and the IRF?",
-      "reply_to_label": "2016-03-14 15:58 · FW: Can we discuss Ebola vaccines and the IRF?"
+      "raw_date": "15:58 ET · RE: Can we discuss Ebola vaccines and the IRF?",
+      "content": "From: Hensley, Lisa (NIH/NIAID) [E]\n\nTo: Lane, Cliff (NIH/NIAID) [E] @niaid.nih.gov>; Jahrling, Peter (NIH/NIAID) [E] @niaid.nih.gov>\n\nSubject: RE: Can we discuss Ebola vaccines and the IRF?\n\nSent: Monday, March 14, 2016 3:58 PM (ET, assumed)\n\n----------\n\nA lot of discussion but nothing definitive in my mind. Lisa E. Hensley Associate Director, Science NIH/NIAID/IRF Ft Detrick MD\n\nph: b be\n\nrry:",
+      "reply_to": "2016-03-14|15:58 ET · FW: Can we discuss Ebola vaccines and the IRF?",
+      "reply_to_label": "2016-03-14 15:58 ET · FW: Can we discuss Ebola vaccines and the IRF?"
     },
     {
       "date": "2016-03-14",
       "time": "1558",
       "kind": "email",
-      "raw_date": "15:58 · FW: Can we discuss Ebola vaccines and the IRF?",
-      "content": "From: Lane, Cliff (NIH/NIAID) [E] Sent: Monday, March 14, 2016 3:58 PM To: Hensley, Lisa (NIH/NIAID) [E] @nih.gov>; Jahrling, Peter (NIH/NIAID) [E] @niaid.nih.gov> Subject: FW: Can we discuss Ebola vaccines and the IRF? How did the call go?",
-      "reply_to": "2016-03-14|15:57 · Can we discuss Ebola vaccines and the IRF?",
-      "reply_to_label": "2016-03-14 15:57 · Can we discuss Ebola vaccines and the IRF?"
+      "raw_date": "15:58 ET · FW: Can we discuss Ebola vaccines and the IRF?",
+      "content": "From: Lane, Cliff (NIH/NIAID) [E]\n\nTo: Hensley, Lisa (NIH/NIAID) [E] @nih.gov>; Jahrling, Peter (NIH/NIAID) [E] @niaid.nih.gov>\n\nSubject: FW: Can we discuss Ebola vaccines and the IRF?\n\nSent: Monday, March 14, 2016 3:58 PM (ET, assumed)\n\n----------\n\nHow did the call go?",
+      "reply_to": "2016-03-14|15:57 ET · Can we discuss Ebola vaccines and the IRF?",
+      "reply_to_label": "2016-03-14 15:57 ET · Can we discuss Ebola vaccines and the IRF?"
     },
     {
       "date": "2016-03-14",
       "time": "1722",
       "kind": "email",
-      "raw_date": "17:22 · RE: Can we discuss Ebola vaccines and the IRF?",
-      "content": "From: \"Jahrling, Peter (NIH/NIAID) [E]\" @niaid.nih.gov> To: \"Hensley, Lisa (NIH/NIAID) [E]\" @nih.gov>, \"Lane, Cliff (NIH/NIAID) [E]\" @niaid.nih.gov> Subject: RE: Can we discuss Ebola vaccines and the IRF? Date: Mon, 14 Mar 2016 17:22:04 -0400 Importance: Normal Cliff, I had Mike on the edge agreeing to concur with my decision to proceed with the confirmation of virulence study we had planned for aerosol exposures using Ebola Makona. Clearly someone needs to attempt to repeat the USAMRIID study using all the appropriate controls which are sorely lacking from the piecemeal composite picture which is being drawn. Preliminary to all such studies using vaccines, or any MCM for that matter, r eliable aerosol model needs to be established. Mik e said he wanted to think about it a little more, citing the extreme anxiety all this seems to be creating. He suggested we wait until the FDA meeting on March 31 to initiate any new studies and that is not too far away. In the in terim, however, we will continue to make plans to initiate the CoV study as soon as the lights turn green. I will keep the rest off Email, but if aerosol challenge studies are considered DURC then the entire MCM development paradigm is gutted. Peter",
-      "reply_to": "2016-03-14|15:58 · RE: Can we discuss Ebola vaccines and the IRF?",
-      "reply_to_label": "2016-03-14 15:58 · RE: Can we discuss Ebola vaccines and the IRF?"
+      "raw_date": "17:22 ET · RE: Can we discuss Ebola vaccines and the IRF?",
+      "content": "From: \"Jahrling, Peter (NIH/NIAID) [E]\" @niaid.nih.gov>\n\nTo: \"Hensley, Lisa (NIH/NIAID) [E]\" @nih.gov>, \"Lane, Cliff (NIH/NIAID) [E]\" @niaid.nih.gov>\n\nSubject: RE: Can we discuss Ebola vaccines and the IRF?\n\nSent: Mon, 14 Mar 2016 17:22:04 -0400 (ET)\n\n----------\n\nCliff, I had Mike on the edge agreeing to concur with my decision to proceed with the confirmation of virulence study we had planned for aerosol exposures using Ebola Makona. Clearly someone needs to attempt to repeat the USAMRIID study using all the appropriate controls which are sorely lacking from the piecemeal composite picture which is being drawn. Preliminary to all such studies using vaccines, or any MCM for that matter, r eliable aerosol model needs to be established. Mik e said he wanted to think about it a little more, citing the extreme anxiety all this seems to be creating. He suggested we wait until the FDA meeting on March 31 to initiate any new studies and that is not too far away. In the in terim, however, we will continue to make plans to initiate the CoV study as soon as the lights turn green. I will keep the rest off Email, but if aerosol challenge studies are considered DURC then the entire MCM development paradigm is gutted. Peter",
+      "reply_to": "2016-03-14|15:58 ET · RE: Can we discuss Ebola vaccines and the IRF?",
+      "reply_to_label": "2016-03-14 15:58 ET · RE: Can we discuss Ebola vaccines and the IRF?"
     },
     {
       "date": "2016-03-18",
       "time": "1820",
       "kind": "email",
-      "raw_date": "18:20 · Ebola report you requested",
-      "content": "From: Kurilla, Michael (NIH/NIAID) [E] Sent: Friday, March 18, 2016 6:20 PM To: Fauci, Anthony (NIH/NIAID) [E] Subject: Ebola report you requested Ton y, At tached is a brief overview of NIAID’s engagement with DOD encompassing filovirus challenge studies along with a timeline of when we knew what. I did not org anize this into a formal document for sharing outside of NIAID; rather, I wanted to provide you with the details for you to digest and decide how you would like to proceed. This originat ed with concerns that NIAID undertook studies that should have been classified (or perhaps even never conducted). My intent was to provide sufficient detail to conclude that classification was never a consideration at any time. While there are potential crossover issues for public health outbreaks of Ebola, the dynamics of disease transmission are fundamentally different. I’m hopeful that FDA will arrive at the same conclusion. Messaging these results may require some attention. You should also be aware that DOD has already expressed (as has Cliff Lane) to me a desire to work collaboratively to address the scientific issues raised with these limited studies. Let me know what else you need. Michael G Kurilla, M D-PhD Director, Office of BioDefense, Research Resources, and Translational Research Associate Director for BioDefense Product Development DMID, NIAID, NIH, DHHS D 20852 We spend the first year of a child’s life teaching it to walk and talk and the rest of its life to shut up and sit down. - Neil deGrasse Tyson",
+      "raw_date": "18:20 ET · Ebola report you requested",
+      "content": "From: Kurilla, Michael (NIH/NIAID) [E]\n\nTo: Fauci, Anthony (NIH/NIAID) [E]\n\nSubject: Ebola report you requested\n\nSent: Friday, March 18, 2016 6:20 PM (ET, assumed)\n\n----------\n\nTon y, At tached is a brief overview of NIAID’s engagement with DOD encompassing filovirus challenge studies along with a timeline of when we knew what. I did not org anize this into a formal document for sharing outside of NIAID; rather, I wanted to provide you with the details for you to digest and decide how you would like to proceed. This originat ed with concerns that NIAID undertook studies that should have been classified (or perhaps even never conducted). My intent was to provide sufficient detail to conclude that classification was never a consideration at any time. While there are potential crossover issues for public health outbreaks of Ebola, the dynamics of disease transmission are fundamentally different. I’m hopeful that FDA will arrive at the same conclusion. Messaging these results may require some attention. You should also be aware that DOD has already expressed (as has Cliff Lane) to me a desire to work collaboratively to address the scientific issues raised with these limited studies. Let me know what else you need. Michael G Kurilla, M D-PhD Director, Office of BioDefense, Research Resources, and Translational Research Associate Director for BioDefense Product Development DMID, NIAID, NIH, DHHS D 20852 We spend the first year of a child’s life teaching it to walk and talk and the rest of its life to shut up and sit down. - Neil deGrasse Tyson",
       "attachment_ref": "report|Report",
       "attachment_label": "NIAID Filovirus Aerosol-Challenge Report (pp. 21-24)"
     },
@@ -197,26 +197,26 @@
       "date": "2016-03-19",
       "time": "1658",
       "kind": "email",
-      "raw_date": "16:58 · RE: Ebola report you requested",
-      "content": "From: \"Fauci, Anthony (NIH/NIAID) [E]\" </O=NIH/OU=NIHEXCHANGE/CN=NIAID/CN=AFAUCI> To: \"Kurilla, Michael (NIH/NIAID) [E]\" @niaid.nih.gov> Subject: RE: Ebola report you requested Date: Sat, 19 Mar 2016 16:58:53 -0400 Importance: Normal Thanks, Mike. I appr eciate your putting this together. Best, Tony",
-      "reply_to": "2016-03-18|18:20 · Ebola report you requested",
-      "reply_to_label": "2016-03-18 18:20 · Ebola report you requested"
+      "raw_date": "16:58 ET · RE: Ebola report you requested",
+      "content": "From: \"Fauci, Anthony (NIH/NIAID) [E]\"\n\nTo: \"Kurilla, Michael (NIH/NIAID) [E]\" @niaid.nih.gov>\n\nSubject: RE: Ebola report you requested\n\nSent: Sat, 19 Mar 2016 16:58:53 -0400 (ET)\n\n----------\n\nThanks, Mike. I appr eciate your putting this together. Best, Tony",
+      "reply_to": "2016-03-18|18:20 ET · Ebola report you requested",
+      "reply_to_label": "2016-03-18 18:20 ET · Ebola report you requested"
     },
     {
       "date": "2016-03-22",
       "time": "0826",
       "kind": "email",
-      "raw_date": "08:26 · rVSV studies",
-      "content": "From: Lane, Cliff (NIH/NIAID) [E] Sent: Tuesday, March 22, 2016 8:26 AM To: Fauci, Anthony (NIH/NIAID) [E] <AFAUCI@niaid.nih.gov>; Kurilla, Michael (NIH/NIAID) [E] @niaid.nih.gov> Subject: rVSV studies Tony/Mike, I am currently on an interagency call where the question came up of whether or not we are comfortable with the results of the aerosol exposures being shared publicly (with caveats, etc.). I indicated that as long as the classification issue was resolv ed that from our perspective there were no concerns with data generated from our studies getting into the public domain. I also indicated a need to coordinate with pharmaceutical companies. DoD indicated that they need to protect proprietary data. Please let me know if we should take a different position. Thanks, Cliff"
+      "raw_date": "08:26 ET · rVSV studies",
+      "content": "From: Lane, Cliff (NIH/NIAID) [E]\n\nTo: Fauci, Anthony (NIH/NIAID) [E] <AFAUCI@niaid.nih.gov>; Kurilla, Michael (NIH/NIAID) [E] @niaid.nih.gov>\n\nSubject: rVSV studies\n\nSent: Tuesday, March 22, 2016 8:26 AM (ET, assumed)\n\n----------\n\nTony/Mike, I am currently on an interagency call where the question came up of whether or not we are comfortable with the results of the aerosol exposures being shared publicly (with caveats, etc.). I indicated that as long as the classification issue was resolv ed that from our perspective there were no concerns with data generated from our studies getting into the public domain. I also indicated a need to coordinate with pharmaceutical companies. DoD indicated that they need to protect proprietary data. Please let me know if we should take a different position. Thanks, Cliff"
     },
     {
       "date": "2016-03-22",
       "time": "0918",
       "kind": "email",
-      "raw_date": "09:18 · RE: rVSV studies",
-      "content": "From: \"Kurilla, Michael (NIH/NIAID) [E]\" @niaid.nih.gov> To: \"Lane, Cliff (NIH/NIAID) [E]\" @niaid.nih.gov>, \"Fauci, Anthony (NIH/NIAID) [E]\" <AFAUCI@niaid.nih.gov> Subject: RE: rVSV studies Date: Tue, 22 Mar 2016 09:18:31 -0400 Importance: Normal Cliff, The short ans wer is that I don’t have a problem with aerosol exposure data being shared publically. The classific ation issue appears to be a red herring at least from multiple, albeit second-hand sources within DOD. In addition, some aerosol data has already been published. Also, we know that several companies are also aware of some data regarding their own vaccines. That said, my question to DOD would be exactly what are they planning to share and how will it be described? Also, the issue of how this impacts ongoing and future vaccine trials needs to be discussed. We need to clearly articulate the difference between natural infections and an artificial, highly engineered aerosol delivery. I’v e spoken with DOD about jointly proceeding on a set of studies to figure this out, but it might be best to wait for FDA to weigh in with their views on the subject to ensure that we address all concerns. Michael G Kurilla, M D-PhD Director, Office of BioDefense, Research Resources, and Translational Research Associate Director for BioDefense Product Development DMID, NIAID, NIH, DHHS Rockville, MD 20852 My philosophy is: it’s none of my business what people say of me and think of me. I am what I am and I do what I do. I expect nothing and accept everything. And it makes life so much easier. - Anthony Hopkins",
-      "reply_to": "2016-03-22|08:26 · rVSV studies",
-      "reply_to_label": "2016-03-22 08:26 · rVSV studies"
+      "raw_date": "09:18 ET · RE: rVSV studies",
+      "content": "From: \"Kurilla, Michael (NIH/NIAID) [E]\" @niaid.nih.gov>\n\nTo: \"Lane, Cliff (NIH/NIAID) [E]\" @niaid.nih.gov>, \"Fauci, Anthony (NIH/NIAID) [E]\" <AFAUCI@niaid.nih.gov>\n\nSubject: RE: rVSV studies\n\nSent: Tue, 22 Mar 2016 09:18:31 -0400 (ET)\n\n----------\n\nCliff, The short ans wer is that I don’t have a problem with aerosol exposure data being shared publically. The classific ation issue appears to be a red herring at least from multiple, albeit second-hand sources within DOD. In addition, some aerosol data has already been published. Also, we know that several companies are also aware of some data regarding their own vaccines. That said, my question to DOD would be exactly what are they planning to share and how will it be described? Also, the issue of how this impacts ongoing and future vaccine trials needs to be discussed. We need to clearly articulate the difference between natural infections and an artificial, highly engineered aerosol delivery. I’v e spoken with DOD about jointly proceeding on a set of studies to figure this out, but it might be best to wait for FDA to weigh in with their views on the subject to ensure that we address all concerns. Michael G Kurilla, M D-PhD Director, Office of BioDefense, Research Resources, and Translational Research Associate Director for BioDefense Product Development DMID, NIAID, NIH, DHHS Rockville, MD 20852 My philosophy is: it’s none of my business what people say of me and think of me. I am what I am and I do what I do. I expect nothing and accept everything. And it makes life so much easier. - Anthony Hopkins",
+      "reply_to": "2016-03-22|08:26 ET · rVSV studies",
+      "reply_to_label": "2016-03-22 08:26 ET · rVSV studies"
     },
     {
       "date": "report",

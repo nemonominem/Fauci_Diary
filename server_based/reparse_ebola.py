@@ -19,12 +19,23 @@ documents instead of one blob:
 pypdf occasionally wraps a header keyword itself ("Fro"+"m: ...",
 "Sub"+"ject: ..."); those splits are rejoined for header parsing (the raw
 lines stay untouched in the entry content).
+
+Time zones: RFC2822 'Date:' headers carry an explicit offset (authoritative).
+Outlook 'Sent:' headers and inline-quote markers carry NO zone, so a zone is
+assumed (see ZONE_ASSUMPTIONS). Every timestamp is normalised to New York
+time - that is what orders the entries - while the local (as-written) time is
+kept alongside it in both the entry label and the printed header block.
 """
 import calendar
 import json
 import os
 import re
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:  # pragma: no cover
+    ZoneInfo = None
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEXT_PATH = os.path.join(HERE, "2026.09.28_Ebola-Doc-Release_Full-Package.txt")
 OUT_PATH = os.path.join(HERE, "2026.09.28_Ebola-Doc-Release_Full-Package_fixed.json")
@@ -80,11 +91,16 @@ def _join_header_breaks(lines):
         i += 1
     return out
 
-def _field_value(lines, start, name_re):
-    m = name_re.match(lines[start].strip())
+CONT_FIELDS = {"from", "to", "cc", "bcc"}
+RFC_OFFSET_RE = re.compile(r"([+-])(\d{2})(\d{2})\s*$")
+
+def _cont_value(lines, start, field_re):
+    """Value of a header field, joining wrapped continuation lines (long
+    address lists that pypdf wraps over several lines)."""
+    m = field_re.match(lines[start].strip())
     if not m:
         return "", start
-    val = m.group(1).strip()
+    val = lines[start].strip()[m.end():].strip()
     j = start + 1
     while j < len(lines):
         s = lines[j].strip()
@@ -94,54 +110,92 @@ def _field_value(lines, start, name_re):
         j += 1
     return re.sub(r"\s+", " ", val).strip(), j - 1
 
-def parse_email_header(lines, i):
-    """If lines[i] starts an email header block (From: + Sent:/RFC Date:),
-    return dict(date, hhmm, subject, style) else None. Scans the whole block:
-    nested (Outlook) headers put 'Sent:' BEFORE 'Subject:', so an early return
-    on the datetime line would lose the subject."""
+def _clean_addr(v):
+    """Drop X.500/Exchange DN noise ('</O=NIH/OU=...>') from a From/To value."""
+    if "<" in v and "O=" in v:
+        v = v[:v.index("<")].strip()
+    return v.strip().strip(",")
+
+def scan_header(lines, i):
+    """Parse a From:-led header block. Returns dict with printable fields,
+    index of the last header line (body follows), the local stamp (naive),
+    and the zone used for it (explicit for RFC 'Date:', assumed otherwise)."""
     if not lines[i].strip().lower().startswith("from:"):
         return None
+    fields = []
     subject = None
-    date_iso = hhmm = style = None
-    for j in range(i, min(i + 12, len(lines))):
+    printed = None
+    local_dt = None
+    offset_tz = None
+    style = None
+    last = i
+    j = i
+    limit = min(i + 14, len(lines))
+    while j < limit:
         s = lines[j].strip()
-        if j > i:
-            sl = s.lower()
-            if sl.startswith("from:") or sl.startswith("importance:") or is_strip_line(s):
-                break
-        if subject is None and SUBJECT_RE.match(s):
-            subject = SUBJECT_RE.match(s).group(1).strip()  # single line; subjects never wrap here
-        if subject is not None and date_iso is not None:
+        if j > i and (s.lower().startswith("from:") or is_strip_line(s)):
             break
-        md = RFC_DATE_RE.match(s)
-        if md and date_iso is None:
-            day, mon, year, hh, mm = int(md.group(1)), md.group(2), int(md.group(3)), int(md.group(4)), md.group(5)
-            try:
-                date_iso = safe_date(year, parse_month(mon), day)
-                hhmm = "%02d%02d" % (hh, int(mm))
-                style = "outer"
-            except KeyError:
-                return None
-            continue
-        ms = SENT_RE.match(s)
-        if ms and date_iso is None:
-            mon, day, year, hh, mm, ap = ms.group(1), int(ms.group(2)), int(ms.group(3)), int(ms.group(4)), ms.group(5), ms.group(6).upper()
-            hh = int(hh) % 12 + (12 if ap == "P" else 0)
-            try:
-                date_iso = safe_date(year, parse_month(mon), day)
-                hhmm = "%02d%02d" % (hh, int(mm))
-                style = "nested"
-            except KeyError:
-                return None
-            continue
-    if date_iso is None:
+        m = HEADER_FIELD_RE.match(s)
+        if not m:
+            break  # body starts here: header block over
+        name = m.group(1)
+        key = name.lower()
+        if key in CONT_FIELDS:
+            val, endj = _cont_value(lines, j, HEADER_FIELD_RE)
+        else:
+            val, endj = s[m.end():].strip(), j
+        if key == "subject":
+            subject = val
+        elif key in ("date", "sent"):
+            printed = val
+            md = RFC_DATE_RE.match(s)
+            if md:
+                day, mon, year, hh, mm = int(md.group(1)), md.group(2), int(md.group(3)), int(md.group(4)), md.group(5)
+                try:
+                    local_dt = datetime(year, parse_month(mon), day, hh, int(mm))
+                except (KeyError, ValueError):
+                    local_dt = None
+                mo = RFC_OFFSET_RE.search(s)
+                if mo and local_dt:
+                    sign = 1 if mo.group(1) == "+" else -1
+                    off = sign * (int(mo.group(2)) * 60 + int(mo.group(3)))
+                    offset_tz = timezone(timedelta(minutes=off))
+                    style = "outer"
+            else:
+                ms = SENT_RE.match(s)
+                if ms:
+                    mon, day, year, hh, mm, ap = ms.group(1), int(ms.group(2)), int(ms.group(3)), int(ms.group(4)), ms.group(5), ms.group(6).upper()
+                    hh = int(hh) % 12 + (12 if ap == "P" else 0)
+                    try:
+                        local_dt = datetime(year, parse_month(mon), day, hh, int(mm))
+                    except (KeyError, ValueError):
+                        local_dt = None
+                    style = "nested" if style is None else style
+        if key in CONT_FIELDS or key == "subject":
+            fields.append(("Cc" if key == "cc" else name,
+                           _clean_addr(val) if key in CONT_FIELDS else val))
+        last = endj
+        j = endj + 1
+    if local_dt is None:
         return None
-    return {"date": date_iso, "hhmm": hhmm, "subject": subject or "(no subject)", "style": style}
+    if offset_tz is not None:
+        tz_name = "America/New_York" if offset_tz.utcoffset(None) in (timedelta(hours=-5), timedelta(hours=-4)) else "UTC%+d" % (offset_tz.utcoffset(None).total_seconds() // 3600)
+        tz_inferred = False
+        local_dt = local_dt.replace(tzinfo=offset_tz)
+    else:
+        key_sub = subject or "(no subject)"
+        tz_name = ZONE_ASSUMPTIONS.get((local_dt.date().isoformat(), "%02d%02d" % (local_dt.hour, local_dt.minute), key_sub), NEW_YORK)
+        tz_inferred = True
+        local_dt = local_dt.replace(tzinfo=_zone(tz_name))
+    return {"fields": fields, "header_end": last, "local_dt": local_dt,
+            "tz_name": tz_name, "tz_inferred": tz_inferred, "printed": printed or "",
+            "subject": subject or "(no subject)", "style": style}
+
 
 def parse_inline_marker(lines, i):
     """Detect 'On Mar 10, 2016, at 1:29 AM, <author> wrote:' quote markers,
-    optionally '>'-prefixed and wrapped over up to 3 lines.
-    Returns dict(date, hhmm, author, span, gt_quoted) or None."""
+    optionally '>'-prefixed and wrapped over up to 3 lines. Such markers carry
+    no zone, so New York is assumed (flagged as such)."""
     s0 = lines[i].strip()
     if not INLINE_MARK_START_RE.match(s0):
         return None
@@ -156,27 +210,104 @@ def parse_inline_marker(lines, i):
     mon, day, year, hh, mm, ap, author = m.groups()
     hh = int(hh) % 12 + (12 if ap.upper() == "P" else 0)
     try:
-        iso = safe_date(int(year), parse_month(mon), int(day))
-    except KeyError:
+        local_dt = datetime(int(year), parse_month(mon), int(day), hh, int(mm))
+    except (KeyError, ValueError):
         return None
-    author = re.sub(r"\s*\(.*$", "", author).strip()  # drop (NIH/NIAID)... suffix
-    return {"date": iso, "hhmm": "%02d%02d" % (hh, int(mm)), "author": author,
+    tz_name = ZONE_ASSUMPTIONS.get((local_dt.date().isoformat(), "%02d%02d" % (hh, int(mm)), None), NEW_YORK)
+    return {"local_dt": local_dt.replace(tzinfo=_zone(tz_name)), "tz_name": tz_name,
+            "author": re.sub(r"\s*\(.*$", "", author).strip(),
             "span": span, "gt_quoted": s0.startswith(">")}
 
-def email_raw_date(hhmm, subject):
-    return hhmm[:2] + ":" + hhmm[2:] + " \u00b7 " + subject
+def _body_lines(lines, start):
+    out = list(lines[start:])
+    while out and not out[0].strip():
+        out.pop(0)
+    while out and not out[-1].strip():
+        out.pop()
+    return out
 
-def inline_raw_date(hhmm, author):
+NEW_YORK = "America/New_York"
+
+def _zone(name):
+    if ZoneInfo is not None:
+        return ZoneInfo(name)
+    return timezone(timedelta(hours={"America/New_York": -5,
+                                     "America/Los_Angeles": -8,
+                                     "Europe/Paris": 1}[name]), name)
+
+TZ_ABBR = {"America/New_York": "ET", "America/Los_Angeles": "PT", "Europe/Paris": "CET"}
+MONTH_ABBR = {1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr", 5: "May", 6: "Jun",
+              7: "Jul", 8: "Aug", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dec"}
+
+# 'Sent:'/'On ... wrote:' stamps carry no zone. Default is New York; overrides
+# below are inferred from the document itself and are flagged in the output:
+#   * Nelson's subject is literally "Hello from France" -> he wrote from France.
+#   * Lane's Mar 9 23:41 message QUOTES Fauci's Mar 10 01:29 message; Fauci is
+#     provably in Washington then (diary: NIH Clinical Center acupuncture and
+#     the 260-reporter telebriefing on Mar 10), so Fauci's stamps are ET. For
+#     Lane's reply to postdate it, Lane's clock must be west of ET - matching
+#     his own next line "Just landed in San Francisco" (Pacific time).
+ZONE_ASSUMPTIONS = {
+    ("2016-03-09", "1911", "Hello from France"): "Europe/Paris",
+    ("2016-03-09", "2341", "Re: Hello from France"): "America/Los_Angeles",
+}
+
+def _mon_day(dt):
+    return "%s %d" % (MONTH_ABBR[dt.month], dt.day)
+
+def _hhmm(dt):
+    return "%02d:%02d" % (dt.hour, dt.minute)
+
+def _time_label(local_dt, tz_name, ny_dt):
+    """Local (as-written) time first, then the NY-normalised time - the latter
+    omitted when the message was already stamped in New York time."""
+    lab = _hhmm(local_dt) + " " + TZ_ABBR.get(tz_name, tz_name)
+    if tz_name == NEW_YORK:
+        return lab
+    if local_dt.day != ny_dt.day or local_dt.month != ny_dt.month:
+        lab += " " + _mon_day(local_dt)
+    return lab + " \u2192 " + _hhmm(ny_dt) + " " + TZ_ABBR[NEW_YORK]
+
+def email_raw_date(local_dt, tz_name, ny_dt, subject):
+    return _time_label(local_dt, tz_name, ny_dt) + " \u00b7 " + subject
+
+def inline_raw_date(local_dt, tz_name, ny_dt, author):
     short = author.split(",")[0].strip()
-    return hhmm[:2] + ":" + hhmm[2:] + " \u00b7 " + short + " (inline quote)"
+    return _time_label(local_dt, tz_name, ny_dt) + " \u00b7 " + short + " (inline quote)"
+
+SEPARATOR = "----------"
+
+def _sent_line(printed, tz_name, ny_dt, inferred):
+    """One line carrying BOTH the local (as-written) stamp and the
+    New-York-normalised time; the latter is spelled out only when the message
+    was not stamped in Eastern time."""
+    ab = TZ_ABBR.get(tz_name, tz_name)
+    if tz_name == NEW_YORK:
+        return "Sent: " + printed + " (" + ab + (", assumed" if inferred else "") + ")"
+    tail = " → " + _hhmm(ny_dt) + " " + TZ_ABBR[NEW_YORK]
+    if ny_dt.day != ny_dt.day or True:
+        tail += " (" + _mon_day(ny_dt) + ")"
+    return ("Sent: " + printed + " " + ab + (" (assumed)" if inferred else "")
+            + tail)
+
+def _field_lines(fields):
+    """Printable header block: one field per line, a blank line between fields
+    so the line-break cleaner keeps each field as its own paragraph."""
+    out = []
+    for name, val in fields:
+        if val:
+            out.append(name + ": " + val)
+            out.append("")
+    return out
 
 def segment_tail(tail_lines):
-    """Split tail lines into per-message email entries + the report.
-    Every email header (outer 'Date:' AND nested 'Sent:') and every inline
+    """Split tail lines into per-message email entries + the report. Every
+    email header (outer 'Date:' AND nested 'Sent:') and every inline
     'On ... wrote:' quote marker starts a new block, so each entry holds only
-    the text its author actually wrote."""
+    the text its author wrote. Entry content = printable header block
+    (From/To/Cc/Subject + Sent line), a '----------' separator, then the body.
+    Times are normalised to New York time (entry date/time use it)."""
     lines = _join_header_breaks(tail_lines)
-    blocks = []  # (start, end, meta, kind)
     bounds = []
     i = 0
     while i < len(lines):
@@ -185,7 +316,7 @@ def segment_tail(tail_lines):
             bounds.append((i, {"kind": "report"}))
             i += 1
             continue
-        hdr = parse_email_header(lines, i)
+        hdr = scan_header(lines, i)
         if hdr:
             hdr["kind"] = "email"
             bounds.append((i, hdr))
@@ -199,25 +330,39 @@ def segment_tail(tail_lines):
             continue
         i += 1
     entries = []
+    ny_zone = _zone(NEW_YORK)
     for k, (b, meta) in enumerate(bounds):
-        start = b + (meta.get("span", 1) if meta["kind"] == "inline" else 0)
         end = bounds[k + 1][0] if k + 1 < len(bounds) else len(lines)
-        content_lines = lines[start:end]
-        if meta["kind"] == "inline" and meta.get("gt_quoted"):
-            content_lines = [re.sub(r"^>\s?", "", ln) for ln in content_lines
-                             if ln.strip() not in (">", "")]
-        content = "\n".join(content_lines).strip()
         if meta["kind"] == "report":
-            entries.append({"date": "report", "kind": "report", "raw_date": "Report", "content": content})
-        elif meta["kind"] == "inline":
-            entries.append({"date": meta["date"], "time": meta["hhmm"], "kind": "email",
-                            "raw_date": inline_raw_date(meta["hhmm"], meta["author"]),
+            body = _body_lines(lines[b:end], 0)
+            entries.append({"date": "report", "kind": "report", "raw_date": "Report",
+                            "content": "\n".join(body).strip()})
+            continue
+        ny_dt = meta["local_dt"].astimezone(ny_zone)
+        if meta["kind"] == "inline":
+            body = _body_lines(lines[b + meta["span"]:end], 0)
+            if meta.get("gt_quoted"):
+                body = [re.sub(r"^>\s?", "", ln) for ln in body if ln.strip() not in (">", "")]
+            if not body:
+                continue
+            head = ["From: " + meta["author"] + " (from an inline quote)", "",
+                    _sent_line(meta["local_dt"].strftime("%b %d, %Y %I:%M %p"), meta["tz_name"], ny_dt, True), "",
+                    SEPARATOR, ""]
+            entries.append({"date": ny_dt.date().isoformat(), "time": _hhmm(ny_dt).replace(":", ""),
+                            "kind": "email",
+                            "raw_date": inline_raw_date(meta["local_dt"], meta["tz_name"], ny_dt, meta["author"]),
                             "date_note": "Recovered from an inline quote (no full header in the release)",
-                            "content": content, "_order": k})
-        else:
-            entries.append({"date": meta["date"], "time": meta["hhmm"], "kind": "email",
-                            "raw_date": email_raw_date(meta["hhmm"], meta["subject"]),
-                            "content": content, "_order": k, "_style": meta["style"]})
+                            "content": "\n".join(head + [ln for ln in body]).strip()})
+            continue
+        body = _body_lines(lines[meta["header_end"] + 1:end], 0)
+        head = _field_lines(meta["fields"])
+        head.append(_sent_line(meta["printed"], meta["tz_name"], ny_dt, meta["tz_inferred"]))
+        head += ["", SEPARATOR, ""]
+        entries.append({"date": ny_dt.date().isoformat(), "time": _hhmm(ny_dt).replace(":", ""),
+                        "kind": "email",
+                        "raw_date": email_raw_date(meta["local_dt"], meta["tz_name"], ny_dt, meta["subject"]),
+                        "content": "\n".join(head + body).strip(),
+                        "_style": meta["style"]})
     return entries
 
 def entry_key(e):
@@ -289,7 +434,7 @@ def parse_text():
                 if rest.strip():
                     cur_lines.append(rest)
                 continue
-        if cur_iso is not None and (REPORT_RE.match(stripped) or parse_email_header(lines, idx)):
+        if cur_iso is not None and (REPORT_RE.match(stripped) or scan_header(lines, idx)):
             # First email/report header: the diary part ends here.
             diary.append({"date": cur_iso, "raw_date": cur_raw, "kind": "diary",
                           "content": "\n".join(cur_lines).strip()})

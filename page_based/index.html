@@ -354,6 +354,14 @@ body.layout-portrait .pdf-panel {
 }
 .reply-ref a { color: var(--blue); text-decoration: underline; cursor: pointer; }
 .reply-ref a:hover { color: var(--accent); }
+/* Email cards: From/To/Subject block, rule, then the body written that day */
+.result-content p.email-field {
+  font-size: 12px; color: #ddd; margin: 1px 0; line-height: 1.5;
+}
+.result-content p.email-field:first-child { font-weight: 600; }
+hr.email-sep {
+  border: none; border-top: 1px solid var(--border-2); margin: 8px 0 10px;
+}
 
 /* ── Hit navigation bar ────────────────────────────────────────────── */
 .hit-nav {
@@ -2743,8 +2751,22 @@ function displayResults(results, query, opts) {
     // Split into paragraphs and wrap in <p>
     const paragraphs = highlighted.split(/\n\n/);
     html += '<div class="result-content" id="content-' + i + '">';
-    for (const p of paragraphs) {
-      html += '<p>' + p + '</p>';
+    if (e.kind === 'email') {
+      // Email layout: From/To/Cc/Subject (+ Sent with local + ET time) block,
+      // a separator rule, then the body that author wrote that day.
+      let inHead = true;
+      for (const p of paragraphs) {
+        if (inHead && p.trim() === '----------') {
+          inHead = false;
+          html += '<hr class="email-sep">';
+          continue;
+        }
+        html += inHead ? '<p class="email-field">' + p + '</p>' : '<p>' + p + '</p>';
+      }
+    } else {
+      for (const p of paragraphs) {
+        html += '<p>' + p + '</p>';
+      }
     }
     html += '</div>';
     // Reply-chain pointer: an email card shows only the text its author
