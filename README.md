@@ -20,6 +20,14 @@ Emails are first-class entries, not appendix blobs: each message is its own
 dated card holding only what its author wrote, linked to the message it answers,
 with timestamps normalised to New York time (local time shown alongside).
 
+Attachments are handled on both sides: a document released with a message gets
+its own box directly under that message, and an attachment only *announced* in
+the text shows as an 📎 chip - an active link when the document is in the
+releases, a dimmed "not in these releases" tag otherwise. The toolbar's **Box
+types** button ticks which kinds of box are listed (diary, email, attachment,
+and room for SMS, social, Slack, WhatsApp), so diaries, emails, attachments and
+feeds form one true multi-media timeline.
+
 **→ [`EMAILS.md`](EMAILS.md)** is the specification — document kinds, thread
 splitting, zone rules and evidence table, entry shape, and the recipe for adding
 new releases or new source types (Twitter/Bluesky threads, Slack/Signal exports)

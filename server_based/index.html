@@ -348,6 +348,28 @@ body.layout-portrait .pdf-panel {
   padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-2);
   margin-left: 6px; white-space: nowrap;
 }
+/* Attachment chips on the sender's card */
+.attach-row { padding: 6px 14px; border-top: 1px dashed var(--border-2); font-size: 12px; }
+.attach-chip {
+  display: inline-flex; align-items: baseline; gap: 5px; margin: 2px 6px 2px 0;
+  padding: 3px 8px; border-radius: 10px; font-size: 11.5px;
+  background: var(--panel-2); border: 1px solid var(--border-2); color: var(--text);
+  max-width: 100%;
+}
+.attach-chip.clickable { cursor: pointer; border-color: #f5a623; color: #f5a623; }
+.attach-chip.clickable:hover { background: rgba(245,166,35,0.15); }
+.attach-chip.unresolved { color: var(--muted); border-style: dashed; cursor: default; }
+.attach-chip .att-note { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.attach-chip .att-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* An attachment's own box, shown directly under the email it belongs to */
+.result-entry.is-attachment { margin-left: 26px; border-left: 3px solid #f5a623; }
+.result-entry.is-attachment .result-date { color: #f5a623; }
+.att-parent {
+  padding: 5px 14px; font-size: 11.5px; color: var(--muted);
+  border-bottom: 1px solid var(--border-2); background: rgba(245,166,35,0.07);
+}
+.att-parent a { color: #f5a623; text-decoration: underline; cursor: pointer; }
+.att-parent a:hover { color: var(--accent); }
 .reply-ref {
   padding: 6px 14px; border-top: 1px dashed var(--border-2);
   font-size: 12px; color: var(--muted);
@@ -412,6 +434,33 @@ hr.email-sep {
   white-space: nowrap;
 }
 .expand-btn:hover { border-color: var(--accent); color: var(--accent); }
+/* Box-type filter: a compact button that opens the list of box types */
+.kind-filter-bar { position: relative; display: inline-flex; align-items: center; gap: 6px; }
+.kind-filter-bar label { font-size: 12px; color: var(--muted); font-weight: 600; }
+.kind-filter-bar > button {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border-2);
+  padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;
+  max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.kind-filter-bar > button:hover { border-color: var(--accent); }
+.kind-filter-panel {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; min-width: 230px;
+  background: var(--panel); border: 1px solid var(--border-2); border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5); padding: 8px;
+}
+.kind-filter-panel .kf-row {
+  display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 4px;
+  font-size: 13px; cursor: pointer;
+}
+.kind-filter-panel .kf-row:hover { background: var(--panel-2); }
+.kind-filter-panel .kf-row input { cursor: pointer; }
+.kind-filter-panel .kf-count { margin-left: auto; font-size: 11px; color: var(--muted); }
+.kind-filter-panel .kf-actions { display: flex; gap: 6px; border-top: 1px solid var(--border-2); margin-top: 6px; padding-top: 6px; }
+.kind-filter-panel .kf-actions button {
+  flex: 1; background: var(--panel-2); color: var(--text); border: 1px solid var(--border-2);
+  border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer;
+}
+.kind-filter-panel .kf-actions button:hover { border-color: var(--accent); }
 .scroll-hint {
   padding: 3px 14px; font-size: 11px; color: var(--muted); font-style: italic;
   border-top: 1px solid var(--border-2); background: var(--panel-2);
@@ -538,8 +587,13 @@ mark.hit-current {
       <input type="date" id="jumpDateInput" min="2001-01-26" max="2022-12-17">
       <button type="button" id="jumpDateBtn" onclick="goToJumpDate()">Go</button>
     </span>
+    <span class="kind-filter-bar" title="Choose which kinds of box are listed (diary, email, attachment, ...)">
+      <label for="kindFilterBtn">Box types</label>
+      <button type="button" id="kindFilterBtn" onclick="toggleKindFilterPanel(event)" aria-expanded="false">All box types</button>
+      <span class="kind-filter-panel" id="kindFilterPanel" hidden></span>
+    </span>
   </div>
-  <span class="instructions" id="toolbarInstructions">Search &rarr; click a result / hit bar for matches. Entry bars open that day&rsquo;s entry + PDF (and clear any search). Jump-to-date opens the nearest entry. Scroll wheel zooms; double-click resets.</span>
+  <span class="instructions" id="toolbarInstructions">Search &rarr; click a result / hit bar for matches. Entry bars open that day&rsquo;s entry + PDF (and clear any search). Jump-to-date opens the nearest entry. <b>Box types</b> chooses which kinds of box are listed (diary, email, attachment, &hellip;). Scroll wheel zooms; double-click resets.</span>
 </div>
 
 <div class="content-area">
@@ -697,6 +751,335 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dis
  * source-qualified ("ebola|2016-03-10|...") so they stay unambiguous when
  * date|raw_date labels collide across releases.
  */
+// ============================================================
+// Document kinds (one box type per entry)
+// ============================================================
+/**
+ * Every entry belongs to a KIND, which drives its chip, its filter box and
+ * (for attachments) where it sits in the timeline. New sources only have to set
+ * `kind` on their entries; the filter picks up whatever it finds, so a new
+ * release of tweets / SMS / Slack / WhatsApp needs no UI change.
+ *   diary      - the handwritten diary itself
+ *   email      - one dated message (incl. inline-quoted recoveries)
+ *   attachment - a document that travelled with a message (report, memo, ...)
+ * The rest are reserved for the sources you plan to mix in; they only appear
+ * in the filter once an entry actually uses them.
+ */
+const KIND_DEFS = [
+  { id: 'diary',      label: 'Diary',          icon: '\u{1F4D3}', color: '#4ecca3' },
+  { id: 'email',      label: 'Email',          icon: '✉',       color: '#e94560' },
+  { id: 'attachment', label: 'Attachment',     icon: '\u{1F4CE}', color: '#f5a623' },
+  { id: 'sms',        label: 'SMS / text',     icon: '\u{1F4AC}', color: '#5b8def' },
+  { id: 'social',     label: 'Social network', icon: '\u{1F426}', color: '#5b8def' },
+  { id: 'slack',      label: 'Slack',          icon: '\u{1F517}', color: '#c86dd7' },
+  { id: 'whatsapp',   label: 'WhatsApp',       icon: '\u{1F4F2}', color: '#25d366' },
+  { id: 'chat',       label: 'Chat / IM',      icon: '\u{1F5E8}', color: '#8f8f9e' },
+  { id: 'document',   label: 'Document',       icon: '\u{1F4C4}', color: '#f5a623' }
+];
+const KIND_ALIASES = { report: 'attachment', attachment: 'attachment', inline: 'email',
+  email: 'email', diary: 'diary', note: 'diary', entry: 'diary', text: 'sms', sms: 'sms',
+  twitter: 'social', tweet: 'social', facebook: 'social', social: 'social',
+  slack: 'slack', whatsapp: 'whatsapp', im: 'chat', chat: 'chat', document: 'document' };
+const KIND_BY_ID = {};
+KIND_DEFS.forEach(function(k) { KIND_BY_ID[k.id] = k; });
+/** Normalised kind of an entry ("report" -> "attachment", missing -> "diary"). */
+function entryKind(e) {
+  var k = String((e && e.kind) || 'diary').toLowerCase();
+  return KIND_ALIASES[k] || k;
+}
+function kindDef(id) {
+  return KIND_BY_ID[id] || { id: id, label: id, icon: '•', color: '#8f8f9e' };
+}
+
+// ── Box-type filter ─────────────────────────────────────────────────────────
+// Which kinds are listed as boxes. Every kind found in the data is enabled by
+// default; the choice is remembered and applies to search results, to the
+// chronological browse list, to the timeline bars and to the entry counts.
+let kindFilter = null;          // null until the data has been scanned
+let kindFilterCounts = {};
+
+function kindFilterEnabled(id) { return !kindFilter || kindFilter[id] !== false; }
+function kindAllowedForEntry(e) { return kindFilterEnabled(entryKind(e)); }
+function availableKinds() {
+  var counts = {};
+  (diaryData && diaryData.entries ? diaryData.entries : []).forEach(function(e) {
+    var k = entryKind(e);
+    counts[k] = (counts[k] || 0) + 1;
+  });
+  kindFilterCounts = counts;
+  return Object.keys(counts).sort(function(a, b) {
+    var ia = KIND_DEFS.findIndex(function(k) { return k.id === a; });
+    var ib = KIND_DEFS.findIndex(function(k) { return k.id === b; });
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+  });
+}
+function loadKindFilter() {
+  var ids = availableKinds();
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem('fauciKindFilter') || 'null'); } catch (e) {}
+  kindFilter = {};
+  ids.forEach(function(id) { kindFilter[id] = saved ? saved[id] !== false : true; });
+  return ids;
+}
+function saveKindFilter() {
+  try { localStorage.setItem('fauciKindFilter', JSON.stringify(kindFilter)); } catch (e) {}
+}
+function toggleKindFilterPanel(ev) {
+  if (ev) ev.stopPropagation();
+  var panel = document.getElementById('kindFilterPanel');
+  if (!panel) return;
+  if (!panel.hidden) { panel.hidden = true; return; }
+  renderKindFilterPanel();
+  panel.hidden = false;
+}
+function renderKindFilterPanel() {
+  var panel = document.getElementById('kindFilterPanel');
+  var btn = document.getElementById('kindFilterBtn');
+  if (!panel) return;
+  if (btn) btn.textContent = kindFilterLabel();
+  var ids = availableKinds();
+  var html = '';
+  ids.forEach(function(id) {
+    var k = kindDef(id);
+    var n = kindFilterCounts[id] || 0;
+    html += '<label class="kf-row" title="' + escapeHtml(n + ' ' + k.label.toLowerCase() + ' entries') + '">' +
+      '<input type="checkbox" data-kind-toggle="' + id + '"' + (kindFilterEnabled(id) ? ' checked' : '') + '>' +
+      '<span>' + k.icon + '</span><span>' + escapeHtml(k.label) + '</span>' +
+      '<span class="kf-count">' + n + '</span></label>';
+  });
+  html += '<div class="kf-actions">' +
+    '<button type="button" onclick="setAllKinds(true)">All</button>' +
+    '<button type="button" onclick="setAllKinds(false)">None</button>' +
+    '<button type="button" onclick="setAllKinds(true);toggleKindFilterPanel()">Done</button></div>';
+  panel.innerHTML = html;
+  panel.onchange = function(ev) {
+    var cb = ev.target.closest('[data-kind-toggle]');
+    if (!cb) return;
+    kindFilter[cb.getAttribute('data-kind-toggle')] = cb.checked;
+    saveKindFilter();
+    applyKindFilter();
+  };
+}
+function setAllKinds(on) {
+  availableKinds().forEach(function(id) { kindFilter[id] = !!on; });
+  saveKindFilter();
+  renderKindFilterPanel();
+  applyKindFilter();
+}
+/** Re-run whatever is on screen with the new box-type selection. */
+function applyKindFilter() {
+  var btn = document.getElementById('kindFilterBtn');
+  if (btn) btn.textContent = kindFilterLabel();
+  redrawTimelines();
+  if (!diaryData) return;
+  if (lastSearchResults && lastSearchQuery) {
+    doSearch();
+  } else if (browseMode && window._searchResults && window._searchResults.length) {
+    var center = window._searchResults[0].idx;
+    var pack = buildBrowseResultsAroundIndex(center, BROWSE_RADIUS);
+    if (pack) {
+      displayResults(pack.results, '', { autoSelect: false });
+      browseMode = true;
+    }
+  } else {
+    updateEntryStatsLine();
+    redrawTimelines();
+  }
+}
+function updateEntryStatsLine() {
+  var el = document.getElementById('entryStats');
+  if (!el || !diaryData) return;
+  var shown = 0;
+  diaryData.entries.forEach(function(e) { if (kindAllowedForEntry(e)) shown++; });
+  var base = diaryData.total_entries + ' entries · ' + diaryData.date_range.start + ' to ' + diaryData.date_range.end;
+  el.textContent = shown === diaryData.total_entries
+    ? base
+    : shown.toLocaleString() + ' of ' + diaryData.total_entries.toLocaleString() + ' entries listed (' + kindFilterLabel() + ')';
+}
+document.addEventListener('click', function(ev) {
+  var panel = document.getElementById('kindFilterPanel');
+  if (!panel || panel.hidden) return;
+  if (ev.target.closest('.kind-filter-bar')) return;   // handled by the button
+  panel.hidden = true;
+});
+document.addEventListener('keydown', function(ev) {
+  if (ev.key !== 'Escape') return;
+  var panel = document.getElementById('kindFilterPanel');
+  if (panel && !panel.hidden) panel.hidden = true;
+});
+
+function kindFilterLabel() {
+  var ids = availableKinds();
+  var on = ids.filter(kindFilterEnabled);
+  if (!ids.length) return 'Box types';
+  if (on.length === ids.length) return 'All box types (' + ids.length + ')';
+  if (!on.length) return 'No box type';
+  return on.map(function(id) { return kindDef(id).label; }).join(', ');
+}
+
+// ── Attachments ─────────────────────────────────────────────────────────────
+/**
+ * Resolve attachments across ALL merged sources, on cleaned text.
+ *
+ * Each parser marks only the DOCUMENTS it ships (kind="attachment" + title).
+ * Here we also read what every entry SAYS about its attachments ("Attached
+ * is ...", "see attached ...", "I am attaching ...") and match those words
+ * against the documents of every source, so that:
+ *   - an announced attachment that IS in the releases becomes an active link,
+ *     and the document's own box is placed right under the email it was
+ *     attached to (`attached_to`, ordering below);
+ *   - an announced attachment that is NOT here stays a visible tag marked
+ *     "not in these releases" - never a dead link.
+ * Results land in `attachments`, an ARRAY: one message can carry several.
+ */
+const ATTACH_CUE_RE = new RegExp(
+  '\\b(?:' +
+    'attached(?:\\s+(?:is|are|was|were|below|here))?' +        // "attached", "attached is", "attached below"
+    '|attachments?' +                                          // "attachment(s)"
+    '|attach(?:ing|ments?)\\b' +                                // "attaching", "attachment"
+    '|(?:i|we)(?:\\s+\\w+){0,2}\\s+attach(?:ed|ing)?\\b' +      // "I have attached", "I am attaching"
+    '|(?:please\\s+)?(?:find|see)\\s+(?:the\\s+)?attached' +    // "see attached", "please find attached"
+    '|enclosed\\s+(?:is|are|was|were|here|below)' +            // "enclosed is", NOT "enclosed mirror"
+  ')', 'i');
+const ATTACH_STOPWORDS = ('about above after again against along also although always among another because been before being below between both brief certain could did does doing done down during each either else enough even ever every from further give given goes going have having here however inside into itself just keep like made make many more most much must near need next only other over own please same should since some such than that their them then there these they thing things this those through thus under until upon very want well were what when where which while will with within would your yours attach overview regarding concerning respect report document following provide provided includes include along email mail engagement studies timeline').split(' ');
+// "without attaching enough autodestruct syringes" is a verb, not an attachment
+const ATTACH_NEGATIVE_RE = /\b(without|before|after|while|when|thought|considering|avoid|stop|keep|started|stopping|merely|simply|not|never)\b[^.]{0,30}$/i;
+const ATTACH_SUBJECT_RE = /report|document|memo|attachment|overview|statement|declaration|paper|article/i;
+
+function entryOwnBody(e) {
+  var c = (e && e.content) || '';
+  var sep = c.indexOf('----------');
+  return sep >= 0 ? c.slice(sep + 10) : c;
+}
+function attachWords(text) {
+  var out = {};
+  (String(text || '').toLowerCase().match(/[a-z]{5,}/g) || []).forEach(function(w) {
+    if (ATTACH_STOPWORDS.indexOf(w) < 0) out[w] = 1;
+  });
+  return out;
+}
+// Letterheads / footers / disclaimers say "attachments" without meaning one
+const ATTACH_BOILERPLATE_RE = /\b(confidential|sensitive information|reproduced|redistributed|bethesda|national institutes of health|phone|fax|building \d|msc \d|room \d|https?:|www\.|@)\b/i;
+// Descriptions too generic to be useful on their own -> show the whole sentence
+const ATTACH_VAGUE_RE = /^(?:the\s+)?(?:document|report|attachment|attachments|pdf|file|files|it|this|that|them|these|below|above|email|e-mail|agenda|minutes|paper|article|statement|declaration|list|data)\b[\s.,:;-]*$/i;
+
+/** Sentences that announce an attachment -> [description, ...], doc order. */
+function attachmentMentions(text) {
+  var out = [], seen = {};
+  String(text || '').split(/(?<=[.!?])\s+|\n+/).forEach(function(sent) {
+    var s = sent.trim();
+    if (s.length < 12) return;
+    var m = ATTACH_CUE_RE.exec(s);
+    if (!m) return;
+    if (ATTACH_NEGATIVE_RE.test(s.slice(0, m.index))) return;   // verb, not attachment
+    if (ATTACH_BOILERPLATE_RE.test(s)) return;                  // letterhead / disclaimer
+    var desc = s.slice(m.index + m[0].length);
+    desc = desc.replace(/^[\s:,.;–—-]+/, '')
+               .replace(/^(?:is|are|was|were|here|below|to you|the following)\s+/i, '')
+               .replace(/^(?:a|an|the|this|my|our|of)\s+/i, '')
+               .replace(/\s+/g, ' ').trim();
+    // "the final document: Draft Privileged ..." -> keep the head, cut the tail
+    var colon = desc.indexOf(': ');
+    if (colon >= 15) desc = desc.slice(0, colon);
+    if (desc.length > 120) {
+      var cut = desc.lastIndexOf(' ', 120);
+      desc = (cut > 60 ? desc.slice(0, cut) : desc.slice(0, 120)).replace(/[,;:]$/, '') + '\u2026';
+    }
+    // "See attached document." -> the sentence itself is the better label
+    if (ATTACH_VAGUE_RE.test(desc)) desc = s.replace(/\s+/g, ' ').trim();
+    if (desc.length < 8) return;
+    var key = desc.toLowerCase();
+    if (seen[key]) return;
+    seen[key] = 1;
+    out.push(desc);
+  });
+  return out;
+}
+function entryFullKey(e) { return e.source + '|' + e.date + '|' + e.raw_date; }
+
+function inferAttachments(entries) {
+  entries.forEach(function(e) {
+    delete e.attachments; delete e.attachment_ref; delete e.attachment_label;
+  });
+  var docs = entries.filter(function(e) { return entryKind(e) === 'attachment'; });
+  docs.forEach(function(d) { delete d.attached_to; delete d.attached_to_label; });
+  entries.forEach(function(e) {
+    if (entryKind(e) === 'attachment') return;
+    var subject = String(e.raw_date || '').split(' · ').pop();
+    attachmentMentions(entryOwnBody(e)).forEach(function(desc) {
+      var dw = attachWords(desc);
+      var best = null, bestScore = 0;
+      docs.forEach(function(d) {
+        if (d === e) return;
+        var hay = attachWords((d.title || '') + ' ' + String(d.content || '').slice(0, 600));
+        var score = Object.keys(dw).filter(function(w) { return hay[w]; }).length;
+        if (score > bestScore) { best = d; bestScore = score; }
+      });
+      var resolved = false, via = 'text';
+      if (best && bestScore >= 2) resolved = true;
+      else if (best && bestScore >= 1 && ATTACH_SUBJECT_RE.test(subject)) { resolved = true; via = 'subject'; }
+      var att = { label: (resolved ? (best.title || best.raw_date) : desc).slice(0, 200) };
+      if (resolved) {
+        att.key = entryFullKey(best);
+        att.kind = best.doc_type || 'document';
+        att.resolved = true;
+        att.via = via;
+        if (!best.attached_to) {                 // first claimer = primary parent
+          best.attached_to = entryFullKey(e);
+          best.attached_to_label = e.date + ' ' + e.raw_date;
+        }
+      } else {
+        att.kind = 'document';
+        att.resolved = false;
+        att.via = via;
+      }
+      (e.attachments = e.attachments || []).push(att);
+      if (resolved && !e.attachment_ref) {       // legacy single-attachment field
+        e.attachment_ref = att.key;
+        e.attachment_label = att.label;
+      }
+    });
+  });
+}
+
+/**
+ * Order each attachment directly under the entry it was attached to, and give
+ * every entry the sort keys the search uses: an attachment inherits its
+ * parent's date/time so it stays glued to that email in the results list (and
+ * in the browse window), while keeping its own real date for display.
+ */
+function orderAttachmentsAfterParents(entries) {
+  var byKey = {};
+  entries.forEach(function(e) { byKey[entryFullKey(e)] = e; });
+  // NB: a Set of the entry OBJECTS - a plain object keyed by entry would
+  // collapse to the single key "[object Object]".
+  var kids = new Map(), placed = new Set(), out = [];
+  entries.forEach(function(e) {
+    if (!e.attached_to) return;
+    var p = byKey[e.attached_to];
+    if (p && p !== e) {
+      if (!kids.has(p)) kids.set(p, []);
+      kids.get(p).push(e);
+    }
+  });
+  entries.forEach(function(e) {
+    if (placed.has(e)) return;
+    out.push(e); placed.add(e);
+    (kids.get(e) || []).forEach(function(k) {
+      if (!placed.has(k)) { out.push(k); placed.add(k); }
+    });
+  });
+  // anything orphaned by a missing parent keeps its place at the end
+  entries.forEach(function(e) { if (!placed.has(e)) out.push(e); });
+  out.forEach(function(e, i) {
+    e._order = i;
+    var p = e.attached_to ? byKey[e.attached_to] : null;
+    e.sort_date = p ? p.date : e.date;
+    e.sort_time = p ? (p.time || '') : (e.time || '');
+  });
+  return out;
+}
+
 function rebuildThreadDownLinks(entries) {
   entries.forEach(function(e) {
     delete e.replied_by;
@@ -711,16 +1094,25 @@ function rebuildThreadDownLinks(entries) {
   });
   function add(e, refKey, field) {
     if (!refKey) return;
-    const t = qualified[e.source + '|' + refKey] || plain[refKey];
+    // a ref may be plain ("date|raw_date") or already source-qualified
+    var srcName = refKey.split('|')[0];
+    var full = Object.prototype.hasOwnProperty.call(SOURCES, srcName)
+      ? refKey : e.source + '|' + refKey;
+    var plainKey = full.indexOf('|') >= 0 ? full.slice(full.indexOf('|') + 1) : full;
+    const t = qualified[full] || plain[full] || plain[plainKey];
     if (!t || t === e) return;
-    (t[field] = t[field] || []).push({
-      key: e.source + '|' + e.date + '|' + e.raw_date,
-      label: e.date + ' ' + e.raw_date,
-    });
+    var downKey = e.source + '|' + e.date + '|' + e.raw_date;
+    t[field] = t[field] || [];
+    if (t[field].some(function(r) { return r.key === downKey; })) return;   // no dupes
+    t[field].push({ key: downKey, label: e.date + ' ' + e.raw_date });
   }
   entries.forEach(function(e) {
     add(e, e.reply_to, 'replied_by');
     add(e, e.forwarded_from, 'forwarded_by');
+    // attachments is an ARRAY (one message can carry several documents)
+    (e.attachments || []).forEach(function(att) {
+      if (att && att.resolved && att.key) add(e, att.key, 'attached_by');
+    });
     add(e, e.attachment_ref, 'attached_by');
   });
 }
@@ -775,7 +1167,7 @@ async function loadData() {
     mainData.entries.forEach(function(e) { e.source = 'main'; });
     preqData.entries.forEach(function(e) { e.source = 'prequel'; });
     ebolaData.entries.forEach(function(e) { e.source = 'ebola'; });
-    const allEntries = preqData.entries.concat(ebolaData.entries, mainData.entries);
+    let allEntries = preqData.entries.concat(ebolaData.entries, mainData.entries);
 
     // Rebuild thread DOWN-links over the merged timeline. Up-links
     // (reply_to / forwarded_from / attachment_ref) are written per release by
@@ -783,6 +1175,9 @@ async function loadData() {
     // same email can be replied to and/or forwarded again later, possibly from
     // another source entirely (a new release quoting an old one), so they are
     // re-derived here rather than trusted from the JSON.
+    inferAttachments(allEntries);
+    // Each attachment box follows the entry it was attached to
+    allEntries = orderAttachmentsAfterParents(allEntries);
     rebuildThreadDownLinks(allEntries);
 
     diaryData = {
@@ -802,6 +1197,9 @@ async function loadData() {
     if (statsEl) statsEl.textContent =
       diaryData.total_entries + ' entries \u00b7 ' + diaryData.date_range.start + ' to ' + diaryData.date_range.end;
 
+    loadKindFilter();
+    renderKindFilterPanel();
+    updateEntryStatsLine();
     syncJumpDateInputBounds();
     drawTimeline();
 
@@ -1616,6 +2014,7 @@ function doSearch() {
   const results = [];
   for (let i = 0; i < diaryData.entries.length; i++) {
     const entry = diaryData.entries[i];
+    if (!kindAllowedForEntry(entry)) continue;   // box-type filter
     const text = entry.content || '';
     const ev = evalQuery(ast, text, caseSensitive);
     if (ev.matched && ev.positions.length > 0) {
@@ -1638,15 +2037,18 @@ function doSearch() {
   }
 
   results.sort(function(a, b) {
-    var da = a.entry.date, db = b.entry.date;
-    if (da === 'prologue') return -1;
-    if (db === 'prologue') return 1;
-    if (da === 'appendix' || da === 'report') return 1;
-    if (db === 'appendix' || db === 'report') return -1;
-    // Dated entries: chronological; emails carry a time for same-day order.
+    var ea = a.entry, eb = b.entry;
+    if (ea.date === 'prologue') return -1;
+    if (eb.date === 'prologue') return 1;
+    // sort_date/sort_time let an attachment ride with the entry it hangs off
+    // (the synthetic 'appendix'/'report' dates still sort last)
+    var da = ea.sort_date || ea.date, db = eb.sort_date || eb.date;
     if (da !== db) return da < db ? -1 : 1;
-    var ta = a.entry.time || '', tb = b.entry.time || '';
-    return ta < tb ? -1 : ta > tb ? 1 : 0;
+    var ta = ea.sort_time || ea.time || '', tb = eb.sort_time || eb.time || '';
+    if (ta !== tb) return ta < tb ? -1 : 1;
+    var ka = entryKind(ea), kb = entryKind(eb);
+    if (ka !== kb) return ka === 'attachment' ? 1 : -1;  // attachment just below its parent
+    return (ea._order || 0) - (eb._order || 0);
   });
 
   lastSearchResults = results;
@@ -1697,6 +2099,7 @@ let timelineSeries = null; // { labels, entryCounts, entryColors, entryDays, tot
 function buildTimelineSeries() {
   const dateCounts = {};
   for (const e of diaryData.entries) {
+    if (!kindAllowedForEntry(e)) continue;            // box-type filter
     // Skip synthetic entries ('prologue', 'appendix', 'report') — not calendar days.
     if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date)) continue;
     dateCounts[e.date] = (dateCounts[e.date] || 0) + 1;
@@ -2363,6 +2766,7 @@ function buildBrowseResultsAroundIndex(centerIdx, radius) {
   var focusLocal = 0;
   for (var j = from; j <= to; j++) {
     if (j === centerIdx) focusLocal = results.length;
+    if (!kindAllowedForEntry(entries[j])) continue;   // box-type filter
     results.push({
       idx: j,
       entry: entries[j],
@@ -2878,6 +3282,29 @@ function pdfPageForResult(r) {
   return pageForContentOffset(pageMapValueForResult(r), 0) || 1;
 }
 
+/** "📄 p.21–24" for a referenced entry given its full key (source|date|raw). */
+function pageLabelForKey(fullKey) {
+  if (!fullKey) return '';
+  var src = null, rest = fullKey;
+  var i = fullKey.indexOf('|');
+  if (i > 0) {
+    var head = fullKey.slice(0, i);
+    if (SOURCES[head]) { src = head; rest = fullKey.slice(i + 1); }
+  }
+  var val = src ? (pageMaps[src] || {})[rest] : null;
+  if (val == null) {
+    for (var k in pageMaps) {
+      if (Object.prototype.hasOwnProperty.call(pageMaps, k) && pageMaps[k][rest] != null) {
+        val = pageMaps[k][rest]; break;
+      }
+    }
+  }
+  if (val == null) return '';
+  var start = getPageNum(val), end = getPageEnd(val);
+  if (!start) return '';
+  return (end && end !== start) ? 'p.' + start + '\u2013' + end : 'p.' + start;
+}
+
 function pdfPageLabel(r) {
   const mapVal = pageMapValueForResult(r);
   const start = getPageNum(mapVal);
@@ -2917,12 +3344,19 @@ function displayResults(results, query, opts) {
     currentHitIdx[i] = 0;
 
     // data-pdf-page = start page; actual hit page resolved on click / HIT nav
-    html += '<div class="result-entry" id="result-' + i + '" data-result-idx="' + i + '" data-pdf-page="' + pdfPage + '" data-entry-idx="' + r.idx + '">';
+    const kind = entryKind(e);
+    const kdef = kindDef(kind);
+    // An attachment's box sits indented under the entry it was attached to
+    html += '<div class="result-entry' + (kind === 'attachment' ? ' is-attachment' : '') +
+      '" id="result-' + i + '" data-result-idx="' + i + '" data-pdf-page="' + pdfPage + '" data-entry-idx="' + r.idx + '">';
     html += '<div class="result-header">';
-    html += '<span><span class="result-date">' + e.date + '</span>' +
-      '<span class="result-raw-date">' + escapeHtml(e.raw_date) + '</span>' +
+    html += '<span><span class="result-date">' + escapeHtml(e.date) + '</span>' +
+      '<span class="result-raw-date">' +
+      escapeHtml((kind === 'attachment' && e.title) ? e.title : e.raw_date) + '</span>' +
       (e.source && SOURCES[e.source] ? '<span style="font-size:10px;color:var(--muted);background:var(--panel-2);padding:2px 6px;border-radius:3px;border:1px solid var(--border-2);margin-left:6px;white-space:nowrap" title="From the ' + SOURCES[e.source].badgeTitle + ' release">' + SOURCES[e.source].badge + '</span>' : '') +
-      (e.kind && e.kind !== 'diary' ? '<span class="entry-kind" title="Document type">' + (e.kind === 'email' ? '✉ email' : '📄 report') + '</span>' : '');
+      (kind !== 'diary' ? '<span class="entry-kind" title="Document type: ' + escapeHtml(kdef.label) +
+        '" style="color:' + kdef.color + ';border-color:' + kdef.color + '55">' + kdef.icon + ' ' +
+        escapeHtml(kdef.label.toLowerCase()) + '</span>' : '');
     if (pageLabel) {
       html += '<span class="result-page-link" title="Open PDF at this entry">📄 ' + pageLabel + '</span>';
     }
@@ -2936,6 +3370,15 @@ function displayResults(results, query, opts) {
     html += '<button type="button" class="expand-btn" data-expand-toggle="' + i + '" hidden title="Show the full text of this entry">⤢ Full text</button>';
     html += '</span>';
     html += '</div>';
+
+    // Which message this document travelled with
+    if (kind === 'attachment' && e.attached_to) {
+      html += '<div class="att-parent">📎 Attachment of: <a data-entry-ref="' +
+        escapeHtml(e.attached_to) + '">' +
+        escapeHtml(e.attached_to_label || e.attached_to) + '</a></div>';
+    } else if (kind === 'attachment') {
+      html += '<div class="att-parent">📎 Attachment — parent message not stated in this release</div>';
+    }
 
     // Hit navigation bar
     if (r.hits > 1) {
@@ -2954,7 +3397,7 @@ function displayResults(results, query, opts) {
     const paragraphs = highlighted.split(/\n\n/);
     html += '<div class="result-content-wrap">';
     html += '<div class="result-content" id="content-' + i + '">';
-    if (e.kind === 'email') {
+    if (kind === 'email') {
       // Email layout: From/To/Cc/Subject (+ Sent with local + ET time) block,
       // a separator rule, then the body that author wrote that day.
       let inHead = true;
@@ -2993,9 +3436,28 @@ function displayResults(results, query, opts) {
       html += '<div class="reply-ref">↪ Forwarding: <a data-entry-ref="' +
         escapeHtml(e.forwarded_from) + '">' + escapeHtml(e.forwarded_from_label || e.forwarded_from) + '</a></div>';
     }
-    if (e.attachment_ref) {
-      html += '<div class="reply-ref">📎 Attachment: <a data-entry-ref="' +
-        escapeHtml(e.attachment_ref) + '">' + escapeHtml(e.attachment_label || e.attachment_ref) + '</a></div>';
+    const atts = e.attachments || (e.attachment_ref ? [{ key: e.attachment_ref,
+      label: e.attachment_label || e.attachment_ref, resolved: true, kind: 'document' }] : []);
+    if (atts.length) {
+      let row = '<div class="attach-row">' + (atts.length > 1 ? '<b>Attachments:</b> ' : '<b>Attachment:</b> ');
+      atts.forEach(function(att) {
+        const note = att.resolved
+          ? (pageLabelForKey(att.key) ? ' · ' + pageLabelForKey(att.key) : '')
+          : ' · not in these releases';
+        const title = att.via === 'subject' ? 'Matched from the subject line' : 'Stated in the message';
+        if (att.resolved && att.key) {
+          row += '<span class="attach-chip clickable" data-entry-ref="' + escapeHtml(att.key) +
+            '" title="' + escapeHtml(title + '. Open the document box.') + '">📎' +
+            '<span class="att-label">' + escapeHtml(att.label) + '</span>' +
+            '<span class="att-note">' + escapeHtml(note) + '</span></span>';
+        } else {
+          row += '<span class="attach-chip unresolved" title="' +
+            escapeHtml('Announced in the message, but the document is not part of the released pages') +
+            '">📎<span class="att-label">' + escapeHtml(att.label) + '</span>' +
+            '<span class="att-note">' + escapeHtml(note) + '</span></span>';
+        }
+      });
+      html += row + '</div>';
     }
     if (e.replied_by && e.replied_by.length) {
       html += '<div class="reply-ref">↩ Replied by: ' + refLinksHtml(e.replied_by) + '</div>';
@@ -3004,7 +3466,9 @@ function displayResults(results, query, opts) {
       html += '<div class="reply-ref">↪ Forwarded by: ' + refLinksHtml(e.forwarded_by) + '</div>';
     }
     if (e.attached_by && e.attached_by.length) {
-      html += '<div class="reply-ref">📎 Referenced by: ' + refLinksHtml(e.attached_by) + '</div>';
+      html += '<div class="reply-ref">📎 Attached by ' +
+        (e.attached_by.length > 1 ? e.attached_by.length + ' messages' : 'message') +
+        ': ' + refLinksHtml(e.attached_by) + '</div>';
     }
     html += '</div>';
   }
@@ -3247,7 +3711,19 @@ loadData();
       <b>Case sensitivity</b> — default is <b>off</b> (ignore case). Check <b>Aa case sensitive</b> for exact capitalization.
       To search for the words AND/OR themselves, put them in quotes: <code>"and"</code>.
     </p>
-    <p style="margin-top:10px;font-size:12px;color:var(--muted);">Click a hit to open its PDF page; use HIT Prev/Next to step through matches.</p>
+    <p style="margin-top:14px;font-size:13px;line-height:1.5">
+      <b>Box types</b> — every item has a kind (📓 diary, ✉ email, 📎 attachment, and room for
+      SMS, social networks, Slack, WhatsApp&hellip;). The <b>Box types</b> button in the toolbar
+      ticks the kinds you want listed; the choice is remembered and applies to the search results,
+      the timeline bars and the browse list.
+    </p>
+    <p style="margin-top:10px;font-size:13px;line-height:1.5">
+      <b>Attachments</b> — 📎 chips under a message open the documents it carried. A document that
+      is part of the release gets its own box directly under the message it was attached to;
+      a document that is only announced in the text is shown as a tag marked
+      “not in these releases”. <b>⤢ Full text</b> shows a whole entry, and its box scrolls on its own.
+    </p>
+    <p style="margin-top:10px;font-size:12px;color:var(--muted);">Click a hit to open its PDF page; use HIT Prev/Next to step through matches. <b>↑/↓</b> move between boxes; <b>←/→</b> turn PDF pages.</p>
     <button onclick="hideHelp()" style="margin-top:12px;background:var(--accent);color:#fff;border:none;padding:8px 24px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">Got it</button>
   </div>
 </div>

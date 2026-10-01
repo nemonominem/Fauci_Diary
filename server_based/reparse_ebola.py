@@ -13,8 +13,9 @@ documents instead of one blob:
         Sent: Wednesday, March 09, 2016 11:41 PM        (Outlook)
     Entry keys are "<iso>|<HH:MM> \u00b7 <subject>", so same-day emails are
     distinct and chronological.
-  * The NIAID filovirus aerosol-challenge overview becomes one "report"
-    entry (kind="report", non-dated, sorted last).
+  * The NIAID filovirus aerosol-challenge overview becomes one
+    kind="attachment" entry (a document, non-dated, shown under the email it
+    was attached to).
 
 pypdf occasionally wraps a header keyword itself ("Fro"+"m: ...",
 "Sub"+"ject: ..."); those splits are rejoined for header parsing (the raw
@@ -335,7 +336,12 @@ def segment_tail(tail_lines):
         end = bounds[k + 1][0] if k + 1 < len(bounds) else len(lines)
         if meta["kind"] == "report":
             body = _body_lines(lines[b:end], 0)
-            entries.append({"date": "report", "kind": "report", "raw_date": "Report",
+            text_lines = [ln.strip() for ln in body if ln.strip()]
+            # Title = the document's own heading (first non-empty line)
+            title = text_lines[0][:160] if text_lines else "Attached document"
+            entries.append({"date": "report", "kind": "attachment",
+                            "doc_type": "report", "title": title,
+                            "raw_date": "Report",
                             "content": "\n".join(body).strip()})
             continue
         ny_dt = meta["local_dt"].astimezone(ny_zone)
@@ -370,6 +376,18 @@ def entry_key(e):
 
 FORWARD_SUBJ_RE = re.compile(r"^(?:fw|fwd)\.?\s*:", re.IGNORECASE)
 
+# ── Attachments ──────────────────────────────────────────────────────────────
+# A document that physically follows an email in the release (a report, a memo,
+# a spreadsheet...) becomes its own entry with kind="attachment" and a `title`
+# (its own heading). WHO it was attached to is NOT decided here: the text still
+# has PDF line-wraps at this point, and an announcement in one release may refer
+# to a document shipped in another. The app infers the link on cleaned text
+# across every merged source (inferAttachments in index.html) and writes
+# `attachments` / `attached_to` / `attached_by` there. A parser only has to
+# mark document entries with kind="attachment" + title (and may set attached_to
+# when the release states the parent outright).
+
+
 def _ref_subject(entry):
     raw = entry.get("raw_date", "")
     return raw.split(" \u00b7 ", 1)[1] if " \u00b7 " in raw else ""
@@ -391,6 +409,9 @@ def link_thread(entries):
 
       replied_by / forwarded_by / attached_by
         = [{key, label}, ...]  (may hold several entries)
+
+    Attachment links are NOT set here: the app resolves them on cleaned text
+    across every merged source (see the Attachments note above).
     """
     by_key = {}
     for e in entries:
@@ -411,7 +432,7 @@ def link_thread(entries):
                 a["reply_to"] = key
                 a["reply_to_label"] = label
     for e in entries:
-        if e["kind"] == "report":
+        if e.get("kind") == "attachment":
             flush(); thread = []
             continue
         if e.get("_style") == "outer":
@@ -419,25 +440,6 @@ def link_thread(entries):
         else:
             thread.append(e)
     flush()
-    # The Kurilla 'Ebola report you requested' email attached the report.
-    for e in entries:
-        if e["kind"] == "email" and e["raw_date"].endswith("Ebola report you requested") and e.get("_style") == "nested":
-            e["attachment_ref"] = "report|Report"
-            e["attachment_label"] = "NIAID Filovirus Aerosol-Challenge Report (pp. 21-24)"
-    # Invert every up-link into downward (possibly multiple) links.
-    for e in entries:
-        for ref, field in ((e.get("reply_to"), "replied_by"),
-                           (e.get("forwarded_from"), "forwarded_by"),
-                           (e.get("attachment_ref"), "attached_by")):
-            if not ref:
-                continue
-            target = by_key.get(ref)
-            if target is None or target is e:
-                continue
-            target.setdefault(field, []).append({
-                "key": entry_key(e),
-                "label": e["date"] + " " + e["raw_date"],
-            })
     for e in entries:
         e.pop("_order", None); e.pop("_style", None)
     return entries
@@ -499,7 +501,7 @@ def main():
     link_thread(emails)  # document order in, chain pointers set
     mail = sorted([e for e in emails if e["kind"] == "email"],
                   key=lambda e: (e["date"], e["time"]))  # stable: doc order breaks ties
-    report = [e for e in emails if e["kind"] == "report"]
+    report = [e for e in emails if e.get("kind") == "attachment"]
     real = diary + mail + report
     dated = [e["date"] for e in diary + mail]
     out = {"source_file": "2026.09.28_Ebola-Doc-Release_Full-Package.pdf",
@@ -510,7 +512,7 @@ def main():
            "entries": real}
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
-    print("entries: %d (diary %d, emails %d, report %d)" % (len(real), len(diary), len(mail), len(report)))
+    print("entries: %d (diary %d, emails %d, attachments %d)" % (len(real), len(diary), len(mail), len(report)))
     print("date range:", out["date_range"])
     for e in real:
         up = ""
@@ -518,8 +520,10 @@ def main():
             up = "  <-reply- " + e["reply_to_label"]
         if e.get("forwarded_from_label"):
             up = "  <-fwd- " + e["forwarded_from_label"]
-        if e.get("attachment_ref"):
-            up += "  [att-> report]"
+        atts = e.get("attachments") or []
+        if atts:
+            up += "  [att x%d:%s]" % (len(atts), ",".join(
+                "linked" if a.get("resolved") else "tag" for a in atts))
         down = ""
         if e.get("replied_by"):
             down += "  ->replied-by x%d" % len(e["replied_by"])

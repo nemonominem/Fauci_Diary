@@ -117,7 +117,7 @@ subject prefix:
 |---|---|---|
 | starts with `FW:` / `Fwd:` | `forwarded_from` + `forwarded_from_label` | ↪ Forwarding: … |
 | anything else (incl. `RE:`, inline quotes) | `reply_to` + `reply_to_label` | ↩ In reply to: … |
-| message carries a released document | `attachment_ref` + `attachment_label` | 📎 Attachment: … |
+| message carries a released document | `attachments[]` (+ legacy `attachment_ref`) | 📎 chips (see §5) |
 
 ### Downward — what points AT this message
 
@@ -127,7 +127,7 @@ Every up-link is inverted into **arrays** (never a single value):
 |---|---|---|
 | `replied_by` = `[{key, label}, …]` | `reply_to` | ↩ Replied by: … · … |
 | `forwarded_by` = `[{key, label}, …]` | `forwarded_from` | ↪ Forwarded by: … · … |
-| `attached_by` = `[{key, label}, …]` | `attachment_ref` | 📎 Referenced by: … |
+| `attached_by` = `[{key, label}, …]` | `attachments[].key` | 📎 Attached by message: … |
 
 **Why arrays:** the same email can be picked up later and replied to *and*
 forwarded again — several times, in several threads, even from a different
@@ -158,6 +158,75 @@ email.
 Boundaries: `report`/`prologue` entries end/stand outside threads; inline
 messages participate like any other message.
 
+## 5. Attachments and box kinds
+
+### 5.1 Two different things are "an attachment"
+
+| Case | What the parser does | What the app does |
+|---|---|---|
+| **A. The document is in the release** (the NIAID report, a memo, a spreadsheet printed after the email) | one entry with `kind: "attachment"`, `doc_type` (`report`, `memo`, …) and `title` (its own heading). Its `date` may stay synthetic (`report`) — the app gives it a real sort position (§5.3) | puts its box **directly under the email it was attached to**, indented, with an `📎 Attachment of: …` line back to that message |
+| **B. The document is only announced in the text** ("Attached is …", "see attached …", "I am attaching …") | nothing | an `📎` **chip** under the message: an active link when the words match a document that *is* in the releases (case A), otherwise a dimmed tag marked *not in these releases* — never a dead link |
+
+The matching itself happens **in the app, at load time, across all sources**
+(`inferAttachments`): the parser sees raw OCR text with PDF line-wraps, and an
+announcement in one release may well point at a document shipped in another.
+Cue sentences are filtered so that letterheads, disclaimers ("this document is
+confidential…") and plain verbs ("without attaching enough syringes") do not
+produce tags. See `ATTACH_CUE_RE`, `ATTACH_NEGATIVE_RE`,
+`ATTACH_BOILERPLATE_RE`, `ATTACH_VAGUE_RE` in `index.html`.
+
+Fields written by `inferAttachments` (all re-derived at load, never trusted
+from a JSON file):
+
+```jsonc
+// on the message that carried it
+"attachments": [
+  { "label": "Overview of the NIAID Filovirus Vaccine Program…",
+    "key": "ebola|report|Report", "kind": "report",
+    "resolved": true,  "via": "text" },        // via: text | subject
+  { "label": "pre-print on the analysis…", "kind": "document",
+    "resolved": false, "via": "text" }         // announced, not released
+],
+"attachment_ref": "ebola|report|Report",        // legacy: first resolved one
+"attachment_label": "Overview of the NIAID…",
+
+// on the document itself
+"attached_to": "ebola|2016-03-18|18:20 ET · Ebola report you requested",
+"attached_to_label": "2016-03-18 18:20 ET · Ebola report you requested",
+"attached_by": [ { "key": "ebola|2016-03-18|…", "label": "…" } ]
+```
+
+`attachments` is an **array**: one message can carry several documents. The
+first claimer becomes the document's `attached_to` (its primary parent card);
+every claimer is listed in `attached_by`.
+
+### 5.2 Box kinds (the multi-media timeline)
+
+Every entry has a `kind`; the toolbar's **Box types** button lists whichever
+kinds exist in the merged data and ticks the ones you want listed. The choice
+is stored in `localStorage` and applies to the search results, the browse
+list, the timeline bars and the entry counts.
+
+| kind | meaning | notes |
+|---|---|---|
+| `diary` | the diary itself | default when `kind` is absent |
+| `email` | one dated message | inline-quote recoveries count as emails |
+| `attachment` | a document travelling with a message | aliases: `report` |
+| `sms`, `social`, `slack`, `whatsapp`, `chat`, `document` | reserved for the sources you will mix in | they only appear in the filter once a release uses them |
+
+Adding a new source type therefore needs **no UI change**: tag its entries
+(`kind: "slack"`), and the chip, the filter box and the counts appear by
+themselves. `KIND_ALIASES` maps a parser's spelling (`tweet` → `social`,
+`report` → `attachment`, …) onto a canonical kind.
+
+### 5.3 Where an attachment sits in time
+
+An attachment has no timestamp of its own, so it inherits its parent's for
+**sorting only** (`sort_date` / `sort_time`, set by
+`orderAttachmentsAfterParents`). It keeps its own `date` for display, stays out
+of the timeline's per-day counts when that date is synthetic, and travels with
+its parent through the browse window and the arrow-key navigation.
+
 ## 6. Entry shape
 
 ```json
@@ -175,6 +244,13 @@ messages participate like any other message.
   ],
   "forwarded_from": "…", "forwarded_from_label": "…",
   "forwarded_by": [ { "key": "…", "label": "…" } ],
+  "attachments": [
+    { "label": "…", "key": "ebola|report|Report",
+      "kind": "report", "resolved": true, "via": "text" }
+  ],
+  "attached_by": [ { "key": "ebola|2016-03-18|…", "label": "…" } ],
+  "attached_to": "ebola|2016-03-18|18:20 ET · Ebola report you requested",
+  "sort_date": "2016-03-18", "sort_time": "1820",
   "date_note": "…",
   "source": "ebola"
 }
