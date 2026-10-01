@@ -880,19 +880,52 @@ function applyKindFilter() {
   timelineSeries = null;
   redrawTimelines();
   if (!diaryData) return;
+  updateEntryStatsLine();
   if (lastSearchResults && lastSearchQuery) {
     doSearch();
-  } else if (browseMode && window._searchResults && window._searchResults.length) {
-    var center = window._searchResults[0].idx;
-    var pack = browsePackNearest(center);
-    if (pack) {
-      displayResults(pack.results, '', { autoSelect: false });
-      browseMode = true;
-    }
-  } else {
-    updateEntryStatsLine();
-    redrawTimelines();
+    return;
   }
+  // No search running: show the boxes of the selected kinds straight away, so
+  // ticking (say) only "Attachment" lists that one box instead of leaving an
+  // empty panel. Keeps the current position when we already are in browse mode.
+  var pack = null;
+  if (browseMode && window._searchResults && window._searchResults.length) {
+    pack = browsePackNearest(window._searchResults[0].idx);
+  } else {
+    var first = firstEnabledEntryIndex();
+    if (first >= 0) pack = buildBrowseResultsAroundIndex(first, BROWSE_RADIUS);
+  }
+  if (pack && pack.results.length) {
+    displayResults(pack.results, '', { autoSelect: false });
+    browseMode = true;
+  } else {
+    browseMode = false;
+    window._searchResults = null;
+    showKindFilterPlaceholder();
+  }
+  redrawTimelines();
+}
+
+/** Index of the first entry whose kind is ticked (or -1 when none is). */
+function firstEnabledEntryIndex() {
+  var entries = diaryData ? diaryData.entries : [];
+  for (var i = 0; i < entries.length; i++) {
+    if (kindAllowedForEntry(entries[i])) return i;
+  }
+  return -1;
+}
+
+/** Placeholder for "nothing selected" / "nothing of these kinds here". */
+function showKindFilterPlaceholder() {
+  var panel = document.getElementById('resultsPanel');
+  if (!panel) return;
+  var any = availableKinds().some(kindFilterEnabled);
+  panel.innerHTML = any
+    ? '<div class="placeholder"><h2>No boxes here</h2><p>No <b>' +
+      escapeHtml(kindFilterLabel()) + '</b> entries in this stretch of the timeline. ' +
+      'Tick more kinds in <b>Box types</b>, or search for a term.</p></div>'
+    : '<div class="placeholder"><h2>No box type selected</h2><p>Tick at least one kind ' +
+      'in <b>Box types</b> (diary, email, attachment, &hellip;) to list boxes.</p></div>';
 }
 function updateEntryStatsLine() {
   var el = document.getElementById('entryStats');
@@ -2105,13 +2138,27 @@ function parseLocalISO(iso) {
 
 let timelineSeries = null; // { labels, entryCounts, entryColors, entryDays, totalDays }
 
+/**
+ * The calendar day an entry is PLOTTED on. Almost every entry carries its own
+ * ISO date; an attachment does not (the NIAID report is dated 'report'), so it
+ * is plotted on the day of the message it was attached to - which is exactly
+ * when it reached Fauci. That is what makes an "Attachment only" selection show
+ * up on the timeline instead of an empty chart. Entries with no date and no
+ * parent (the prequel prologue, an appendix) stay off the calendar.
+ */
+function entryDayKey(e) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(e.date)) return e.date;
+  if (e.sort_date && /^\d{4}-\d{2}-\d{2}$/.test(e.sort_date)) return e.sort_date;
+  return null;
+}
+
 function buildTimelineSeries() {
   const dateCounts = {};
   for (const e of diaryData.entries) {
     if (!kindAllowedForEntry(e)) continue;            // box-type filter
-    // Skip synthetic entries ('prologue', 'appendix', 'report') — not calendar days.
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date)) continue;
-    dateCounts[e.date] = (dateCounts[e.date] || 0) + 1;
+    const day = entryDayKey(e);
+    if (!day) continue;                               // no calendar day (prologue, appendix)
+    dateCounts[day] = (dateCounts[day] || 0) + 1;
   }
 
   const yearColors = {
@@ -2167,8 +2214,9 @@ function hitCountsForSeries(results) {
   const byDate = {};
   if (results) {
     for (const r of results) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(r.entry.date)) continue;
-      byDate[r.entry.date] = (byDate[r.entry.date] || 0) + r.hits;
+      const day = entryDayKey(r.entry);          // attachment -> its parent's day
+      if (!day) continue;
+      byDate[day] = (byDate[day] || 0) + r.hits;
     }
   }
   return series.labels.map(function(iso) { return byDate[iso] || 0; });
@@ -2296,15 +2344,20 @@ function focusTimelineOnDate(date) {
 
 function jumpToDate(date) {
   if (!diaryData) return;
-  // Find the first entry matching this date
-  var foundEntry = null, foundIdx = -1;
+  // First entry on that date whose box type is listed (the box-type filter
+  // decides what the timeline shows, so it decides what a bar click opens);
+  // fall back to any entry on the date when no type is ticked.
+  var foundEntry = null, foundIdx = -1, fallbackEntry = null, fallbackIdx = -1;
   for (var i = 0; i < diaryData.entries.length; i++) {
-    if (diaryData.entries[i].date === date) {
+    if (diaryData.entries[i].date !== date) continue;
+    if (fallbackIdx < 0) { fallbackEntry = diaryData.entries[i]; fallbackIdx = i; }
+    if (kindAllowedForEntry(diaryData.entries[i])) {
       foundEntry = diaryData.entries[i];
       foundIdx = i;
       break;
     }
   }
+  if (!foundEntry) { foundEntry = fallbackEntry; foundIdx = fallbackIdx; }
   if (!foundEntry) return;
 
   // Search active + this date is a hit: keep full hit list, scroll to card, open PDF.
@@ -3365,7 +3418,7 @@ function displayResults(results, query, opts) {
       ? '<div class="placeholder"><h2>No results</h2>' +
         '<p>No entries found for "' + escapeHtml(query) + '".</p></div>'
       : '<div class="placeholder"><h2>No boxes here</h2>' +
-        '<p>No <b>' + escapeHtml(kindFilterLabel()) + '</b> boxes in this stretch of the timeline. ' +
+        '<p>No <b>' + escapeHtml(kindFilterLabel()) + '</b> entries in this stretch of the timeline. ' +
         'Tick more kinds in <b>Box types</b>, or search for a term.</p></div>';
     return;
   }

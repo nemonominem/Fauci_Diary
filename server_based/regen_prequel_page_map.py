@@ -198,9 +198,13 @@ def build_page_map():
     accum = {}
     order = []
     active_key = None
+    prologue_lines = []      # everything before the first date header
 
     for i, line in enumerate(lines):
         stripped = line.strip()
+        # Everything before the first accepted date header is the prologue.
+        if not order and not is_strip_line(stripped):
+            prologue_lines.append((line, page_of_line[i]))
         m = DATE_HEADER_RE.match(stripped)
         if m:
             month_txt = m.group(1)
@@ -247,8 +251,17 @@ def build_page_map():
                 accum[active_key].append((line, page_of_line[i]))
 
     page_map = {}
-    # Prologue: content before the first date header (email cover + intro)
-    page_map["prologue|Prologue"] = {"start": 1, "end": 2, "breaks": [[0, 1]]}
+    # Prologue: content before the first date header (email cover + intro).
+    # Measured from the OCR like every other entry instead of hard-coded: the
+    # cover note and the first diary entry both start on p.2, so the old
+    # constant pointed one page early.
+    if prologue_lines:
+        _c, pro_breaks, pro_start, pro_end = clean_with_pages(prologue_lines)
+        page_map["prologue|Prologue"] = {
+            "start": pro_start, "end": pro_end, "breaks": pro_breaks,
+        }
+    else:
+        page_map["prologue|Prologue"] = {"start": 1, "end": 1, "breaks": [[0, 1]]}
 
     for key in order:
         iso, raw = key.split("|", 1)

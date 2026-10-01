@@ -32,10 +32,23 @@ python3 regen_prequel_page_map.py   # rebuild page map
 
 ### Ebola extract (Mar 2016)
 ```bash
-python3 reparse_ebola.py          # OCR text → fixed JSON (8 diary + 19 threaded emails + report)
+python3 reparse_ebola.py          # OCR text → fixed JSON (8 diary + 19 threaded emails + the report)
 python3 clean_ebola_breaks.py     # collapse PDF line-breaks
 python3 regen_ebola_page_map.py   # rebuild page map (imports the parser; asserts content equality)
 ```
+
+### After ANY page-map or content change (all releases)
+```bash
+python3 fix_page_map_offsets.py   # clamp/verify all three maps against the loaded text
+```
+Run it last. A page map records where an entry's content crosses a page
+boundary (`breaks: [[charOffset, page], …]`), so an offset that points past the
+end of the content sends a search hit to a page the entry does not even reach —
+this happens when the OCR block swallowed material the parser correctly drops
+(pasted press articles, web boilerplate, a repeated date header). The script
+drops those breaks, keeps offsets increasing and pages non-decreasing,
+recomputes `start`/`end`, drops orphan keys and prints any entry left unmapped.
+It is idempotent; run it even when nothing changed, as a regression check.
 
 > Emails, mail threads and their time-zone handling (local stamp + New York
 > normalisation, reply-chain links, printable header block) are specified in
@@ -48,6 +61,7 @@ python3 regen_ebola_page_map.py   # rebuild page map (imports the parser; assert
 | `2026.07.24_Tonys-Diary-Package_fixed.json` | Main diary parsed entries (pre-clean) |
 | `2026.07.24_Tonys-Diary-Package.json` | Main diary app load file (cleaned) |
 | `page_map.json` | Main diary: date\|raw_date → PDF page |
+| `fix_page_map_offsets.py` | Clamps/verifies every page map against the loaded text (run last) |
 | `diary.pdf` | Local copy of the main Congressional PDF |
 | `2026.07.27_Diary-Prequel-.txt` | Prequel OCR source text |
 | `2026.07.27_Diary-Prequel-_fixed.json` | Prequel parsed entries (pre-clean) |

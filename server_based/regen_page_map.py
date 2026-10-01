@@ -234,15 +234,13 @@ def looks_like_bare_link_reference(rest_of_line, lines, i):
     return nxt.startswith("http") or nxt.startswith("sharethis")
 
 
-def build_page_map():
-    """Build rich page map: start/end + char-offset breaks for hit→page jumps.
+def collect_blocks():
+    """Scan the OCR text into ordered entry blocks.
 
-    Content lines are accumulated per entry *key* (not per "currently active"
-    entry) so that a self-referencing repeat header correctly resumes
-    appending to its own original entry even if a different date's entry was
-    parsed in between (e.g. headers appear out of order as June 24, June 23,
-    June 24 in the source: the second "June 24" chunk must still land back in
-    the June 24 entry, not get folded into June 23's).
+    Returns (order, accum, expected_counts): accum maps "iso|raw_date" to the
+    [(line, page), ...] making up that entry. Shared with
+    fix_page_map_offsets.py so both agree on where each entry starts and
+    which page each of its lines sits on.
     """
     with open(TEXT_PATH, encoding="utf-8") as f:
         lines = [ln.rstrip("\n") for ln in f.readlines()]
@@ -260,6 +258,8 @@ def build_page_map():
 
     accum = {}  # key -> list of (text, page)
     order = []  # keys in first-seen order
+    printed = {}     # internal key -> key to publish (printed date, no correction)
+    splits = {}      # key -> [offset in accum[key] where the block resumed]
     active_key = None
 
     for i, line in enumerate(lines):
@@ -303,8 +303,19 @@ def build_page_map():
                 # entries as expected; this is a same-date self-reference
                 # embedded in pasted press content (a byline, a cartoon-list
                 # date, etc.), not another new entry. Resume appending to the
-                # entry it belongs to, even if something else is active now.
+                # entry it belongs to - but ONLY when that entry is the one
+                # currently being read. A header for a date we already closed
+                # further up the document (May 21 2020 appearing both inside
+                # the March section and on its own page later) is a REAL entry
+                # that the JSON does have, so it gets its own block and keeps
+                # its printed date.
                 if key in accum:
+                    # Could be a running head / self-reference, or a REAL
+                    # later entry whose date the content proves wrong (May 21
+                    # 2020 appears both inside the March section and on its own
+                    # page). Record where this block resumes so the decision can
+                    # be made after the scan, when the content is known.
+                    splits.setdefault(key, []).append(len(accum[key]))
                     active_key = key
                     if rest_of_line.strip():
                         accum[active_key].append((rest_of_line, page_of_line[i]))
@@ -322,13 +333,46 @@ def build_page_map():
             if active_key is not None and not is_strip_line(stripped):
                 accum[active_key].append((line, page_of_line[i]))
 
+    # Deferred split: a block whose printed date turns out to be WRONG (the
+    # content dates it elsewhere) must not also swallow the real entry printed
+    # under that same header further down the document.
+    for key in list(order):
+        iso, raw = key.split("|", 1)
+        content = "\n".join(t for t, _ in accum[key]).strip()
+        if not content or apply_corrections(iso, raw, content) == iso:
+            continue                      # printed date is right: keep as one entry
+        for cut in sorted(splits.get(key, []), reverse=True):
+            tail = accum[key][cut:]
+            head = accum[key][:cut]
+            if not tail or not head:
+                continue
+            # The tail keeps the PRINTED key, which is what the content JSON
+            # uses for that entry (the head gets date-corrected to another day,
+            # so the two published keys cannot collide).
+            uniq = "%s [split %d]" % (key, len(order) + 1)
+            accum[key] = head
+            accum[uniq] = tail
+            order.append(uniq)
+            printed[uniq] = key           # publish under the printed date
+
+    return order, accum, expected_counts, printed
+
+
+def build_page_map():
+    """Build {date|raw_date: {start, end, breaks}} from the OCR text."""
+    order, accum, _expected, printed = collect_blocks()
     page_map = {}
     for key in order:
         iso, raw = key.split("|", 1)
         raw_content = "\n".join(t for t, _ in accum[key]).strip()
-        corrected_iso = apply_corrections(iso, raw, raw_content)
+        if not raw_content:
+            continue          # empty block (e.g. a header with no body): no entry
+        if key in printed:
+            out_key = printed[key]       # printed date is already correct
+        else:
+            out_key = apply_corrections(iso, raw, raw_content) + "|" + raw
         cleaned, breaks, start, end = clean_with_pages(accum[key])
-        page_map[corrected_iso + "|" + raw] = {
+        page_map[out_key] = {
             "start": start,
             "end": end,
             "breaks": breaks,
