@@ -28,6 +28,13 @@ python3 reparse_prequel.py          # OCR text → fixed JSON
 python3 clean_prequel_breaks.py     # collapse PDF line-breaks
 python3 merge_prequel_duplicates.py # merge same-date entries
 python3 regen_prequel_page_map.py   # rebuild page map
+python3 fix_page_map_offsets.py      # clamp/validate every page map (run LAST)
+
+# Pages that ship as scans with no text layer (prequel p.1 = the publisher's
+# analysis) are transcribed once with macOS Vision and kept as text:
+swiftc -O ocr_image.swift -o /tmp/ocr_vision
+python3 -c "import pypdf;open('/tmp/p1.png','wb').write(pypdf.PdfReader('diary-prequel.pdf').pages[0].images[0].data)"
+/tmp/ocr_vision /tmp/p1.png prequel_publisher_analysis.txt
 ```
 
 ### Ebola extract (Mar 2016)
@@ -67,6 +74,9 @@ It is idempotent; run it even when nothing changed, as a regression check.
 | `2026.07.27_Diary-Prequel-_fixed.json` | Prequel parsed entries (pre-clean) |
 | `2026.07.27_Diary-Prequel-.json` | Prequel app load file (cleaned) |
 | `prequel_page_map.json` | Prequel: date\|raw_date → PDF page |
+| `prequel_publisher_analysis.txt` | Vision OCR of the prequel's p.1 scan (the publisher's analysis); read by `reparse_prequel.py` |
+| `ocr_image.swift` | macOS Vision OCR for scan-only pages (reading order + two-column blocks + paragraph gaps) |
+| `merge_prequel_duplicates.py` | Folds same-date **diary** entries only; never merges an email/attachment/note |
 | `diary-prequel.pdf` | Local copy of the prequel Congressional PDF |
 | `2026.09.28_Ebola-Doc-Release_Full-Package.txt` | Ebola extract OCR source text |
 | `2026.09.28_Ebola-Doc-Release_Full-Package_fixed.json` | Ebola parsed entries (pre-clean) |

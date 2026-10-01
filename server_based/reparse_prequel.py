@@ -132,6 +132,189 @@ def format_raw_date(month_txt, day, end_day_s, year):
     return raw
 
 
+FRONT_MATTER_OCR = os.path.join(HERE, "prequel_publisher_analysis.txt")
+
+# Obvious Vision OCR slips in the publisher's analysis (listed, so the
+# transcription stays auditable rather than silently "fixed").
+ANALYSIS_FIXES = [("publick...", "publicly..."), ("iS a tough", "is a tough")]
+
+SEPARATOR = "-" * 10
+
+
+def _analysis_entry():
+    """Chairman Rand Paul's analysis, printed on p.1 as a scan (no text layer).
+
+    PUBLISHER material, not one of the released documents: its own kind
+    ("note"), an author, and no date - so it is never counted as a diary entry
+    and never plotted on the timeline.
+    """
+    if not os.path.exists(FRONT_MATTER_OCR):
+        return []
+    with open(FRONT_MATTER_OCR, encoding="utf-8") as f:
+        text = f.read()
+    for wrong, right in ANALYSIS_FIXES:
+        text = text.replace(wrong, right)
+    lines = [ln.rstrip() for ln in text.split("\n")]
+    start = 0
+    for i, ln in enumerate(lines):
+        if ln.strip().lower().startswith("tony") and "diary" in ln.lower():
+            start = i
+            break
+    body = "\n".join(lines[start:]).strip()
+    if not body:
+        return []
+    return [{
+        "date": "prologue",
+        "kind": "note",
+        "raw_date": "Analysis by Chairman Rand Paul",
+        "title": lines[start].strip(),
+        "author": "Chairman Rand Paul",
+        "provenance": "Publisher's analysis printed on page 1 of the release "
+                      "(a scan, transcribed with macOS Vision OCR). Not one of "
+                      "the released documents.",
+        "content": body,
+    }]
+
+
+MONTHS_NUM = {m: i for i, m in enumerate(
+    ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], 1)}
+
+
+def parse_rfc2822(value):
+    """RFC2822 date -> aware datetime in UTC (the offset is authoritative)."""
+    from datetime import datetime, timedelta, timezone
+    m = re.search(r"(?:\w{3},\s*)?(\d{1,2})\s+(\w{3})\w*\s+(\d{4})\s+"
+                  r"(\d{2}):(\d{2})(?::(\d{2}))?\s*([+-]\d{4})?", value)
+    if not m:
+        return None
+    day, mon, year, hh, mm, ss, off = m.groups()
+    if mon[:3].title() not in MONTHS_NUM:
+        return None
+    try:
+        naive = datetime(int(year), MONTHS_NUM[mon[:3].title()], int(day),
+                         int(hh), int(mm), int(ss or 0))
+    except ValueError:
+        return None
+    if off:
+        sign = 1 if off[0] == "+" else -1
+        delta = timedelta(hours=int(off[1:3]), minutes=int(off[3:5])) * sign
+        return (naive - delta).replace(tzinfo=timezone.utc)
+    return naive.replace(tzinfo=timezone.utc)
+
+
+def format_sent_line(dt):
+    """(iso date, HHMM, "HH:MM", printable stamp) in New York time."""
+    from zoneinfo import ZoneInfo
+    ny = dt.astimezone(ZoneInfo("America/New_York"))
+    stamp = ny.strftime("%A, %B %d, %Y %I:%M %p %Z")
+    stamp = stamp.replace(" EDT", " ET").replace(" EST", " ET")
+    return ny.date().isoformat(), ny.strftime("%H%M"), ny.strftime("%H:%M"), stamp
+
+
+def _cover_email(head):
+    """Parse the p.2 cover sheet into an email entry (printable header block)."""
+    fields, body_lines = [], []
+    raw_header_date = None
+    in_body = False
+    for line in head.split("\n"):
+        stripped = line.strip()
+        m = re.match(r"^([A-Za-z-]+):\s*(.*)$", stripped)
+        if m and m.group(1).lower() in ("from", "to", "cc", "subject", "date",
+                                        "sent", "attachments", "importance"):
+            name = m.group(1).lower()
+            if name == "date":
+                raw_header_date = m.group(2).strip()   # printed once, as "Sent:"
+            else:
+                fields.append("%s: %s" % (name.capitalize(), m.group(2).strip()))
+            in_body = False
+            continue
+        if not stripped:
+            continue
+        if not in_body and re.match(r"^</?[A-Za-z0-9=/;,.\s]+>$", stripped):
+            continue          # continuation of the From:/To: address-book line
+        in_body = True
+        body_lines.append(stripped)
+
+    if not any(f.lower().startswith("subject:") for f in fields):
+        return None
+    dt = parse_rfc2822(raw_header_date) if raw_header_date else None
+    if dt is None:
+        return None
+    iso, hhmm, et_hhmm, printable = format_sent_line(dt)
+    subject = next((f.split(":", 1)[1].strip() for f in fields
+                    if f.lower().startswith("subject:")), "")
+    # Fields are separated by BLANK lines: the cleaner turns each into its own
+    # paragraph, which is what the card renders as the printable header block.
+    content = ("\n\n".join(fields)
+               + "\n\nSent: " + printable
+               + "\n\n" + SEPARATOR + "\n\n"
+               + "\n\n".join(body_lines)).strip()
+    return {
+        "date": iso,
+        "time": hhmm,
+        "kind": "email",
+        "raw_date": "%s ET · %s" % (et_hhmm, subject or "(no subject)"),
+        "date_note": "Cover email of the prequel; carries the historical record as an attachment",
+        "content": content,
+    }
+
+def front_matter(lines):
+    """The release's front matter, split into what it actually is.
+
+    p.2 is a real released document: an email Fauci sent to himself
+    ("Subject: history", 11 Jul 2015) whose attachment is the HISTORICAL RECORD
+    OF HIV/AIDS opening on p.3. The old code glued all of it into one
+    synthetic "prologue" entry that counted as a diary entry and had no date.
+    Now: the cover email, its attachment (linked both ways), and - from p.1 -
+    the publisher's analysis as its own "note" box.
+    """
+    joined = "\n".join(ln.rstrip() for ln in lines)
+    marker = re.search(r"^\s*HISTORICAL RECORD OF.*$", joined, re.MULTILINE)
+    head = (joined[:marker.start()] if marker else joined).strip()
+    tail = (joined[marker.end():] if marker else "").strip()
+
+    entries = _analysis_entry()
+
+    email = _cover_email(head) if head else None
+    if email:
+        entries.append(email)
+
+    if tail:
+        title = "HISTORICAL RECORD OF HIV/AIDS"
+        m = re.match(r"^(HISTORICAL RECORD OF[^\n]*)", tail.strip())
+        if m:
+            title = m.group(1).strip()
+        # The record is not a self-contained document: after its heading the
+        # text continues under the ordinary date headers, i.e. as the dated
+        # entries of this release (26 Jan 2001 - 11 Jul 2015, PDF pp. 3-42).
+        # So this box is the attachment MANIFEST - it names the document, says
+        # where its text lives, and deliberately does not repeat that text
+        # (which would show up twice in every search).
+        body = (
+            title + "\n\n"
+            + "Attachment to the cover email of 11 July 2015 "
+            + "(historical_record_of_A.S._Fauci.docx).\n\n"
+            + "Its text is the body of this release and is not repeated here: it "
+            + "follows as the dated entries below, from 26 January 2001 to "
+            + "11 July 2015 (PDF pp. 3-42). Those entries are the searchable text "
+            + "of the attachment."
+        )
+        entry = {
+            "date": email["date"] if email else "2015-07-11",
+            "kind": "attachment",
+            "doc_type": "document",
+            "title": title,
+            "raw_date": title,
+            "date_note": "Attachment manifest - the document's text is the dated entries that follow",
+            "content": body,
+        }
+        if email:                      # primary parent: the cover email
+            entry["attached_to"] = email["date"] + "|" + email["raw_date"]
+            entry["attached_to_label"] = email["date"] + " " + email["raw_date"]
+        entries.append(entry)
+    return entries
+
+
 def parse_text():
     with open(TEXT_PATH, encoding="utf-8") as f:
         lines = f.readlines()
@@ -173,14 +356,9 @@ def parse_text():
                     e["date_note"] = note
                 entries.append(e)
             else:
-                # First date header — save any preceding prologue content
-                prologue_text = "\n".join(prologue_lines).strip()
-                if prologue_text:
-                    entries.append({
-                        "date": "prologue",
-                        "raw_date": "Prologue",
-                        "content": prologue_text,
-                    })
+                # First date header — the front matter ends here. It is three
+                # different things, not one "prologue" (see front_matter()).
+                entries.extend(front_matter(prologue_lines))
 
             cur_raw = format_raw_date(month_txt, day, end_day_s, year)
             cur_iso = safe_date(year, month, day).isoformat()

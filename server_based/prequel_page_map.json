@@ -1,14 +1,30 @@
 {
-  "prologue|Prologue": {
+  "prologue|Analysis by Chairman Rand Paul": {
+    "start": 1,
+    "end": 1,
+    "breaks": [
+      [
+        0,
+        1
+      ]
+    ]
+  },
+  "2015-07-11|17:50 ET · history": {
     "start": 2,
-    "end": 3,
+    "end": 2,
     "breaks": [
       [
         0,
         2
-      ],
+      ]
+    ]
+  },
+  "2015-07-11|HISTORICAL RECORD OF HIV/AIDS": {
+    "start": 3,
+    "end": 3,
+    "breaks": [
       [
-        265,
+        0,
         3
       ]
     ]

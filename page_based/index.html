@@ -369,6 +369,9 @@ body.layout-portrait .pdf-panel {
   border-bottom: 1px solid var(--border-2); background: rgba(245,166,35,0.07);
 }
 .att-parent a { color: #f5a623; text-decoration: underline; cursor: pointer; }
+.result-entry.is-note { border-left: 3px solid #b98cff; }
+.result-entry.is-note .result-date { color: #b98cff; }
+.result-entry.is-note .att-parent { background: rgba(185,140,255,0.08); }
 .att-parent a:hover { color: var(--accent); }
 .reply-ref {
   padding: 6px 14px; border-top: 1px dashed var(--border-2);
@@ -562,7 +565,7 @@ mark.hit-current {
 <div class="header">
   <div class="title-block">
     <h1>📖 Tony's Diary Search</h1>
-    <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a> &middot; 2,016 entries &middot; Jan 2001 &ndash; Dec 2022</span>
+    <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a> &middot; 2,018 entries &middot; Jan 2001 &ndash; Dec 2022</span>
   </div>
   <form class="search-bar" id="searchForm" onsubmit="doSearch(); return false;">
     <input type="text" id="searchInput" enterkeyhint="search" autocomplete="off" placeholder='Phrase: "blue car" · words: happy bunny · help: ?'>
@@ -774,12 +777,14 @@ const KIND_DEFS = [
   { id: 'slack',      label: 'Slack',          icon: '\u{1F517}', color: '#c86dd7' },
   { id: 'whatsapp',   label: 'WhatsApp',       icon: '\u{1F4F2}', color: '#25d366' },
   { id: 'chat',       label: 'Chat / IM',      icon: '\u{1F5E8}', color: '#8f8f9e' },
-  { id: 'document',   label: 'Document',       icon: '\u{1F4C4}', color: '#f5a623' }
+  { id: 'document',   label: 'Document',       icon: '\u{1F4C4}', color: '#f5a623' },
+  { id: 'note',       label: 'Release note',   icon: '\u{1F4DD}', color: '#b98cff' }
 ];
 const KIND_ALIASES = { report: 'attachment', attachment: 'attachment', inline: 'email',
-  email: 'email', diary: 'diary', note: 'diary', entry: 'diary', text: 'sms', sms: 'sms',
+  email: 'email', diary: 'diary', entry: 'diary', text: 'sms', sms: 'sms',
   twitter: 'social', tweet: 'social', facebook: 'social', social: 'social',
-  slack: 'slack', whatsapp: 'whatsapp', im: 'chat', chat: 'chat', document: 'document' };
+  slack: 'slack', whatsapp: 'whatsapp', im: 'chat', chat: 'chat', document: 'document',
+  note: 'note', analysis: 'note', foreword: 'note', publisher: 'note' };
 const KIND_BY_ID = {};
 KIND_DEFS.forEach(function(k) { KIND_BY_ID[k.id] = k; });
 /** Normalised kind of an entry ("report" -> "attachment", missing -> "diary"). */
@@ -992,6 +997,23 @@ function entryOwnBody(e) {
   var sep = c.indexOf('----------');
   return sep >= 0 ? c.slice(sep + 10) : c;
 }
+/**
+ * The text scanned for attachment announcements: the message body plus the
+ * header fields that can announce one ("Attachments: report.pdf"), but not
+ * From/To/Cc/Subject/Date/Sent, whose wording is not the sender announcing
+ * anything at that moment.
+ */
+function entryScanText(e) {
+  var c = (e && e.content) || '';
+  if (entryKind(e) !== 'email') return c;
+  var sep = c.indexOf('----------');
+  var head = sep >= 0 ? c.slice(0, sep) : c;
+  var body = sep >= 0 ? c.slice(sep + 10) : '';
+  var headLines = head.split('\n').filter(function(ln) {
+    return !/^\s*(from|to|cc|bcc|subject|date|sent|reply-to)\s*:/i.test(ln);
+  }).join('\n');
+  return headLines + '\n' + body;
+}
 function attachWords(text) {
   var out = {};
   (String(text || '').toLowerCase().match(/[a-z]{5,}/g) || []).forEach(function(w) {
@@ -1047,7 +1069,7 @@ function inferAttachments(entries) {
   entries.forEach(function(e) {
     if (entryKind(e) === 'attachment') return;
     var subject = String(e.raw_date || '').split(' · ').pop();
-    attachmentMentions(entryOwnBody(e)).forEach(function(desc) {
+    attachmentMentions(entryScanText(e)).forEach(function(desc) {
       var dw = attachWords(desc);
       var best = null, bestScore = 0;
       docs.forEach(function(d) {
@@ -3444,6 +3466,7 @@ function displayResults(results, query, opts) {
     const kdef = kindDef(kind);
     // An attachment's box sits indented under the entry it was attached to
     html += '<div class="result-entry' + (kind === 'attachment' ? ' is-attachment' : '') +
+      (kind === 'note' ? ' is-note' : '') +
       '" id="result-' + i + '" data-result-idx="' + i + '" data-pdf-page="' + pdfPage + '" data-entry-idx="' + r.idx + '">';
     html += '<div class="result-header">';
     html += '<span><span class="result-date">' + escapeHtml(e.date) + '</span>' +
@@ -3466,6 +3489,16 @@ function displayResults(results, query, opts) {
     html += '<button type="button" class="expand-btn" data-expand-toggle="' + i + '" hidden title="Show the full text of this entry">⤢ Full text</button>';
     html += '</span>';
     html += '</div>';
+
+    // Publisher material (kind "note"): who wrote it, and what it is
+    if (kind === 'note') {
+      html += '<div class="att-parent">' +
+        (e.author ? '\u2709 ' + escapeHtml(e.author) + ' \u00b7 ' : '') +
+        escapeHtml(e.title || 'Release note') +
+        (e.provenance ? '<div style="margin-top:3px;font-style:italic">' +
+          escapeHtml(e.provenance) + '</div>' : '') +
+        '</div>';
+    }
 
     // Which message this document travelled with
     if (kind === 'attachment' && e.attached_to) {

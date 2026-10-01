@@ -19,7 +19,21 @@ mail thread into one entry:
 | `diary` (default) | A diary day (`March 3, 2016`) | yes | none |
 | `email` | One email message, one author, one timestamp | yes | ✉ email |
 | `report` | Attached/standalone document with no single author-instant (e.g. the NIAID filovirus overview) | no (sorted last) | 📄 report |
-| `prologue` | Release cover sheet / intro with no date header (prequel) | no (sorted first) | — |
+| `attachment` | A document travelling with a message (the NIAID report; the prequel's HISTORICAL RECORD) | via its parent (§5.3) | 📎 attachment |
+| `note` | **Publisher material about the release, not one of its documents** (the prequel's p.1 analysis) | no (sorted first) | 📝 release note |
+
+**Publisher material is not a document.** Rand Paul's analysis on p.1 of the
+prequel is *about* the release, not *in* it: it is a scan with no text layer, it
+has no date, and counting it as a diary entry would be a lie about the source.
+It therefore gets `kind: "note"`, an `author` and a `provenance` line, a synthetic
+`date` so it sorts first and stays out of the timeline, and its own box. The
+same applies to any future cover letter, foreword or commentary: if it is not a
+document the author released as such, model it as a `note`.
+
+The prequel's front matter, which used to be one mislabelled "prologue" entry,
+is the worked example of the whole model: a `note` (p.1, the publisher), an
+`email` (p.2, a real released message — Fauci to himself, 11 Jul 2015) and an
+`attachment` beneath it (the HISTORICAL RECORD it carries).
 
 **An email entry contains only what its author wrote in that message** — no
 quoted history, no forwarded bodies. The messages it answers are separate
@@ -196,6 +210,12 @@ from a JSON file):
 "attached_by": [ { "key": "ebola|2016-03-18|…", "label": "…" } ]
 ```
 
+Announcements are read from the **whole message**, header fields included: an
+`Attachments: historical_record_of_A.S._Fauci.docx` line is as much a
+declaration as "see the attached report" in the body. (`entryScanText` keeps
+From/To/Cc/Subject/Date/Sent out of the scan — those are addressing, not
+announcements.)
+
 `attachments` is an **array**: one message can carry several documents. The
 first claimer becomes the document's `attached_to` (its primary parent card);
 every claimer is listed in `attached_by`.
@@ -212,6 +232,7 @@ list, the timeline bars and the entry counts.
 | `diary` | the diary itself | default when `kind` is absent |
 | `email` | one dated message | inline-quote recoveries count as emails |
 | `attachment` | a document travelling with a message | aliases: `report` |
+| `note` | publisher material about a release (analysis, cover letter) | not a released document; no date, so never plotted |
 | `sms`, `social`, `slack`, `whatsapp`, `chat`, `document` | reserved for the sources you will mix in | they only appear in the filter once a release uses them |
 
 Adding a new source type therefore needs **no UI change**: tag its entries

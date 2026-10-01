@@ -7,6 +7,11 @@ Same logic as merge_duplicate_entries.py but for the Prequel
 range entries (e.g. "Oct. 25-28, 2001" starts on the same ISO date as
 "Oct. 25, 2001"), continuation fragments, and genuine two-notes-same-day.
 Fold every later occurrence's content into the first, in list order.
+
+Only DIARY entries are folded.  The front matter carries an email (the cover
+email of 11 Jul 2015) and the attachment it carries, both dated 2015-07-11, plus
+the publisher's analysis; those are separate documents and must survive as
+their own boxes (see EMAILS.md §1 and §5).
 """
 
 import json
@@ -24,9 +29,12 @@ def main():
     first_by_date = {}
     merged = []
     merges = []
+    def kind_of(entry):
+        return (entry.get("kind") or "diary").lower()
+
     for e in entries:
         prev = first_by_date.get(e["date"])
-        if prev is not None:
+        if prev is not None and kind_of(prev) == "diary" and kind_of(e) == "diary":
             merges.append((prev["date"], prev["raw_date"], e["raw_date"]))
             prev["content"] = prev["content"] + "\n\n" + e["content"]
         else:

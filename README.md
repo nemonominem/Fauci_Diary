@@ -6,10 +6,10 @@ Searchable web app for Dr. Anthony Fauci's diary (Congressional release by Chair
 
 | Release | Period | Entries | PDF pages |
 |---|---|---|---|
-| **Prequel** — Historical Record of HIV/AIDS | Jan 2001 – Jul 2015 | 1,135 | 465 |
+| **Prequel** — Historical Record of HIV/AIDS | Jan 2001 – Jul 2015 | 1,137 | 465 |
 | **Ebola extract** — Zika / filovirus diary notes + threaded emails + NIAID report | Mar 3–22, 2016 | 28 (8 diary + 19 emails + report) | 26 |
 | **Main Diary** — Tony's Diary Package | Dec 2019 – Dec 2022 | 853 | 1,141 |
-| **Combined** | Jan 2001 – Dec 2022 | 2,016 | 1,632 |
+| **Combined** | Jan 2001 – Dec 2022 | 2,018 | 1,632 |
 
 All three releases are merged into a single searchable timeline. The PDF viewer
 automatically switches to the correct source PDF when you click a result.
@@ -19,6 +19,14 @@ automatically switches to the correct source PDF when you click a result.
 Emails are first-class entries, not appendix blobs: each message is its own
 dated card holding only what its author wrote, linked to the message it answers,
 with timestamps normalised to New York time (local time shown alongside).
+
+The prequel's front matter is **three documents, not a "prologue"**: Chairman
+Rand Paul's analysis printed on p.1 (a scan, transcribed with macOS Vision OCR
+by `server_based/ocr_image.swift`) is publisher material and gets its own
+📝 *Release note* box with no date; the p.2 cover e-mail (Fauci to himself,
+11 Jul 2015, "Subject: history") is a real e-mail box; and the HISTORICAL RECORD
+it carries is the attachment box beneath it, linked by an active 📎 chip - its
+text being the dated entries that follow, so it is not duplicated.
 
 Attachments are handled on both sides: a document released with a message gets
 its own box directly under that message, and an attachment only *announced* in
@@ -54,7 +62,7 @@ Email/thread/timezone conventions for the data model: [`EMAILS.md`](EMAILS.md).
 ## Data
 
 - **Source PDFs**: stored locally as `diary.pdf` (1,141 pp, ~63 MB), `diary-prequel.pdf` (465 pp, ~10 MB), and `diary-ebola.pdf` (26 pp, ~3 MB; short name for `2026.09.28_Ebola-Doc-Release_Full-Package.pdf`)
-- **Parsed JSON**: 853 main-diary entries + 1,135 prequel entries + 28 ebola entries (2,016 total), each with date, raw_date, content, and source tag. Content has PDF line-breaks cleaned for reading.
+- **Parsed JSON**: 853 main-diary entries + 1,137 prequel entries + 28 ebola entries (2,018 total), each with date, raw_date, content, kind and source tag. Content has PDF line-breaks cleaned for reading. The prequel's three front-matter documents are modelled separately (see below).
 - **Page Maps**: each entry mapped to its PDF content-start page (separate maps per release)
 
 ## How to use

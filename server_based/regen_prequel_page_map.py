@@ -19,6 +19,12 @@ JSON_PATH = os.path.join(HERE, "2026.07.27_Diary-Prequel-.json")
 OUT_PATH = os.path.join(HERE, "prequel_page_map.json")
 
 
+# Keys of the three front-matter documents; must match reparse_prequel.py
+ANALYSIS_KEY = "prologue|Analysis by Chairman Rand Paul"
+COVER_EMAIL_KEY = "2015-07-11|17:50 ET · history"
+RECORD_KEY = "2015-07-11|HISTORICAL RECORD OF HIV/AIDS"
+
+
 def load_expected_entry_counts():
     with open(JSON_PATH, encoding="utf-8") as f:
         data = json.load(f)
@@ -251,17 +257,27 @@ def build_page_map():
                 accum[active_key].append((line, page_of_line[i]))
 
     page_map = {}
-    # Prologue: content before the first date header (email cover + intro).
-    # Measured from the OCR like every other entry instead of hard-coded: the
-    # cover note and the first diary entry both start on p.2, so the old
-    # constant pointed one page early.
-    if prologue_lines:
-        _c, pro_breaks, pro_start, pro_end = clean_with_pages(prologue_lines)
-        page_map["prologue|Prologue"] = {
-            "start": pro_start, "end": pro_end, "breaks": pro_breaks,
-        }
-    else:
-        page_map["prologue|Prologue"] = {"start": 1, "end": 1, "breaks": [[0, 1]]}
+    # ── Front matter ────────────────────────────────────────────────────────
+    # Three documents, not one "prologue" (see reparse_prequel.front_matter):
+    #   p.1  the publisher's analysis - a SCAN, so it has no OCR lines at all
+    #   p.2  the cover email (11 Jul 2015, "Subject: history")
+    #   p.3+ the HISTORICAL RECORD OF HIV/AIDS it carries
+    # The three keys below must match reparse_prequel.front_matter() exactly;
+    # fix_page_map_offsets.py reports any entry left unmapped.
+    split = len(prologue_lines)
+    for i, (text, _page) in enumerate(prologue_lines):
+        if re.match(r"^\s*HISTORICAL RECORD OF", text.strip()):
+            split = i
+            break
+    email_lines = prologue_lines[:split]
+    record_lines = prologue_lines[split:]
+    page_map[ANALYSIS_KEY] = {"start": 1, "end": 1, "breaks": [[0, 1]]}
+    if email_lines:
+        _c, brk, st, en = clean_with_pages(email_lines)
+        page_map[COVER_EMAIL_KEY] = {"start": st, "end": en, "breaks": brk}
+    if record_lines:
+        _c, brk, st, en = clean_with_pages(record_lines)
+        page_map[RECORD_KEY] = {"start": st, "end": en, "breaks": brk}
 
     for key in order:
         iso, raw = key.split("|", 1)
