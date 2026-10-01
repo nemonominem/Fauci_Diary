@@ -850,7 +850,7 @@ function renderKindFilterPanel() {
   html += '<div class="kf-actions">' +
     '<button type="button" onclick="setAllKinds(true)">All</button>' +
     '<button type="button" onclick="setAllKinds(false)">None</button>' +
-    '<button type="button" onclick="setAllKinds(true);toggleKindFilterPanel()">Done</button></div>';
+    '<button type="button" onclick="closeKindFilterPanel()">Done</button></div>';
   panel.innerHTML = html;
   panel.onchange = function(ev) {
     var cb = ev.target.closest('[data-kind-toggle]');
@@ -859,6 +859,12 @@ function renderKindFilterPanel() {
     saveKindFilter();
     applyKindFilter();
   };
+}
+function closeKindFilterPanel() {
+  var panel = document.getElementById('kindFilterPanel');
+  var btn = document.getElementById('kindFilterBtn');
+  if (panel) panel.hidden = true;
+  if (btn) btn.setAttribute('aria-expanded', 'false');
 }
 function setAllKinds(on) {
   availableKinds().forEach(function(id) { kindFilter[id] = !!on; });
@@ -870,13 +876,15 @@ function setAllKinds(on) {
 function applyKindFilter() {
   var btn = document.getElementById('kindFilterBtn');
   if (btn) btn.textContent = kindFilterLabel();
+  // the series is cached - drop it, or the chart would keep the old boxes
+  timelineSeries = null;
   redrawTimelines();
   if (!diaryData) return;
   if (lastSearchResults && lastSearchQuery) {
     doSearch();
   } else if (browseMode && window._searchResults && window._searchResults.length) {
     var center = window._searchResults[0].idx;
-    var pack = buildBrowseResultsAroundIndex(center, BROWSE_RADIUS);
+    var pack = browsePackNearest(center);
     if (pack) {
       displayResults(pack.results, '', { autoSelect: false });
       browseMode = true;
@@ -1197,6 +1205,7 @@ async function loadData() {
     if (statsEl) statsEl.textContent =
       diaryData.total_entries + ' entries \u00b7 ' + diaryData.date_range.start + ' to ' + diaryData.date_range.end;
 
+    timelineSeries = null;          // entries changed: drop the cached series
     loadKindFilter();
     renderKindFilterPanel();
     updateEntryStatsLine();
@@ -2347,8 +2356,11 @@ function redrawTimelines(opts) {
   if (!diaryData) return;
   opts = opts || {};
   const series = getTimelineSeries();
+  var listed = 0;
+  if (diaryData) diaryData.entries.forEach(function(e) { if (kindAllowedForEntry(e)) listed++; });
   document.getElementById('timelineStats').textContent =
-    series.entryDays + ' entry-days · ' + series.totalDays + ' days';
+    series.entryDays + ' entry-days · ' + series.totalDays + ' days' +
+    (listed === diaryData.total_entries ? '' : ' · ' + listed.toLocaleString() + ' boxes listed');
 
   const hitData = hitCountsForSeries(lastSearchResults);
   const peakHits = hitData.reduce(function(m, v) { return v > m ? v : m; }, 0);
@@ -2778,6 +2790,29 @@ function buildBrowseResultsAroundIndex(centerIdx, radius) {
   return { results: results, focusLocal: focusLocal, from: from, to: to, center: centerIdx };
 }
 
+/**
+ * Browse window around `centerIdx`, widened until it actually contains a box of
+ * a selected kind. With, say, only e-mails ticked, the default 101-entry window
+ * around a diary day is empty - we widen (and fall back to the nearest allowed
+ * entry) instead of showing an empty "no results" panel.
+ */
+function browsePackNearest(centerIdx) {
+  var r = BROWSE_RADIUS, pack = buildBrowseResultsAroundIndex(centerIdx, r), n = 0;
+  while ((!pack || !pack.results.length) && r < BROWSE_RADIUS * 64 && n < 8) {
+    r *= 2; n++;
+    pack = buildBrowseResultsAroundIndex(centerIdx, r);
+  }
+  if (pack && pack.results.length) return pack;
+  // still nothing: walk to the closest entry whose kind is enabled
+  var entries = diaryData.entries;
+  for (var d = 1; d < entries.length; d++) {
+    var a = centerIdx - d, b = centerIdx + d;
+    if (a >= 0 && kindAllowedForEntry(entries[a])) return buildBrowseResultsAroundIndex(a, BROWSE_RADIUS);
+    if (b < entries.length && kindAllowedForEntry(entries[b])) return buildBrowseResultsAroundIndex(b, BROWSE_RADIUS);
+  }
+  return null;
+}
+
 function buildBrowseResultsAroundDate(date, radius) {
   if (!diaryData || !date) return null;
   var entries = diaryData.entries;
@@ -2820,7 +2855,11 @@ function getTopVisibleBrowseAnchor(panel) {
 function reloadBrowseWindow(centerDiaryIdx, anchor) {
   if (_browseReloading || !diaryData) return;
   var pack = buildBrowseResultsAroundIndex(centerDiaryIdx, BROWSE_RADIUS);
-  if (!pack || !pack.results.length) return;
+  if (!pack || !pack.results.length) {
+    // every entry in the window is filtered out: widen before giving up
+    pack = browsePackNearest(centerDiaryIdx);
+    if (!pack || !pack.results.length) return;
+  }
 
   // Skip no-op if range unchanged
   var cur = window._searchResults;
@@ -3322,8 +3361,12 @@ function displayResults(results, query, opts) {
   const panel = document.getElementById('resultsPanel');
   if (results.length === 0) {
     window._searchResults = results;
-    panel.innerHTML = '<div class="placeholder"><h2>No results</h2>' +
-      '<p>No entries found for "' + escapeHtml(query) + '".</p></div>';
+    panel.innerHTML = query
+      ? '<div class="placeholder"><h2>No results</h2>' +
+        '<p>No entries found for "' + escapeHtml(query) + '".</p></div>'
+      : '<div class="placeholder"><h2>No boxes here</h2>' +
+        '<p>No <b>' + escapeHtml(kindFilterLabel()) + '</b> boxes in this stretch of the timeline. ' +
+        'Tick more kinds in <b>Box types</b>, or search for a term.</p></div>';
     return;
   }
 
