@@ -12,8 +12,7 @@ Self-contained static files. No Python server is required for hosting.
 - `ebola_page_map.json` — date → PDF page (ebola extract)
 - `diary.pdf` — main diary PDF (~63 MB; Git LFS)
 - `diary-prequel.pdf` — prequel PDF (~10 MB; Git LFS)
-- `diary-ebola.pdf` — ebola extract PDF, short name (~3 MB; Git LFS; original: `2026.09.28_Ebola-Doc-Release_Full-Package.pdf`)
-- `2026.09.28_Ebola-Doc-Release_Full-Package.pdf` — original Congressional filename (reference copy)
+- `diary-ebola.pdf` — ebola extract PDF, short name (~3 MB), the canonical in-repo copy. The Congressional original filename `2026.09.28_Ebola-Doc-Release_Full-Package.pdf` is recorded in the JSON `source_file` field and in `../server_based/README.md`; its bytes are identical to `diary-ebola.pdf`, so it is not stored here again.
 
 ## Standards
 
