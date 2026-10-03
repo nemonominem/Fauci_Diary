@@ -58,12 +58,24 @@ def read_pairs():
     """(line, pdf page) for every non-boilerplate line."""
     with open(TEXT_PATH, encoding="utf-8") as f:
         raw = [ln.rstrip("\n") for ln in f.readlines()]
+    # Must mirror R.strip_furniture(): a blank line touching page furniture is
+    # furniture too. Keeping it here would make the map's text disagree with the
+    # text reparse_ebola.py produced, which build_page_map() asserts below.
+    drop_blank = set()
+    for i, ln in enumerate(raw):
+        if ln.strip():
+            continue
+        neigh = [raw[j] for j in (i - 1, i + 1) if 0 <= j < len(raw)]
+        if any(R.is_strip_line(n.strip()) for n in neigh):
+            drop_blank.add(i)
     pairs, page = [], 1
-    for ln in raw:
+    for i, ln in enumerate(raw):
         m = PAGE_MARKER_RE.match(ln.strip())
         if m:
             page = int(m.group(1)); continue
         if R.is_strip_line(ln.strip()):
+            continue
+        if i in drop_blank:
             continue
         pairs.append((ln, page))
     return pairs

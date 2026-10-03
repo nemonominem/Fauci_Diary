@@ -56,6 +56,34 @@ SUBJECT_RE = re.compile(r"^Subject:\s*(.*)$", re.IGNORECASE)
 
 def is_strip_line(line):
     return any(p.match(line) for p in STRIP_PATTERNS)
+
+def strip_furniture(raw_lines):
+    """Drop page furniture AND the blank lines that belong to it.
+
+    The OCR text puts the page furniture ("Released by Chairman Rand Paul" /
+    "EXCERPT FROM FAUCI'S NOTES" / "--- Page N ---" / the page number) in the
+    MIDDLE of a sentence, with blank lines around it:
+
+        ...because we are planning to do
+        Released by Chairman Rand Paul
+        EXCERPT FROM FAUCI'S NOTES
+                                   <- blank
+        --- Page 3 ---
+        500
+        vaccine studies there and use the VSV...
+
+    Stripping only the furniture lines leaves that blank line behind, and a
+    blank line is a PARAGRAPH break - so "to do" and "vaccine studies" became
+    two paragraphs and the sentence was cut in half mid-clause. Any blank
+    line touching a furniture line is furniture too, so remove it as well.
+    """
+    drop = {i for i, ln in enumerate(raw_lines) if is_strip_line(ln.strip())}
+    # iterate a snapshot: this loop grows `drop` with the blank lines it finds
+    for i in list(drop):
+        for j in (i - 1, i + 1):
+            if 0 <= j < len(raw_lines) and not raw_lines[j].strip():
+                drop.add(j)
+    return [ln for i, ln in enumerate(raw_lines) if i not in drop]
 def looks_like_article_date(text):
     return any(p.search(text) for p in ARTICLE_TIME_HINTS)
 def parse_month(mt):
@@ -447,7 +475,7 @@ def link_thread(entries):
 def parse_text():
     with open(TEXT_PATH, encoding="utf-8") as f:
         raw_lines = [ln.rstrip("\n") for ln in f.readlines()]
-    lines = [ln for ln in raw_lines if not is_strip_line(ln.strip())]
+    lines = strip_furniture(raw_lines)
     diary, cur_iso, cur_raw, cur_lines, pre = [], None, None, [], []
     tail = []
     in_tail = False
