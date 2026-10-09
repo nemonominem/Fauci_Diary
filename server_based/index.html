@@ -383,10 +383,12 @@ body.layout-portrait .pdf-panel {
 }
 .bm-file-bar button {
   flex: none; width: 100%; background: #2b2b2e; color: #f2f2f2;
-  border: 1px solid #55565c; border-radius: 6px; padding: 6px 4px;
-  font-size: 15px; line-height: 1; cursor: pointer;
+  border: 1px solid #55565c; border-radius: 6px; padding: 7px 8px;
+  font-size: 12px; font-weight: 600; line-height: 1; letter-spacing: 0.01em;
+  cursor: pointer; gap: 8px;
   display: flex; align-items: center; justify-content: center;
 }
+.bm-file-bar button svg { width: 16px; height: 16px; flex: none; display: block; }
 .bm-file-bar button:hover { border-color: var(--accent); color: var(--accent); }
 .bm-toggle {
   background: none; border: none; cursor: pointer; font-size: 13px;
@@ -749,8 +751,14 @@ mark.hit-current {
       </div>
       <div class="bm-list" id="bmList" title="Your saved bookmarks. Click one to jump back to that box in the record; the X removes it. Save writes a bookmarks JSON file you can keep or move to another app."></div>
       <div class="bm-file-bar">
-        <button type="button" onclick="saveBookmarks()" title="Download the bookmarks as a JSON file">&#128190;</button>
-        <button type="button" onclick="document.getElementById('bmFile').click()" title="Load a bookmarks file (replaces the current list)">&#128462;</button>
+        <button type="button" onclick="saveBookmarks()" title="Download the bookmarks as a JSON file">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 3h10l4 4v14H5V3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 3.5V8h7V3.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 21v-6h8v6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+          <span>Save</span>
+        </button>
+        <button type="button" onclick="document.getElementById('bmFile').click()" title="Load a bookmarks file (replaces the current list)">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 7.5h5.2L10 5h11v13.5H3V7.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9.2v6.4M9.2 13l2.8 2.8L14.8 13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Load</span>
+        </button>
         <input type="file" id="bmFile" accept=".json,application/json" style="display:none" onchange="loadBookmarksFile(this)">
       </div>
     </div>
