@@ -43,10 +43,17 @@ python3 reparse_ebola.py          # OCR text → fixed JSON (8 diary + 19 thread
 python3 clean_ebola_breaks.py     # collapse PDF line-breaks
 python3 regen_ebola_page_map.py   # rebuild page map (imports the parser; asserts content equality)
 ```
+### Missing Years (Jul 2015–Dec 2019)
+```bash
+python3 reparse_missingyears.py          # OCR text → fixed JSON (694 diary + publisher note)
+python3 clean_missingyears_breaks.py     # collapse PDF line-breaks
+python3 merge_missingyears_duplicates.py # fold same-date diary entries (kind-aware: never merges the note)
+python3 regen_missingyears_page_map.py   # rebuild page map (imports the parser; asserts content equality)
+```
 
 ### After ANY page-map or content change (all releases)
 ```bash
-python3 fix_page_map_offsets.py   # clamp/verify all three maps against the loaded text
+python3 fix_page_map_offsets.py   # clamp/verify all four maps against the loaded text
 ```
 Run it last. A page map records where an entry's content crosses a page
 boundary (`breaks: [[charOffset, page], …]`), so an offset that points past the
@@ -61,6 +68,18 @@ It is idempotent; run it even when nothing changed, as a regression check.
 > normalisation, reply-chain links, printable header block) are specified in
 > **[`../EMAILS.md`](../EMAILS.md)** — follow it for any new release that
 > contains emails, or when adding a new kind of source.
+
+## Tests (ported from PO_Slack)
+
+```bash
+node test_app.mjs      # 25 checks: runs index.html's own script on the real data
+python3 audit_app.py   # 57 checks: ids, handlers, CSS classes, tag balance, paths, key uniqueness
+```
+
+`test_app.mjs` shims just enough DOM for the app's real code to run
+unmodified; `audit_app.py` covers the markup wiring. Run both in
+`server_based/` and `page_based/` after any data or UI change.
+Testable standards: **[`../SPEC.md`](../SPEC.md)**.
 
 | File | Role |
 |---|---|
@@ -83,3 +102,9 @@ It is idempotent; run it even when nothing changed, as a regression check.
 | `2026.09.28_Ebola-Doc-Release_Full-Package.json` | Ebola app load file (cleaned) |
 | `ebola_page_map.json` | Ebola: date\|raw_date → PDF page |
 | `diary-ebola.pdf` | Local copy of the Ebola Congressional PDF (short name) |
+| `2026.10.6_Fauci-Diary-Release-Missing-Years_Full-Package.txt` | Missing-years OCR source text |
+| `2026.10.6_Fauci-Diary-Release-Missing-Years_Full-Package_fixed.json` | Missing-years parsed entries (pre-clean) |
+| `2026.10.6_Fauci-Diary-Release-Missing-Years_Full-Package.json` | Missing-years app load file (cleaned) |
+| `missingyears_page_map.json` | Missing years: date\|raw_date → PDF page |
+| `missingyears_publisher_analysis.txt` | Vision OCR of the p.1 scan (the publisher's cover + analysis); read by `reparse_missingyears.py` |
+| `diary-missingyears.pdf` | Local copy of the Missing Years Congressional PDF (short name) |

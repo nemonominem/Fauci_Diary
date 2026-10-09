@@ -257,8 +257,13 @@ body.layout-landscape .panel-resizer.dragging::before {
   background: #fff;
 }
 
-/* ── Layout: Portrait (stacked) ───────────────────────────────────── */
-body.layout-portrait .content-area { flex-direction: column; }
+/* ── Layout: Portrait (panels stacked beside a vertical bookmark rail) ─ */
+body.layout-portrait .content-area { flex-direction: row; }
+body.layout-portrait .content-stack {
+  flex: 1; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+body.layout-landscape .content-stack { display: contents; }
 /* Horizontal timelines: keep panel short (~40% of prior 280px / 40vh) */
 body.layout-portrait .charts-panel {
   border-bottom: 2px solid var(--border);
@@ -305,6 +310,126 @@ body.layout-portrait .pdf-panel {
   width: 100%; min-width: 0; height: 45%; min-height: 140px;
   border-left: none; border-top: none; flex: 0 0 auto;
 }
+
+
+/* -- Bookmarks rail (ported from PO_Slack) ----------------------------------
+   A vertical sidebar, first child of .content-area, in both layouts.
+   Landscape: .content-stack is display:contents, so the rail and the other
+   panels are one row. Portrait: .content-stack is a column beside the rail,
+   so the rail stays a vertical column down the left instead of a strip
+   across the top. The list scrolls with explicit up/down buttons as well
+   as the wheel, because the rail is often too short for the wheel to be
+   obvious. */
+.bm-rail {
+  width: 260px; flex-shrink: 0; background: var(--panel);
+  border-right: 1px solid var(--border-2);
+  display: flex; flex-direction: column; overflow: hidden;
+  transition: width 0.18s ease, min-width 0.18s ease, max-width 0.18s ease;
+}
+.bm-rail.collapsed { width: 36px; min-width: 36px; max-width: 36px; }
+.bm-head {
+  padding: 8px 12px; border-bottom: 1px solid var(--border-2); background: var(--panel-2);
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; user-select: none; flex-shrink: 0;
+}
+.bm-head:hover { background: #2a2a2a; }
+.bm-head:hover .collapse-btn { color: var(--accent); }
+.bm-head h3 { margin: 0; font-size: 13px; color: var(--text); white-space: nowrap; }
+.bm-head .collapse-btn {
+  background: none; border: none; color: var(--muted); font-size: 16px;
+  cursor: pointer; padding: 0 4px; line-height: 1; flex-shrink: 0; margin-left: auto;
+}
+.bm-body { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.bm-rail.collapsed .bm-body { display: none; }
+.bm-rail.collapsed .bm-head {
+  flex-direction: column; align-items: center; justify-content: flex-start;
+  height: 100%; padding: 10px 4px; gap: 14px; border-bottom: none; border-right: none;
+}
+.bm-rail.collapsed .bm-head h3 {
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  letter-spacing: 0.04em; font-size: 12px; flex: 0 0 auto;
+}
+.bm-scroll-btns {
+  display: flex; flex-direction: column; flex-shrink: 0;
+  border-bottom: 1px solid var(--border-2); background: var(--panel-2);
+}
+.bm-scroll-btns button {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  font-size: 11px; line-height: 1; padding: 5px 0; width: 100%;
+}
+.bm-scroll-btns button:hover:not(:disabled) { color: var(--accent); background: #2a2a2a; }
+.bm-scroll-btns button:disabled { opacity: 0.3; cursor: default; }
+.bm-list { flex: 1; overflow-y: auto; padding: 6px; min-height: 0; }
+.bm-list::-webkit-scrollbar { width: 8px; }
+.bm-list::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
+.bm-item {
+  padding: 6px 8px; border: 1px solid var(--border-2); border-radius: 4px;
+  margin-bottom: 6px; background: var(--panel-2); cursor: pointer;
+}
+.bm-item:hover { border-color: var(--accent); }
+.bm-item .bm-t { font-size: 12px; color: var(--text); line-height: 1.35; }
+.bm-item .bm-m { font-size: 10px; color: var(--muted); margin-top: 3px; }
+.bm-item .bm-x {
+  float: right; color: var(--muted); font-size: 12px; padding: 0 3px; line-height: 1;
+}
+.bm-item .bm-x:hover { color: var(--accent); }
+.bm-empty { font-size: 12px; color: var(--muted); padding: 10px 8px; line-height: 1.5; }
+/* Save / Load icon buttons: dark keys matching the HUD style, always
+   stacked vertically (one on top of the other) in every layout. */
+.bm-file-bar {
+  display: flex; flex-direction: column; gap: 6px; padding: 6px;
+  border-top: 1px solid var(--border-2);
+  background: var(--panel-2); flex-shrink: 0; align-items: stretch;
+}
+.bm-file-bar button {
+  flex: none; width: 100%; background: #2b2b2e; color: #f2f2f2;
+  border: 1px solid #55565c; border-radius: 6px; padding: 6px 4px;
+  font-size: 15px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.bm-file-bar button:hover { border-color: var(--accent); color: var(--accent); }
+.bm-toggle {
+  background: none; border: none; cursor: pointer; font-size: 13px;
+  color: var(--muted); padding: 0 3px; line-height: 1;
+}
+.bm-toggle:hover { color: var(--accent); }
+.bm-toggle.on { color: var(--accent); }
+/* Portrait: the rail stays a vertical column down the left, exactly as in
+   landscape (same width, same top-to-bottom list, same up/down arrows).
+   The panels in .content-stack are what stack. */
+body.layout-portrait .bm-rail {
+  width: 260px; flex-shrink: 0;
+  border-right: 1px solid var(--border-2); border-bottom: none;
+  max-height: none;
+}
+body.layout-portrait .bm-rail.collapsed {
+  width: 36px; min-width: 36px; max-width: 36px; max-height: none;
+}
+body.layout-portrait .bm-head { padding: 8px 12px; }
+body.layout-portrait .bm-rail.collapsed .bm-head {
+  flex-direction: column; align-items: center; justify-content: flex-start;
+  height: 100%; padding: 10px 4px; gap: 14px; border-bottom: none; border-right: none;
+}
+body.layout-portrait .bm-rail.collapsed .bm-head h3 {
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  letter-spacing: 0.04em; font-size: 12px; flex: 0 0 auto;
+}
+body.layout-portrait .bm-body { flex-direction: column; align-items: stretch; }
+body.layout-portrait .bm-scroll-btns {
+  flex-direction: column; border-bottom: 1px solid var(--border-2); border-right: none;
+}
+body.layout-portrait .bm-scroll-btns button { width: 100%; padding: 5px 0; }
+body.layout-portrait .bm-list {
+  overflow-x: hidden; overflow-y: auto; padding: 6px; display: block;
+}
+body.layout-portrait .bm-file-bar { border-top: 1px solid var(--border-2); border-left: none; }
+/* DRASTIC mark, top right of the header. */
+.header-brand { margin-left: auto; display: flex; align-items: center; }
+.header-brand a { display: block; line-height: 0; border-radius: 4px; opacity: 0.92; }
+.header-brand a:hover { opacity: 1; }
+.header-brand img { display: block; height: 40px; width: auto; }
+.header-brand { flex-direction: column; gap: 2px; }
+.brand-help-hint { font-size: 10px; color: var(--muted); text-align: center; line-height: 1.2; white-space: nowrap; }
 
 /* ── Main content area ─────────────────────────────────────────────── */
 .content-area { flex: 1; display: flex; overflow: hidden; }
@@ -565,7 +690,7 @@ mark.hit-current {
 <div class="header">
   <div class="title-block">
     <h1>📖 Tony's Diary Search</h1>
-    <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a> &middot; 2,018 entries &middot; Jan 2001 &ndash; Dec 2022</span>
+    <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a> &middot; 2,713 entries &middot; Jan 2001 &ndash; Dec 2022</span>
   </div>
   <form class="search-bar" id="searchForm" onsubmit="doSearch(); return false;">
     <input type="text" id="searchInput" enterkeyhint="search" autocomplete="off" placeholder='Phrase: "blue car" · words: happy bunny · help: ?'>
@@ -577,6 +702,14 @@ mark.hit-current {
     </label>
     <button type="button" id="helpBtn" onclick="showHelp()" title="Search help" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border-2);padding:8px 12px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">?</button>
   </form>
+    <!-- DRASTIC mark, top right. Links to the manual/release notes page, which
+         opens in a new tab so the search state here is never lost. -->
+    <div class="header-brand">
+      <a href="help.html" target="_blank" rel="noopener" title="Open the manual &amp; release notes in a new tab">
+        <img src="drastic-logo.png" alt="DRASTIC Research" width="155" height="40">
+      </a>
+      <div class="brand-help-hint">(click on logo for HELP)</div>
+    </div>
 </div>
 
 <div class="toolbar" id="mainToolbar">
@@ -600,6 +733,32 @@ mark.hit-current {
 </div>
 
 <div class="content-area">
+
+  <!-- Bookmarks rail: saved pointers into the record. Vertical in
+       landscape and portrait alike (vertical column down the side in every layout).
+       Open on load, like the timeline. -->
+  <div class="bm-rail" id="bmRail">
+    <div class="bm-head" onclick="toggleBmRail()" title="Collapse / expand the bookmarks">
+      <h3>🔖 Bookmarks</h3>
+      <button type="button" class="collapse-btn" id="bmToggleBtn" title="Collapse bookmarks">◀</button>
+    </div>
+    <div class="bm-body">
+      <div class="bm-scroll-btns">
+        <button type="button" id="bmUp" onclick="bmScrollBy(-1)" title="Scroll the bookmarks up">▲</button>
+        <button type="button" id="bmDown" onclick="bmScrollBy(1)" title="Scroll the bookmarks down">▼</button>
+      </div>
+      <div class="bm-list" id="bmList" title="Your saved bookmarks. Click one to jump back to that box in the record; the X removes it. Save writes a bookmarks JSON file you can keep or move to another app."></div>
+      <div class="bm-file-bar">
+        <button type="button" onclick="saveBookmarks()" title="Download the bookmarks as a JSON file">&#128190;</button>
+        <button type="button" onclick="document.getElementById('bmFile').click()" title="Load a bookmarks file (replaces the current list)">&#128462;</button>
+        <input type="file" id="bmFile" accept=".json,application/json" style="display:none" onchange="loadBookmarksFile(this)">
+      </div>
+    </div>
+  </div>
+
+  <!-- Other panels. display:contents in landscape (siblings of the rail);
+       a column beside the rail in portrait. -->
+  <div class="content-stack">
 
   <!-- ── Dual vertical timeline: entries LEFT | hits RIGHT, shared Y = time ── -->
   <div class="charts-panel" id="chartsPanel">
@@ -634,7 +793,7 @@ mark.hit-current {
     <div class="placeholder">
       <h2>Search Fauci's Diary</h2>
       <p>Enter a search term above to find mentions across all diary entries
-      (Jan 2001 &ndash; Dec 2022, three Congressional releases).
+      (Jan 2001 &ndash; Dec 2022, four Congressional releases).
       Results will show the matching text with all hits highlighted, the
       corresponding PDF page, and charts of entries/hits over time.</p>
       <div class="stats" id="entryStats"></div>
@@ -676,6 +835,7 @@ mark.hit-current {
     </div>
   </div>
 
+  </div><!-- /.content-stack -->
 </div>
 
 <script>
@@ -707,13 +867,21 @@ const SOURCES = {
     badge: 'Ebola',
     badgeTitle: 'Ebola extract: diary + emails (Mar 2016)',
   },
+  missingyears: {
+    json: '2026.10.6_Fauci-Diary-Release-Missing-Years_Full-Package.json',
+    pageMap: 'missingyears_page_map.json',
+    pdf: 'diary-missingyears.pdf',
+    label: 'Missing Years',
+    badge: 'Missing Years',
+    badgeTitle: 'Missing Years diary (Jul 2015-Dec 2019)',
+  },
 };
 const DEFAULT_PDF_SOURCE = 'main';   // which PDF shows on page load
 
 let diaryData = null;                 // merged { total_entries, date_range, entries[] }
 let pendingSearch = false;            // a search was requested while data was still loading
-let pageMaps = { main: {}, prequel: {}, ebola: {} };
-let pdfDocs = { main: null, prequel: null, ebola: null };
+let pageMaps = { main: {}, prequel: {}, ebola: {}, missingyears: {} };
+let pdfDocs = { main: null, prequel: null, ebola: null, missingyears: null };
 let currentPdfSource = DEFAULT_PDF_SOURCE;
 let pdfDoc = null;                    // always the currently active PDF doc
 let currentPage = 1;
@@ -1213,24 +1381,28 @@ function loadErrorHelp(err) {
 async function loadData() {
   try {
     // ── Fetch all datasets in parallel ──
-    const [mainResp, preqResp, ebolaResp] = await Promise.all([
+    const [mainResp, preqResp, ebolaResp, missResp] = await Promise.all([
       fetch(SOURCES.main.json),
       fetch(SOURCES.prequel.json),
       fetch(SOURCES.ebola.json),
+      fetch(SOURCES.missingyears.json),
     ]);
     if (!mainResp.ok) throw new Error('HTTP ' + mainResp.status + ' for ' + SOURCES.main.json);
     if (!preqResp.ok) throw new Error('HTTP ' + preqResp.status + ' for ' + SOURCES.prequel.json);
     if (!ebolaResp.ok) throw new Error('HTTP ' + ebolaResp.status + ' for ' + SOURCES.ebola.json);
+    if (!missResp.ok) throw new Error('HTTP ' + missResp.status + ' for ' + SOURCES.missingyears.json);
 
     const mainData = await mainResp.json();
     const preqData = await preqResp.json();
     const ebolaData = await ebolaResp.json();
+    const missData = await missResp.json();
 
     // Tag every entry with its source, then merge into one timeline
     mainData.entries.forEach(function(e) { e.source = 'main'; });
     preqData.entries.forEach(function(e) { e.source = 'prequel'; });
     ebolaData.entries.forEach(function(e) { e.source = 'ebola'; });
-    let allEntries = preqData.entries.concat(ebolaData.entries, mainData.entries);
+    missData.entries.forEach(function(e) { e.source = 'missingyears'; });
+    let allEntries = preqData.entries.concat(missData.entries, ebolaData.entries, mainData.entries);
 
     // Rebuild thread DOWN-links over the merged timeline. Up-links
     // (reply_to / forwarded_from / attachment_ref) are written per release by
@@ -1274,18 +1446,21 @@ async function loadData() {
     }
 
     // ── Fetch all page maps in parallel ──
-    const [pmMainResp, pmPreqResp, pmEbolaResp] = await Promise.all([
+    const [pmMainResp, pmPreqResp, pmEbolaResp, pmMissResp] = await Promise.all([
       fetch(SOURCES.main.pageMap),
       fetch(SOURCES.prequel.pageMap),
       fetch(SOURCES.ebola.pageMap),
+      fetch(SOURCES.missingyears.pageMap),
     ]);
     if (!pmMainResp.ok) throw new Error('HTTP ' + pmMainResp.status + ' for ' + SOURCES.main.pageMap);
     if (!pmPreqResp.ok) throw new Error('HTTP ' + pmPreqResp.status + ' for ' + SOURCES.prequel.pageMap);
     if (!pmEbolaResp.ok) throw new Error('HTTP ' + pmEbolaResp.status + ' for ' + SOURCES.ebola.pageMap);
+    if (!pmMissResp.ok) throw new Error('HTTP ' + pmMissResp.status + ' for ' + SOURCES.missingyears.pageMap);
 
     pageMaps.main = await pmMainResp.json();
     pageMaps.prequel = await pmPreqResp.json();
     pageMaps.ebola = await pmEbolaResp.json();
+    pageMaps.missingyears = await pmMissResp.json();
 
     // ── Load the default PDF first for immediate display ──
     pdfDocs[DEFAULT_PDF_SOURCE] = await pdfjsLib.getDocument(SOURCES[DEFAULT_PDF_SOURCE].pdf).promise;
@@ -1324,6 +1499,40 @@ async function loadData() {
     if (panel && !diaryData) {
       panel.innerHTML = '<div class="placeholder">' + html + '</div>';
     }
+  }
+}
+
+// ── Render one entry's PDF page on demand ──
+// Clicking a result used to set pdfDoc to a source whose PDF was still
+// loading, so nothing rendered. renderEntryPdf() reuses the in-flight
+// promise and renders the requested page once ready; selectResult() uses
+// it, so a click always lands on the correct release + page.
+var pdfPending = {};
+async function renderEntryPdf(source, page) {
+  if (!source || !SOURCES[source]) { if (page) renderPdfPage(page); return; }
+  if (!SOURCES[source].pdf) return;      // metadata-only source: no PDF to show
+  currentPdfSource = source;
+  updatePdfSourceUI();
+  if (pdfDocs[source]) {
+    pdfDoc = pdfDocs[source];
+    updatePdfSourceUI();
+    if (page) renderPdfPage(page);
+    return;
+  }
+  if (!pdfPending[source]) {
+    pdfPending[source] = pdfjsLib.getDocument(SOURCES[source].pdf).promise;
+  }
+  try {
+    const doc = await pdfPending[source];
+    pdfDocs[source] = doc;
+    pdfPending[source] = null;
+    if (currentPdfSource !== source) return;   // the reader moved on meanwhile
+    pdfDoc = doc;
+    updatePdfSourceUI();
+    if (page) renderPdfPage(page);
+  } catch (err) {
+    pdfPending[source] = null;
+    console.error('Load of ' + source + ' PDF failed:', err);
   }
 }
 
@@ -2130,7 +2339,7 @@ function clearSearch() {
   document.getElementById('resultsPanel').innerHTML =
     '<div class="placeholder"><h2>Search Fauci\'s Diary</h2>' +
     '<p>Enter a search term above to find mentions across all ' +
-    (diaryData ? diaryData.total_entries : 2016) + ' diary entries.</p></div>';
+    (diaryData ? diaryData.total_entries : 2713) + ' diary entries.</p></div>';
   lastSearchResults = null;
   lastSearchQuery = '';
   window._searchResults = null;
@@ -3486,6 +3695,9 @@ function displayResults(results, query, opts) {
     html += '<span class="result-hits">' + r.hits + ' hit' + (r.hits > 1 ? 's' : '') + '</span>';
     // Expander: shown only when the text does not fit (see syncBoxScrollbar)
     html += '<span class="result-hits-group">';
+    // Bookmark toggle: keeps a pointer to this box in the rail; click again to drop it.
+    html += '<button type="button" class="bm-toggle" data-bm-toggle="' +
+      escapeHtml(diaryBmKey(e)) + '" title="Bookmark this box">🔖</button>';
     html += '<button type="button" class="expand-btn" data-expand-toggle="' + i + '" hidden title="Show the full text of this entry">⤢ Full text</button>';
     html += '</span>';
     html += '</div>';
@@ -3605,6 +3817,7 @@ function displayResults(results, query, opts) {
   window._searchResults = results;
   panel.innerHTML = html;
   setupResultBoxes(panel);
+  refreshBookmarkToggles();
 
   // ⤢ Full text: expand/collapse a single entry box (full message visible)
   panel.onclick = function(ev) {
@@ -3631,6 +3844,27 @@ function displayResults(results, query, opts) {
     }
     const entry = ev.target.closest('.result-entry');
     if (!entry || !panel.contains(entry)) return;
+    const bmBtn = ev.target.closest('[data-bm-toggle]');
+    if (bmBtn) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const bmKey = bmBtn.getAttribute('data-bm-toggle');
+      const bIdx = parseInt(entry.getAttribute('data-result-idx'), 10);
+      const r = window._searchResults && window._searchResults[bIdx];
+      const entry2 = r && r.entry;
+      const srcBadge = entry2 && entry2.source && SOURCES[entry2.source] ? SOURCES[entry2.source].badge : '';
+      const added = toggleBookmark(bmKey, {
+        label: entry2 ? (entry2.date + ' ' + (entry2.raw_date || '')) : bmKey,
+        sub: entry2 ? (kindDef(entryKind(entry2)).label + (srcBadge ? ' - ' + srcBadge : '')) : '',
+        date: entry2 ? entry2.date : null,
+        kind: entry2 ? entryKind(entry2) : null,
+        source: entry2 ? entry2.source : null,
+        page: r ? pdfPageForResult(r) : null,
+      });
+      bmBtn.classList.toggle('on', added);
+      bmBtn.title = added ? 'Remove this bookmark' : 'Bookmark this box';
+      return;
+    }
 
     const resultIdx = parseInt(entry.getAttribute('data-result-idx'), 10);
     const entryIdx = parseInt(entry.getAttribute('data-entry-idx'), 10);
@@ -3718,10 +3952,10 @@ function selectResult(resultIdx, pdfPage, entryIdx) {
   if (el) el.classList.add('active');
   activeResultIdx = resultIdx;
 
-  // Switch to the correct PDF for this entry's source
+  // Switch to the correct PDF for this entry's source (on demand: the
+  // document may still be loading, so render through renderEntryPdf).
   const r = window._searchResults && window._searchResults[resultIdx];
   const src = r && r.entry ? r.entry.source : null;
-  if (src) switchPdfSource(src);
   // Sources with no page images (e.g. an imported feed) leave the current
   // document where it is instead of jumping it to a meaningless page.
   if (src && SOURCES[src] && !SOURCES[src].pdf) return;
@@ -3732,7 +3966,8 @@ function selectResult(resultIdx, pdfPage, entryIdx) {
     const hitIdx = currentHitIdx[resultIdx] || 0;
     page = pdfPageForHit(resultIdx, hitIdx);
   }
-  if (page) renderPdfPage(page);
+  if (src) renderEntryPdf(src, page);
+  else if (page) renderPdfPage(page);
 }
 
 // ============================================================
@@ -3814,8 +4049,321 @@ document.getElementById('jumpDateInput').addEventListener('keydown', function(e)
   if (e.key === 'Enter') { e.preventDefault(); goToJumpDate(); }
 });
 document.getElementById('resultsPanel').addEventListener('scroll', onBrowseResultsScroll, { passive: true });
+// -- Bookmarks rail (ported from PO_Slack; diary key scheme) --
+/* Diary bookmark key: source-qualified date|raw_date. Unique per source
+   file (the audit enforces it), so source + key jumps exactly. */
+function diaryBmKey(e) {
+  return (e.source || '') + '|' + e.date + '|' + e.raw_date;
+}
+/* Resolve a diary bookmark key back to a timeline index. */
+function diaryBmIndex(bmKey) {
+  if (!diaryData || !bmKey) return -1;
+  var bar = bmKey.indexOf('|');
+  var src = bar > 0 ? bmKey.slice(0, bar) : null;
+  var rest = bar > 0 ? bmKey.slice(bar + 1) : bmKey;
+  for (var i = 0; i < diaryData.entries.length; i++) {
+    var e = diaryData.entries[i];
+    if (src && e.source !== src) continue;
+    if ((e.date + '|' + e.raw_date) === rest) return i;
+  }
+  return -1;
+}
+
+const BOOKMARK_STORE_KEY = 'drastic.bookmarks.fauci-diary';
+const BOOKMARK_FILE_VERSION = 1;
+// The other DRASTIC apps, so a bookmark can name where it belongs even when
+// the file travels. Keys are matched against a path/hostname substring.
+const DRASTIC_APPS = [
+    { id: 'fauci-diary', label: 'Fauci Diary', match: /fauci|diary/i },
+  { id: 'po-slack', label: 'P.O. Record', match: /po[_-]?slack|proximal[_-]?origin/i },
+  { id: 'daszak-calendar', label: 'Daszak Calendar', match: /daszak|calendar/i },
+];
+
+let bookmarks = [];
+
+// The page's own address, for a bookmark to fall back on when it travels to
+// another app. Defensive because location.href is absent in some embeddings.
+function bmPageUrl() {
+  try {
+    return (typeof location !== 'undefined' && location.href)
+      ? location.href.split('#')[0] : '';
+  } catch (err) {
+    return '';
+  }
+}
+
+function bmAppFor(url) {
+  const u = url || '';
+  for (let i = 0; i < DRASTIC_APPS.length; i++) {
+    if (DRASTIC_APPS[i].match.test(u)) return DRASTIC_APPS[i].id;
+  }
+  return 'fauci-diary';
+}
+
+function bmLoad() {
+  try {
+    const raw = localStorage.getItem(BOOKMARK_STORE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : (parsed.bookmarks || []);
+  } catch (err) {
+    return [];
+  }
+}
+
+function bmPersist() {
+  try {
+    localStorage.setItem(BOOKMARK_STORE_KEY, JSON.stringify(bookmarks));
+  } catch (err) {
+    /* private mode / quota: the rail still works for this session */
+  }
+}
+
+// A bookmark's identity is its key, so bookmarking the same box twice is a
+// no-op rather than a duplicate row.
+function bmFind(bmKey) {
+  for (let i = 0; i < bookmarks.length; i++) {
+    if (bookmarks[i].key === bmKey) return bookmarks[i];
+  }
+  return null;
+}
+
+// Add the box if it is not bookmarked, remove it if it is. One control, both
+// actions, so a mis-click is undone by clicking again.
+function toggleBookmark(bmKey, meta) {
+  const existing = bmFind(bmKey);
+  if (existing) {
+    bookmarks = bookmarks.filter(function(b) { return b.key !== bmKey; });
+  } else {
+    bookmarks.unshift({
+      key: bmKey,
+      app: 'fauci-diary',
+      label: (meta && meta.label) || bmKey,
+      sub: (meta && meta.sub) || '',
+      date: (meta && meta.date) || null,
+      kind: (meta && meta.kind) || null,
+      source: (meta && meta.source) || null,
+      page: (meta && meta.page) || null,
+      url: (meta && meta.url) || bmPageUrl(),
+      saved: new Date().toISOString().slice(0, 10),
+    });
+  }
+  bmPersist();
+  renderBookmarks();
+  return !existing;
+}
+
+function isBookmarked(bmKey) {
+  return !!bmFind(bmKey);
+}
+
+function removeBookmark(bmKey) {
+  bookmarks = bookmarks.filter(function(b) { return b.key !== bmKey; });
+  bmPersist();
+  renderBookmarks();
+}
+
+function toggleBmRail() {
+  const rail = document.getElementById('bmRail');
+  const btn = document.getElementById('bmToggleBtn');
+  if (!rail) return;
+  const collapsing = !rail.classList.contains('collapsed');
+  rail.classList.toggle('collapsed', collapsing);
+  if (btn) {
+    // The rail is a vertical column in every layout, so it always folds
+    // away to the left and the chevron always points back into it.
+    btn.textContent = collapsing ? '▶' : '◀';
+    btn.title = collapsing ? 'Expand bookmarks' : 'Collapse bookmarks';
+  }
+  // Keep the arrows pointing the way the list actually scrolls.
+  if (!collapsing) requestAnimationFrame(syncBmScrollBtns);
+}
+
+// Up/down arrows step the list one screen at a time (vertical in every layout).
+function bmScrollBy(dir) {
+  const list = document.getElementById('bmList');
+  if (!list) return;
+  list.scrollBy({ top: dir * list.clientHeight * 0.8, behavior: 'smooth' });
+  setTimeout(syncBmScrollBtns, 350);
+}
+
+// Disable an arrow at the end of the list, so the ends are visible.
+function syncBmScrollBtns() {
+  const list = document.getElementById('bmList');
+  if (!list) return;
+  const up = document.getElementById('bmUp'), down = document.getElementById('bmDown');
+  const start = list.scrollTop;
+  const size = list.clientHeight;
+  const end = start + size;
+  const max = list.scrollHeight;
+  if (up) up.disabled = start <= 1;
+  if (down) down.disabled = end >= max - 1;
+}
+
+function renderBookmarks() {
+  const list = document.getElementById('bmList');
+  if (!list) return;
+  if (!bookmarks.length) {
+    list.innerHTML = '<div class="bm-empty">No bookmarks yet. Click the 🔖 on any box ' +
+      'in the results to keep a pointer to it here. &ldquo;Save&rdquo; writes the list to a ' +
+      'JSON file you can keep or load into another DRASTIC app.</div>';
+    syncBmScrollBtns();
+    return;
+  }
+  const appLabel = {};
+  DRASTIC_APPS.forEach(function(a) { appLabel[a.id] = a.label; });
+  list.innerHTML = bookmarks.map(function(b, i) {
+    const app = appLabel[b.app] || b.app || 'this app';
+    return '<div class="bm-item" data-bm="' + i + '" ' +
+      'title="Jump to this box in ' + escapeHtml(app) + '">' +
+      '<span class="bm-x" data-bm-del="' + i + '" title="Remove this bookmark">✕</span>' +
+      '<div class="bm-t">' + escapeHtml(b.label || b.key) + '</div>' +
+      '<div class="bm-m">' + escapeHtml([b.date, b.sub, app].filter(Boolean).join(' · ')) + '</div>' +
+      '</div>';
+  }).join('');
+  syncBmScrollBtns();
+  refreshBookmarkToggles();
+}
+
+// Keep the 🔖 on every rendered box in step with the store, including after a
+// search redraws the results.
+function refreshBookmarkToggles() {
+  document.querySelectorAll('[data-bm-toggle]').forEach(function(btn) {
+    const on = isBookmarked(btn.getAttribute('data-bm-toggle'));
+    btn.classList.toggle('on', on);
+    btn.title = on ? 'Remove this bookmark' : 'Bookmark this box';
+  });
+}
+
+// Open a bookmark: in-app entries are jumped to directly, anything else (a
+// pointer into a sibling DRASTIC app, say) follows its url.
+function openBookmark(bmKey) {
+  const b = bmFind(bmKey);
+  if (!b) return;
+  if (b.app === 'fauci-diary' && openEntryByBmKey(b.key, b.page)) return;
+  if (b.url) window.open(b.url, '_blank', 'noopener');
+}
+
+// Resolve a bookmark key back to an entry, then reuse the normal open path so a
+// bookmark lands exactly where a click on the box would.
+function openEntryByBmKey(bmKey, page) {
+  if (!diaryData || !bmKey) return false;
+  var target = diaryBmIndex(bmKey);
+  if (target < 0) return false;
+  if (lastSearchResults && lastSearchResults.length) {
+    clearSearchStateForBrowse();
+  }
+  var pack = buildBrowseResultsAroundIndex(target, BROWSE_RADIUS);
+  if (!pack || !pack.results.length) return false;
+  browseMode = true;
+  displayResults(pack.results, '', { autoSelect: false });
+  var k = pack.focusLocal;
+  requestAnimationFrame(function() {
+    if (k >= 0 && k < pack.results.length) selectResult(k, page || undefined);
+    var card = document.querySelector('.result-entry.active');
+    if (card) card.scrollIntoView({ block: 'center' });
+  });
+  return true;
+}
+
+function bookmarksPayload() {
+  return {
+    format: 'drastic-bookmarks',
+    version: BOOKMARK_FILE_VERSION,
+    app: 'fauci-diary',
+    saved: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    count: bookmarks.length,
+    bookmarks: bookmarks,
+  };
+}
+
+function saveBookmarks() {
+  const payload = bookmarksPayload();
+  const blob = new Blob([JSON.stringify(payload, null, 2)],
+                        { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'fauci-diary-bookmarks-' + payload.saved.slice(0, 10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+}
+
+// Load REPLACES the current list (that is what "load bookmarks" means here), and
+// asks first rather than doing it silently.
+function loadBookmarksFile(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function() {
+    let data;
+    try {
+      data = JSON.parse(String(reader.result));
+    } catch (err) {
+      alert('That file is not valid JSON, so the bookmarks were left unchanged.');
+      input.value = '';
+      return;
+    }
+    const incoming = Array.isArray(data) ? data : data.bookmarks;
+    if (!Array.isArray(incoming)) {
+      alert('No bookmarks found in that file. The current list was left unchanged.');
+      input.value = '';
+      return;
+    }
+    if (bookmarks.length &&
+        !confirm('Replace the ' + bookmarks.length + ' bookmark(s) currently saved with the ' +
+                 incoming.length + ' in "' + file.name + '"?')) {
+      input.value = '';
+      return;
+    }
+    // Normalise on the way in, so a hand-edited file or an older one still
+    // loads: the fields the rail reads are filled in, unknown ones are kept.
+    bookmarks = incoming.map(function(b, i) {
+      const key = b.key || b.bm_key || ('imported/' + i);
+      return Object.assign({}, b, {
+        key: key,
+        app: b.app || bmAppFor(b.url),
+        label: b.label || b.title || key,
+        sub: b.sub || b.subtitle || '',
+      });
+    });
+    bmPersist();
+    renderBookmarks();
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function initBookmarks() {
+  bookmarks = bmLoad();
+  const list = document.getElementById('bmList');
+  if (list) {
+    list.addEventListener('scroll', syncBmScrollBtns, { passive: true });
+    list.addEventListener('click', function(ev) {
+      const del = ev.target.closest('[data-bm-del]');
+      if (del) {
+        ev.stopPropagation();
+        const d = bookmarks[parseInt(del.getAttribute('data-bm-del'), 10)];
+        if (d) removeBookmark(d.key);
+        return;
+      }
+      const item = ev.target.closest('[data-bm]');
+      if (item) {
+        const b = bookmarks[parseInt(item.getAttribute('data-bm'), 10)];
+        if (b) openBookmark(b.key);
+      }
+    });
+  }
+  window.addEventListener('resize', syncBmScrollBtns);
+  renderBookmarks();
+}
+
+
 layoutToolbarInstructions();
 window.addEventListener('load', layoutToolbarInstructions);
+initBookmarks();
 loadData();
 </script>
 

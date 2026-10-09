@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 .DS_Store
 
-# Archival original of the Ebola extract PDF, kept on disk but not tracked.
-# The canonical in-repo copy is page_based/diary-ebola.pdf (identical bytes).
+# Archival originals of release PDFs, kept on disk but not tracked.
+# The canonical in-repo copies are the short names (identical bytes).
 /page_based/2026.09.28_Ebola-Doc-Release_Full-Package.pdf
+/page_based/2026.10.6_Fauci-Diary-Release-Missing-Years_Full-Package.pdf
+/server_based/2026.10.6_Fauci-Diary-Release-Missing-Years_Full-Package.pdf
