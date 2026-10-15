@@ -8,14 +8,17 @@ Self-contained static files. No Python server is required for hosting.
 - `2026.07.27_Diary-Prequel-.json` — prequel entries (2001–2015)
 - `2026.09.28_Ebola-Doc-Release_Full-Package.json` — ebola extract entries (Mar 2016: 8 diary + 19 threaded emails + filovirus report)
 - `2026.10.6_Fauci-Diary-Release-Missing-Years_Full-Package.json` — missing-years entries (Jul 2015–Dec 2019: 694 diary + release note)
+- `2026.10.07_Missing-Pages-Diary_Full-Package.json` — missing-pages entries (Dec 2021–May 2022: 125 diary + release note)
 - `page_map.json` — date → PDF page (main diary)
 - `prequel_page_map.json` — date → PDF page (prequel)
 - `ebola_page_map.json` — date → PDF page (ebola extract)
 - `missingyears_page_map.json` — date → PDF page (missing years)
+- `missingpages_page_map.json` — date → PDF page (missing pages)
 - `diary.pdf` — main diary PDF (~63 MB; Git LFS)
 - `diary-prequel.pdf` — prequel PDF (~10 MB; Git LFS)
 - `diary-ebola.pdf` — ebola extract PDF, short name (~3 MB), the canonical in-repo copy. The Congressional original filename `2026.09.28_Ebola-Doc-Release_Full-Package.pdf` is recorded in the JSON `source_file` field and in `../server_based/README.md`; its bytes are identical to `diary-ebola.pdf`, so it is not stored here again.
 - `diary-missingyears.pdf` — missing-years PDF, short name (~11 MB), the canonical in-repo copy. The Congressional original filename `2026.10.6_Fauci-Diary-Release-Missing-Years_Full-Package.pdf` is recorded in the JSON `source_file` field; its bytes are identical to `diary-missingyears.pdf`, so it is not stored here again.
+- `diary-missingpages.pdf` — missing-pages PDF, short name (~7.4 MB), the canonical in-repo copy. The Congressional original filename `2026.10.07_Missing-Pages-Diary_Full-Package.pdf` is recorded in the JSON `source_file` field; its bytes are identical to `diary-missingpages.pdf`, so it is not stored here again.
 
 ## Standards
 

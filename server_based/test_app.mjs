@@ -88,7 +88,7 @@ const ok = (name, cond, extra='') => { if (cond) { pass++; console.log('  PASS  
 const sec = (t) => console.log('\n' + t);
 
 sec('Data load');
-ok('entries loaded (2713)', app.diaryData && app.diaryData.entries.length === 2713, app.diaryData && app.diaryData.entries.length);
+ok('entries loaded (2839)', app.diaryData && app.diaryData.entries.length === 2839, app.diaryData && app.diaryData.entries.length);
 const byKind = {};
 app.diaryData.entries.forEach(e => { const k = app.entryKind(e); byKind[k] = (byKind[k]||0)+1; });
 console.log('        kinds:', JSON.stringify(byKind));
@@ -98,8 +98,9 @@ ok('diary + email + attachment + note kinds present',
 const srcs = {};
 app.diaryData.entries.forEach(e => srcs[e.source] = (srcs[e.source]||0)+1);
 console.log('        sources:', JSON.stringify(srcs));
-ok('four sources merged', Object.keys(srcs).length === 4, JSON.stringify(srcs));
+ok('five sources merged', Object.keys(srcs).length === 5, JSON.stringify(srcs));
 ok('missingyears contributes 695', srcs.missingyears === 695, String(srcs.missingyears));
+ok('missingpages contributes 126', srcs.missingpages === 126, String(srcs.missingpages));
 
 sec('Chronology');
 ok('timeline range 2001-01-26 .. 2022-12-17',

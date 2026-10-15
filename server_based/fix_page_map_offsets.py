@@ -45,6 +45,7 @@ TARGETS = [
     ("2026.07.27_Diary-Prequel-.json", "prequel_page_map.json"),
     ("2026.09.28_Ebola-Doc-Release_Full-Package.json", "ebola_page_map.json"),
     ("2026.10.6_Fauci-Diary-Release-Missing-Years_Full-Package.json", "missingyears_page_map.json"),
+    ("2026.10.07_Missing-Pages-Diary_Full-Package.json", "missingpages_page_map.json"),
 ]
 
 

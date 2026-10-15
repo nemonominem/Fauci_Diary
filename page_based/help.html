@@ -71,7 +71,7 @@ footer{border-top:1px solid var(--border);margin-top:56px;padding-top:18px;color
 <header class="top">
   <div class="t">
     <h1>Tony's Diary Search — manual &amp; release notes</h1>
-    <p>How to search, read and navigate Fauci's diary across four Congressional releases.</p>
+    <p>How to search, read and navigate Fauci's diary across five Congressional releases.</p>
   </div>
   <a href="index.html" title="Back to the search app"><img src="drastic-logo.png" alt="DRASTIC Research"></a>
 </header>
@@ -79,12 +79,13 @@ footer{border-top:1px solid var(--border);margin-top:56px;padding-top:18px;color
   <h2>Contents</h2>
   <ol>
     <li><a href="#search">Searching</a></li>
-    <li><a href="#boxes">Boxes: diary, email, attachment, note</a></li>
+    <li><a href="#boxes">Boxes: diary, email, attachment, meta</a></li>
     <li><a href="#timeline">The timeline</a></li>
+    <li><a href="#tabs">Main Docs / Linked Docs / Thread tabs</a></li>
     <li><a href="#pdf">The PDF viewer</a></li>
     <li><a href="#bookmarks">Bookmarks</a></li>
     <li><a href="#keyboard">Keyboard</a></li>
-    <li><a href="#releases">The four releases</a></li>
+    <li><a href="#releases">The five releases</a></li>
     <li><a href="#notes">Release notes</a></li>
     <li><a href="#limits">Known limits</a></li>
   </ol>
@@ -92,8 +93,7 @@ footer{border-top:1px solid var(--border);margin-top:56px;padding-top:18px;color
 
 <section id="search">
   <h2>1. Searching</h2>
-  <p class="lede">One box, four releases, 2,713 entries. The query language is small and exact.</p>
-</section>
+  <p class="lede">One box, five releases, 2,839 entries. The query language is small and exact.</p>
   <table>
     <thead><tr><th>You type</th><th>You get</th><th>Example</th></tr></thead>
     <tbody>
@@ -108,46 +108,93 @@ footer{border-top:1px solid var(--border);margin-top:56px;padding-top:18px;color
 </section>
 
 <section id="boxes">
-  <h2>2. Boxes: diary, email, attachment, note</h2>
+  <h2>2. Boxes: diary, email, attachment, meta</h2>
   <p class="lede">Every result is one box. The box type decides the badge and where it sits.</p>
   <table>
     <thead><tr><th>Kind</th><th>Meaning</th><th>Badge</th></tr></thead>
     <tbody>
       <tr><td>diary</td><td>a diary day</td><td>none — the common case stays quiet</td></tr>
-      <tr><td>email</td><td>one message, one author, one timestamp</td><td>kind chip + source badge</td></tr>
-      <tr><td>attachment</td><td>a document travelling with a message</td><td>indented box under its parent</td></tr>
-      <tr><td>note</td><td>publisher material <i>about</i> the release</td><td>release-note box, off the timeline</td></tr>
+      <tr><td>email</td><td>one message, one author, one timestamp — genuine correspondence</td><td>kind chip + source badge</td></tr>
+      <tr><td>attachment</td><td>an <i>original</i> document that travelled with a message (a report, a scanned
+      record)</td><td>lives in the Linked Docs tab, not the main list</td></tr>
+      <tr><td>meta</td><td>analysis or organisational material produced <i>about</i> the release itself —
+      a publisher's prequel-style preface, a conclusion, a summary, an index — never part of the
+      original record</td><td>lives in the Linked Docs tab, not the main list</td></tr>
     </tbody>
   </table>
-</section>
   <p>An <b>email box holds only what its author wrote</b> — no quoted history. The messages it
-  answers are separate boxes, reached through reply links. Attachments announced in the text
-  show as chips: an active link when the document is in the releases, a dimmed tag otherwise.</p>
+  answers are separate boxes, reached through reply links, or walked as a whole conversation in
+  the <b>Thread</b> tab. Attachments announced in the text show as chips: an active link when the
+  document is in the releases, a dimmed tag otherwise. URLs inside a box's text are clickable.</p>
   <p>Every box scrolls on its own; <b>Full text</b> removes the height cap. Email stamps are
-  normalised to New York time, local time alongside.</p>
+  normalised to New York time, local time alongside, and the header (From/To/Subject/Sent) sits
+  in a tight blue block above a rule, separate from the body. A long email body with no natural
+  paragraph breaks is split one sentence per line for readability — the underlying text and
+  search are unaffected.</p>
+  <p><b>Meta</b> and <b>attachment</b> boxes (the publisher's own cover analysis, and
+  documents like the historical record) default to unticked in <b>Box types</b>, so the main
+  list and search stay to the dated record — they always have a permanent home in the
+  <b>Linked Docs</b> tab instead, reachable from any box that references one. Telling the two
+  apart matters: a <b>meta</b> box is commentary <i>about</i> the release (so it belongs with the
+  publisher's other front matter), while an <b>attachment</b> is itself part of the historical
+  record being released, just one that travelled as a separate file rather than a dated entry.</p>
 </section>
 
 <section id="timeline">
   <h2>3. The timeline</h2>
-  <p>The dual timeline plots <b>entries</b> (left) against <b>search hits</b> (right). Clicking a
-  bar opens that day's entry and its PDF page. <b>Box types</b> ticks which kinds are listed.</p>
+  <p>The timeline plots <b>entries</b> against <b>search hits</b>, one bar per day. Clicking a bar
+  opens that day's entry and its PDF page. The legend below the chart has one group per box kind
+  (colour-coded, no shading); tick the group's own checkbox to show/hide that whole kind, or tick
+  one of its release sub-checkboxes to show/hide just that release. <b>Box types</b> does the same
+  thing for the kinds, as a compact dropdown.</p>
+  <p>Drag across the chart to draw a box and zoom straight to that stretch — the entries axis
+  rescales so the tallest bar in view reaches close to the top, instead of staying sized for the
+  single busiest day in the whole 22-year span. Scroll to zoom at the cursor, double-click or the
+  <b>↺</b> button to reset. The timeline panel itself can be resized by dragging the handle below
+  it (Landscape: width; Portrait: height), and Landscape/Portrait redraw the chart to fit either
+  way.</p>
+</section>
+
+<section id="tabs">
+  <h2>4. Main Docs / Linked Docs / Thread tabs</h2>
+  <p class="lede">The reading panel on the right always shows one of these three. The result list
+  on the left sits in its own panel too, under a single tab labelled <b>Content</b>.</p>
+  <table>
+    <thead><tr><th>Tab</th><th>Shows</th></tr></thead>
+    <tbody>
+      <tr><td><b>Main Docs</b></td><td>the release PDF, following whichever box you opened</td></tr>
+      <tr><td><b>Linked Docs</b></td><td>every release's own front matter — its cover analysis
+      (kind <code>meta</code>) and any attachment (kind <code>attachment</code>) — each with its
+      full text, an <b>Open in Main Docs</b> link to the real scanned page, and an
+      <b>Open in Content</b> link that instead recentres the left-hand Content list on it</td></tr>
+      <tr><td><b>🧵 Thread</b></td><td>an email's full reply/forward chain, upstream and
+      downstream, Gmail-style</td></tr>
+    </tbody>
+  </table>
+  <p>A box with a reply/forward link shows a <b>🧵 Thread</b> button; clicking it opens that
+  conversation. Clicking another message's card in the Thread tab re-centres the conversation on
+  it. Each message also carries two jump links: <b>Open in Main Docs</b> jumps straight to that
+  message's scanned page without losing your place in the thread, and <b>Open in Content</b>
+  instead recentres the left-hand Content list on that exact message — including a note or
+  attachment that Box types currently has hidden, which is shown anyway since it was asked for
+  by name.</p>
 </section>
 
 <section id="pdf">
-  <h2>4. The PDF viewer</h2>
+  <h2>5. The PDF viewer</h2>
   <p>Clicking a result switches to that entry's release PDF automatically and jumps to the page
   where its content starts; HIT Prev/Next follows each hit across pages.</p>
 </section>
 
 <section id="bookmarks">
-  <h2>5. Bookmarks</h2>
+  <h2>6. Bookmarks</h2>
   <p>The rail on the left keeps your own pointers into the record. Click the toggle on any box
   to keep it; click again to drop it. <b>Save</b> writes a JSON file you can keep or load into
   another DRASTIC app.</p>
 </section>
 
 <section id="keyboard">
-  <h2>6. Keyboard</h2>
+  <h2>7. Keyboard</h2>
   <div class="keys">
     <div><kbd>Up</kbd> <kbd>Down</kbd> <span>walk the match list</span></div>
     <div><kbd>Left</kbd> <kbd>Right</kbd> <span>turn PDF pages</span></div>
@@ -156,7 +203,7 @@ footer{border-top:1px solid var(--border);margin-top:56px;padding-top:18px;color
   </div>
 </section>
 <section id="releases">
-  <h2>7. The four releases</h2>
+  <h2>8. The five releases</h2>
   <table>
     <thead><tr><th>Release</th><th>Period</th><th>Entries</th><th>PDF pages</th></tr></thead>
     <tbody>
@@ -164,14 +211,31 @@ footer{border-top:1px solid var(--border);margin-top:56px;padding-top:18px;color
       <tr><td><b>Missing Years</b> — the gap years</td><td>Jul 2015 – Dec 2019</td><td>695</td><td>204</td></tr>
       <tr><td><b>Ebola extract</b> — diary notes + emails + report</td><td>Mar 2016</td><td>28</td><td>26</td></tr>
       <tr><td><b>Main Diary</b> — Tony's Diary Package</td><td>Dec 2019 – Dec 2022</td><td>853</td><td>1,141</td></tr>
+      <tr><td><b>Missing Pages</b> — the gap inside the main diary</td><td>Dec 2021 – May 2022</td><td>126</td><td>124</td></tr>
     </tbody>
   </table>
   <div class="note">March 2016 exists in <b>both</b> the Missing Years and the Ebola extract — kept, not
-  merged. Source badges tell them apart.</div>
+  merged. Source badges tell them apart. Missing Pages fills a gap <b>inside</b> the Main Diary's
+  own range (it jumps from Nov 2021 straight to a stray end-of-May 2022 entry) — no overlap with
+  any other release.</div>
 </section>
 
 <section id="notes">
-  <h2>8. Release notes</h2>
+  <h2>9. Release notes</h2>
+  <h3>"Meta" kind introduced; a prequel cover email corrected</h3>
+  <ul>
+    <li><b>New kind: meta</b> (renamed from "note"): analysis or organisational material produced
+    <i>about</i> a release — a publisher's prequel-style preface, a conclusion, a summary, an
+    index — as opposed to an <b>attachment</b>, which is itself part of the original historical
+    record. Behaves exactly as "note" did (unticked by default in Box types, permanent home in
+    Linked Docs); only the label and the boundary it draws changed.</li>
+    <li><b>Correction</b>: the Prequel's self-addressed "cover email" of 11 July 2015 (Subject:
+    "history", carrying the historical record as its attachment) was previously classified as an
+    <b>email</b> box. It is not genuine correspondence — it is the publisher's own device for
+    attaching the historical record — so it is now classified <b>meta</b> like the Prequel's own
+    release note. Its attachment (the historical record itself) was already correctly classified
+    and is unchanged.</li>
+  </ul>
   <h3>Missing Years + bookmarks + manual</h3>
   <ul>
     <li><b>Missing Years release</b>: 694 diary entries Jul 2015 – Dec 2019 plus the publisher's
@@ -180,10 +244,43 @@ footer{border-top:1px solid var(--border);margin-top:56px;padding-top:18px;color
     Save/Load to a JSON file that travels between the DRASTIC apps.</li>
     <li><b>On-demand PDF rendering</b>: clicking a result always lands on the correct release.</li>
   </ul>
+  <h3>Missing Pages</h3>
+  <ul>
+    <li><b>Missing Pages release</b>: 125 diary entries Dec 2021 – May 2022 plus the publisher's
+    cover analysis as a release note, filling the gap inside the Main Diary's own date range;
+    every entry page-mapped with content-equality asserted.</li>
+  </ul>
+  <h3>Thread tab, Linked Docs tab, timeline rework, readability</h3>
+  <ul>
+    <li><b>🧵 Thread tab</b>: a Gmail-style view of an email's full reply/forward chain, upstream
+    and downstream; an <b>Open in Main Docs</b> button on every message jumps to its scanned page
+    without losing the thread's own focus.</li>
+    <li><b>Linked Docs tab</b>: release notes and attachments moved out of the main scrollable
+    list into a dedicated tab, each with full text and its own <b>Open in Main Docs</b> link —
+    they default to unticked in Box types so search and browsing stay to the dated record.</li>
+    <li><b>Timeline legend rebuilt</b>: one coloured group per box kind (no per-release shading)
+    with a row of release sub-checkboxes nested under it, replacing the flat per-release swatch
+    list.</li>
+    <li><b>Drag-to-zoom</b>: draw a box on the chart to zoom straight to it; the entries axis
+    rescales to whatever stretch is actually in view, with a real labelled scale, instead of
+    staying sized for the single busiest day across the whole 22 years.</li>
+    <li><b>Resizable timeline panel</b>, brighter grid lines, and a day with zero entries no
+    longer draws a stub bar.</li>
+    <li><b>Reading panel tabs renamed</b>: the PDF-viewer tab is <b>Main Docs</b> (it used to be
+    called "Content", then briefly shared the name "Timeline" with the chart); the front-matter
+    tab is <b>Linked Docs</b> (previously "Reference Sources", "Complementary" before that).</li>
+    <li><b>Result list becomes a panel of its own</b>: the left-hand search/browse list now sits
+    under a single tab labelled <b>Content</b>. An <b>Open in Content</b> button on every Linked
+    Docs item and Thread message recentres that list on the referenced entry, even one Box types
+    currently has hidden — distinct from <b>Open in Main Docs</b>, which opens the scanned page
+    on the right instead.</li>
+    <li><b>Readability</b>: email headers sit in a tight blue block above a rule; a long body
+    with no natural paragraph break is split one sentence per line.</li>
+  </ul>
 </section>
 
 <section id="limits">
-  <h2>9. Known limits</h2>
+  <h2>10. Known limits</h2>
   <ul>
     <li>Inline pasted emails inside diary prose stay inside the diary box by design.</li>
     <li>Redacted pages carry only the release footer; Mar 9–10 2016 have no diary text here.</li>

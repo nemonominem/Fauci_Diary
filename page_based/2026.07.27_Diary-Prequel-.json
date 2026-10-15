@@ -5693,7 +5693,7 @@
     {
       "date": "2015-07-11",
       "time": "1750",
-      "kind": "email",
+      "kind": "meta",
       "raw_date": "17:50 ET · history",
       "date_note": "Cover email of the prequel; carries the historical record as an attachment",
       "content": "From: \"Fauci, Anthony (NIH/NIAID) [E]\"\n\nTo: \"Fauci, Anthony (NIH/NIAID) [E]\" <AFAUCI@niaid.nih.gov>\n\nSubject: history\n\nImportance: Normal\n\nAttachments: historical_record_of_A.S._Fauci.docx\n\nSent: Saturday, July 11, 2015 05:50 PM ET\n\n----------"

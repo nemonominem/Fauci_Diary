@@ -134,6 +134,8 @@ body {
   display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
   transition: width 0.18s ease, min-width 0.18s ease, height 0.18s ease, max-height 0.18s ease;
 }
+/* While dragging the resize handle, follow the pointer instantly (no easing). */
+.charts-panel.dragging { transition: none !important; }
 .panel-header {
   display: flex; justify-content: space-between; align-items: center;
   padding: 8px 12px; background: var(--panel-2); cursor: pointer;
@@ -170,8 +172,46 @@ body {
 .chart-title-main { font-size: 11px; font-weight: 600; color: var(--text); }
 .chart-block-stats { font-size: 10px; color: #fff; }
 .chart-canvas-wrap {
-  position: relative; flex: 1; min-height: 0; width: 100%;
+  /* min-height is a real floor, not 0: .timeline-legend below is
+     flex-shrink:0 (it never yields space), so without this the canvas was
+     the only flexible sibling and a tall legend (several kind groups, each
+     with its own row of release sub-checkboxes) could squeeze it down to a
+     useless sliver -- especially in Portrait's already-short charts panel. */
+  position: relative; flex: 1; min-height: 40px; width: 100%;
 }
+/* Two-tier legend under the timeline: one bordered group per top-level kind
+   (Diary, Email, ...) -- a bold main checkbox (kind, single flat colour, no
+   per-release shading) with a row of smaller per-release sub-checkboxes
+   grouped visually underneath it inside the same box. */
+.timeline-legend {
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 8px; padding: 4px 6px 5px;
+  font-size: 10px; color: var(--muted); border-top: 1px solid var(--border);
+  flex-shrink: 0; max-height: 86px; overflow-y: auto;
+}
+.timeline-legend .lg-group {
+  display: inline-flex; flex-direction: column; gap: 2px;
+  border: 1px solid var(--border-2); border-radius: 6px; padding: 3px 6px;
+  background: rgba(255,255,255,0.02);
+}
+.timeline-legend .lg-group.off { opacity: 0.45; }
+.timeline-legend .lg-main {
+  display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+  font-weight: 700; white-space: nowrap;
+}
+.timeline-legend .lg-swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.timeline-legend .lg-subs { display: flex; flex-wrap: wrap; gap: 2px 8px; padding-left: 14px; }
+.timeline-legend .lg-sub {
+  display: inline-flex; align-items: center; gap: 3px; cursor: pointer;
+  white-space: nowrap; font-weight: 400; opacity: 0.85;
+}
+.timeline-legend .lg-sub.off { opacity: 0.4; text-decoration: line-through; }
+.timeline-legend .lg-main input, .timeline-legend .lg-sub input {
+  margin: 0; width: 10px; height: 10px; flex-shrink: 0;
+}
+.timeline-legend .lg-hint { color: var(--muted); opacity: 0.7; font-style: italic; align-self: center; }
+/* Landscape: the timeline panel is a narrow column, so let the legend use full
+   height instead of capping it at 64px and forcing a scroll to see the sources. */
+body.layout-landscape .timeline-legend { max-height: none; overflow-y: visible; }
 /* Landscape dual chart: vertical center guide (zero between left/right bars) */
 body.layout-landscape .timeline-main {
   background:
@@ -230,7 +270,7 @@ body.layout-landscape .charts-panel.collapsed .panel-header h2 {
   letter-spacing: 0.04em;
   font-size: 12px;
 }
-body.layout-landscape .results-panel {
+body.layout-landscape .results-panel-wrap {
   flex: 1; border-right: 2px solid var(--border); min-width: 0;
 }
 body.layout-landscape .pdf-panel {
@@ -267,7 +307,12 @@ body.layout-landscape .content-stack { display: contents; }
 /* Horizontal timelines: keep panel short (~40% of prior 280px / 40vh) */
 body.layout-portrait .charts-panel {
   border-bottom: 2px solid var(--border);
-  height: 145px; max-height: 165px; min-height: 130px;
+  /* Tall enough, unresized, to fit the header row + the two-tier legend
+     (one bordered group per kind, each with its own row of release
+     sub-checkboxes) and still leave the chart canvas a usable height --
+     the legend is flex-shrink:0 (never yields), so a shorter default here
+     starved the canvas down to a sliver. Still freely resizable (90-420px). */
+  height: 215px; max-height: 260px; min-height: 160px;
   flex: 0 0 auto;
 }
 body.layout-portrait .charts-content { padding: 2px 8px 4px; }
@@ -282,7 +327,7 @@ body.layout-portrait .charts-panel.collapsed {
   min-height: 0;
   flex: 0 0 auto;
 }
-body.layout-portrait .results-panel {
+body.layout-portrait .results-panel-wrap {
   flex: 1; border-right: none; border-bottom: none; min-height: 80px;
 }
 /* Horizontal drag handle between results and PDF */
@@ -374,6 +419,11 @@ body.layout-portrait .pdf-panel {
 }
 .bm-item .bm-x:hover { color: var(--accent); }
 .bm-empty { font-size: 12px; color: var(--muted); padding: 10px 8px; line-height: 1.5; }
+.bm-notice {
+  font-size: 11px; color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--accent); border-radius: 4px; padding: 8px;
+  margin-bottom: 8px; line-height: 1.4;
+}
 /* Save / Load icon buttons: dark keys matching the HUD style, always
    stacked vertically (one on top of the other) in every layout. */
 .bm-file-bar {
@@ -437,8 +487,12 @@ body.layout-portrait .bm-file-bar { border-top: 1px solid var(--border-2); borde
 .content-area { flex: 1; display: flex; overflow: hidden; }
 
 /* ── Results panel ─────────────────────────────────────────────────── */
+/* The wrap holds the one-tab "Content" header above the scrollable list --
+   it takes over the flex-fill/border role the list itself used to have, so
+   the list underneath it is just flex:1 within that. */
+.results-panel-wrap { display: flex; flex-direction: column; min-width: 0; }
 .results-panel {
-  overflow-y: auto; padding: 12px;
+  flex: 1; min-height: 0; overflow-y: auto; padding: 12px;
 }
 .results-panel::-webkit-scrollbar { width: 8px; }
 .results-panel::-webkit-scrollbar-track { background: var(--panel); }
@@ -496,9 +550,11 @@ body.layout-portrait .bm-file-bar { border-top: 1px solid var(--border-2); borde
   border-bottom: 1px solid var(--border-2); background: rgba(245,166,35,0.07);
 }
 .att-parent a { color: #f5a623; text-decoration: underline; cursor: pointer; }
-.result-entry.is-note { border-left: 3px solid #b98cff; }
-.result-entry.is-note .result-date { color: #b98cff; }
-.result-entry.is-note .att-parent { background: rgba(185,140,255,0.08); }
+.result-entry.is-meta { border-left: 3px solid #b98cff; }
+.result-entry.is-meta .result-date { color: #b98cff; }
+.result-entry.is-meta .att-parent { background: rgba(185,140,255,0.08); }
+.body-link { color: #6cb6ff; text-decoration: underline; word-break: break-all; }
+.body-link:hover { color: var(--accent); }
 .att-parent a:hover { color: var(--accent); }
 .reply-ref {
   padding: 6px 14px; border-top: 1px dashed var(--border-2);
@@ -508,9 +564,8 @@ body.layout-portrait .bm-file-bar { border-top: 1px solid var(--border-2); borde
 .reply-ref a:hover { color: var(--accent); }
 /* Email cards: From/To/Subject block, rule, then the body written that day */
 .result-content p.email-field {
-  font-size: 12px; color: #ddd; margin: 1px 0; line-height: 1.5;
+  font-size: 12px; color: var(--muted); margin: 1px 0; line-height: 1.5;
 }
-.result-content p.email-field:first-child { font-weight: 600; }
 hr.email-sep {
   border: none; border-top: 1px solid var(--border-2); margin: 8px 0 10px;
 }
@@ -608,6 +663,97 @@ mark.hit-current {
 .pdf-panel {
   display: flex; flex-direction: column; background: var(--bg);
 }
+.pdf-tabs {
+  display: flex; gap: 2px; padding: 6px 8px 0; background: var(--panel);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.pdf-tab {
+  background: var(--panel-2); color: var(--muted); border: 1px solid var(--border-2);
+  border-bottom: none; padding: 6px 12px; border-radius: 6px 6px 0 0; cursor: pointer;
+  font-size: 12px; font-weight: 600;
+}
+.pdf-tab:hover { color: var(--text); background: var(--border-2); }
+.pdf-tab.active { background: var(--bg); color: var(--text); border-color: var(--border); }
+.thread-view { flex: 1; overflow: auto; background: #1a1a1a; padding: 16px; }
+.thread-view-inner { max-width: 780px; margin: 0 auto; }
+.thread-empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; }
+.thread-msg {
+  border: 1px solid var(--border-2); border-radius: 6px; padding: 12px 14px;
+  margin-bottom: 10px; background: var(--panel-2); cursor: pointer;
+}
+.thread-msg:hover { border-color: var(--accent); }
+.thread-msg.current { border-color: #4ecca3; border-width: 2px; cursor: default; }
+.thread-msg.downstream { border-style: dashed; }
+.thread-msg-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.thread-msg-date { font-weight: 700; color: var(--accent); font-size: 13px; }
+.thread-msg-raw { color: var(--muted); font-size: 11px; }
+.thread-msg-badge {
+  font-size: 10px; color: var(--muted); background: var(--panel); font-weight: 600;
+  padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-2);
+}
+.thread-msg-kind { font-size: 11px; font-weight: 600; margin-left: auto; }
+.thread-msg-fields {
+  font-size: 11.5px; line-height: 1.6; color: var(--muted); white-space: pre-wrap;
+  border-bottom: 1px solid var(--border-2); padding-bottom: 6px; margin-bottom: 8px;
+}
+.thread-msg-body {
+  font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; color: var(--text);
+  max-height: 220px; overflow-y: auto;
+}
+.thread-chain-arrow { text-align: center; color: var(--muted); font-size: 16px; margin: -2px 0 6px; }
+.thread-section-label {
+  font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;
+  margin: 14px 0 6px;
+}
+/* A downstream reply's lineage back to its parent, as a rule down the left
+   edge of its own indent -- each further level of reply nests one step
+   deeper, so the rules visually chain into the message above it. */
+.thread-down { border-left: 2px solid var(--border-2); padding-left: 10px; margin-top: 8px; }
+.thread-collapsed {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  border: 1px dashed var(--border-2); border-radius: 6px; background: var(--panel-2);
+}
+.thread-collapsed-label { font-size: 12px; color: var(--muted); flex: 1; }
+.thread-downstream-btn {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border-2);
+  padding: 3px 9px; border-radius: 4px; cursor: pointer; font-size: 11px; white-space: nowrap;
+}
+.thread-downstream-btn:hover { border-color: #4ecca3; color: #4ecca3; }
+.thread-btn {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border-2);
+  padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 8px;
+  white-space: nowrap;
+}
+.thread-btn:hover { border-color: #4ecca3; color: #4ecca3; }
+.complementary-view { flex: 1; overflow: auto; background: #1a1a1a; padding: 16px; }
+.complementary-view-inner { max-width: 780px; margin: 0 auto; }
+.complementary-empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; }
+.comp-section-label {
+  font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;
+  margin: 14px 0 6px;
+}
+.comp-item {
+  border: 1px solid var(--border-2); border-radius: 6px; padding: 12px 14px;
+  margin-bottom: 10px; background: var(--panel-2);
+}
+.comp-item-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.comp-item-title { font-weight: 700; color: var(--accent); font-size: 13px; }
+.comp-item-badge {
+  font-size: 10px; color: var(--muted); background: var(--panel); font-weight: 600;
+  padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-2);
+}
+.comp-item-kind { font-size: 11px; font-weight: 600; margin-left: auto; }
+.comp-item-meta { font-size: 11.5px; color: var(--muted); font-style: italic; margin-bottom: 8px; }
+.comp-item-body {
+  font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; color: var(--text);
+  max-height: 260px; overflow-y: auto;
+}
+.comp-item-open {
+  display: inline-block; margin-top: 8px; background: var(--panel); color: var(--text);
+  border: 1px solid var(--border-2); padding: 3px 9px; border-radius: 4px; cursor: pointer;
+  font-size: 11px; text-decoration: none;
+}
+.comp-item-open:hover { border-color: var(--accent); color: var(--accent); }
 .pdf-toolbar {
   padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--border);
   display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap;
@@ -692,17 +838,17 @@ mark.hit-current {
 <div class="header">
   <div class="title-block">
     <h1>📖 Tony's Diary Search</h1>
-    <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a> &middot; 2,713 entries &middot; Jan 2001 &ndash; Dec 2022</span>
+    <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a> &middot; 2,839 entries &middot; Jan 2001 &ndash; Dec 2022</span>
   </div>
   <form class="search-bar" id="searchForm" onsubmit="doSearch(); return false;">
-    <input type="text" id="searchInput" enterkeyhint="search" autocomplete="off" placeholder='Phrase: "blue car" · words: happy bunny · help: ?'>
-    <button type="submit" id="searchBtn">Search</button>
-    <button type="button" id="clearBtn" onclick="clearSearch()">Clear</button>
     <label class="case-toggle" title="Off = match any capitalization (default). On = exact capitalization only.">
       <input type="checkbox" id="caseSensitive" onchange="if(document.getElementById('searchInput').value.trim())doSearch()">
       <span><strong>Aa</strong> case sensitive</span>
     </label>
     <button type="button" id="helpBtn" onclick="showHelp()" title="Search help" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border-2);padding:8px 12px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">?</button>
+    <input type="text" id="searchInput" enterkeyhint="search" autocomplete="off" placeholder='Phrase: "blue car" · words: happy bunny · help: ?'>
+    <button type="submit" id="searchBtn">Search</button>
+    <button type="button" id="clearBtn" onclick="clearSearch()">Clear</button>
   </form>
     <!-- DRASTIC mark, top right. Links to the manual/release notes page, which
          opens in a new tab so the search state here is never lost. -->
@@ -731,7 +877,7 @@ mark.hit-current {
       <span class="kind-filter-panel" id="kindFilterPanel" hidden></span>
     </span>
   </div>
-  <span class="instructions" id="toolbarInstructions">Search &rarr; click a result / hit bar for matches. Entry bars open that day&rsquo;s entry + PDF (and clear any search). Jump-to-date opens the nearest entry. <b>Box types</b> chooses which kinds of box are listed (diary, email, attachment, &hellip;). Scroll wheel zooms; double-click resets.</span>
+  <span class="instructions" id="toolbarInstructions">Search &rarr; click a result / hit bar for matches. Entry bars open that day&rsquo;s entry + PDF (and clear any search). Jump-to-date opens the nearest entry. <b>Box types</b> chooses which kinds of box are listed (diary, email, attachment, &hellip;). Drag to zoom into a stretch; scroll wheel zooms at the cursor; double-click resets.</span>
 </div>
 
 <div class="content-area">
@@ -771,9 +917,9 @@ mark.hit-current {
   <!-- ── Dual vertical timeline: entries LEFT | hits RIGHT, shared Y = time ── -->
   <div class="charts-panel" id="chartsPanel">
     <div class="panel-header" onclick="toggleCharts()">
-      <h2>📊 Dual timeline</h2>
+      <h2>📊 Timeline</h2>
       <div style="display:flex;align-items:center;gap:4px">
-        <button onclick="event.stopPropagation();resetTimelineZoom()" title="Reset zoom (or double-click chart)" style="background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;padding:0 4px;flex-shrink:0">&#10226;</button>
+        <button class="collapse-btn" onclick="event.stopPropagation();resetTimelineZoom()" title="Reset zoom (or double-click chart)" style="font-size:20px">&#10226;</button>
         <button class="collapse-btn" id="chartsCollapseBtn" title="Collapse timeline">◀</button>
       </div>
     </div>
@@ -793,18 +939,27 @@ mark.hit-current {
       <div class="chart-canvas-wrap timeline-main">
         <canvas id="timelineChart"></canvas>
       </div>
+      <div class="timeline-legend" id="timelineLegend" title="Colour = box type, shade = release. Click a swatch to show or hide that kind."></div>
     </div>
   </div>
 
+  <!-- ── Drag handle to resize the timeline panel ─────────────────── -->
+  <div class="panel-resizer" id="chartsResizer" title="Drag to resize the timeline panel"></div>
+
   <!-- ── Results panel ────────────────────────────────────────────── -->
-  <div class="results-panel" id="resultsPanel">
-    <div class="placeholder">
-      <h2>Search Fauci's Diary</h2>
-      <p>Enter a search term above to find mentions across all diary entries
-      (Jan 2001 &ndash; Dec 2022, four Congressional releases).
-      Results will show the matching text with all hits highlighted, the
-      corresponding PDF page, and charts of entries/hits over time.</p>
-      <div class="stats" id="entryStats"></div>
+  <div class="results-panel-wrap" id="resultsPanelWrap">
+    <div class="pdf-tabs" id="resultsTabs" role="tablist" title="Content: the browse/search list -- a diary entry, email, or anything opened here with 'Open in Content' from Linked Docs or Thread.">
+      <button type="button" class="pdf-tab active" style="cursor: default" disabled>Content</button>
+    </div>
+    <div class="results-panel" id="resultsPanel">
+      <div class="placeholder">
+        <h2>Search Fauci's Diary</h2>
+        <p>Enter a search term above to find mentions across all diary entries
+        (Jan 2001 &ndash; Dec 2022, four Congressional releases).
+        Results will show the matching text with all hits highlighted, the
+        corresponding PDF page, and charts of entries/hits over time.</p>
+        <div class="stats" id="entryStats"></div>
+      </div>
     </div>
   </div>
 
@@ -813,7 +968,12 @@ mark.hit-current {
 
   <!-- ── PDF panel ────────────────────────────────────────────────── -->
   <div class="pdf-panel" id="pdfPanel">
-    <div class="pdf-toolbar">
+    <div class="pdf-tabs" id="pdfTabs" role="tablist" title="Main Docs: the PDF viewer, following whichever entry you opened. Linked Docs: each release's own front matter and attachments, plus documents it cites. Thread: walk a message's full reply/forward chain.">
+      <button type="button" class="pdf-tab active" id="pdfTabTimeline" onclick="openTimelineTab()">Main Docs</button>
+      <button type="button" class="pdf-tab" id="pdfTabComplementary" onclick="openComplementaryTab()">Linked Docs</button>
+      <button type="button" class="pdf-tab" id="pdfTabThread" onclick="openThreadTab()">🧵 Thread</button>
+    </div>
+    <div class="pdf-toolbar" id="pdfToolbar">
       <span id="pdfSourceLabel" title="Which Congressional release PDF is displayed" style="font-size:11px;color:var(--muted);font-weight:600;margin-right:6px;padding:3px 8px;background:var(--panel-2);border-radius:4px;border:1px solid var(--border-2);white-space:nowrap">Main Diary</span>
       <button id="pdfPrev" onclick="pdfPrevPage()">◀ Prev</button>
       <input type="number" class="pdf-page-input" id="pdfPageInput" value="1" min="1" max="1141" onchange="pdfGoToPage(this.value)">
@@ -840,6 +1000,12 @@ mark.hit-current {
         <canvas id="pdfCanvas2" style="display:none"></canvas>
       </div>
       <div class="pdf-continuous-view" id="pdfContinuousView" style="display:none"></div>
+    </div>
+    <div class="thread-view" id="threadView" style="display:none">
+      <div class="thread-view-inner" id="threadViewInner"></div>
+    </div>
+    <div class="complementary-view" id="complementaryView" style="display:none">
+      <div class="complementary-view-inner" id="complementaryViewInner"></div>
     </div>
   </div>
 
@@ -883,13 +1049,21 @@ const SOURCES = {
     badge: 'Missing Years',
     badgeTitle: 'Missing Years diary (Jul 2015-Dec 2019)',
   },
+  missingpages: {
+    json: '2026.10.07_Missing-Pages-Diary_Full-Package.json',
+    pageMap: 'missingpages_page_map.json',
+    pdf: 'diary-missingpages.pdf',
+    label: 'Missing Pages',
+    badge: 'Missing Pages',
+    badgeTitle: 'Missing Pages diary (Dec 2021-May 2022)',
+  },
 };
 const DEFAULT_PDF_SOURCE = 'main';   // which PDF shows on page load
 
 let diaryData = null;                 // merged { total_entries, date_range, entries[] }
 let pendingSearch = false;            // a search was requested while data was still loading
-let pageMaps = { main: {}, prequel: {}, ebola: {}, missingyears: {} };
-let pdfDocs = { main: null, prequel: null, ebola: null, missingyears: null };
+let pageMaps = { main: {}, prequel: {}, ebola: {}, missingyears: {}, missingpages: {} };
+let pdfDocs = { main: null, prequel: null, ebola: null, missingyears: null, missingpages: null };
 let currentPdfSource = DEFAULT_PDF_SOURCE;
 let pdfDoc = null;                    // always the currently active PDF doc
 let currentPage = 1;
@@ -905,6 +1079,7 @@ let pdfContinuousScrollTimer = null;
 let pdfPageAspect = 1.3; // height/width, updated from first rendered page
 let timelineChart = null;
 // hitsChart removed: hits are the right half of timelineChart
+let readerTab = 'timeline';                        // 'timeline' | 'thread'
 let activeResultIdx = -1;
 let currentLayout = 'landscape';
 let lastSearchResults = null;
@@ -954,13 +1129,20 @@ const KIND_DEFS = [
   { id: 'whatsapp',   label: 'WhatsApp',       icon: '\u{1F4F2}', color: '#25d366' },
   { id: 'chat',       label: 'Chat / IM',      icon: '\u{1F5E8}', color: '#8f8f9e' },
   { id: 'document',   label: 'Document',       icon: '\u{1F4C4}', color: '#f5a623' },
-  { id: 'note',       label: 'Release note',   icon: '\u{1F4DD}', color: '#b98cff' }
+  { id: 'meta',       label: 'Meta',           icon: '\u{1F4DD}', color: '#b98cff' }
 ];
+// 'meta': analysis/index material produced later about a release -- a
+// prequel-style preface, a conclusion, a summary, an index -- as opposed to
+// an original document (kind 'attachment') or genuine correspondence. The
+// aliases below catch the various words a parser might use for the same
+// thing; 'note' (the id this kind used to have) stays mapped here too so
+// existing data files don't need touching entry by entry.
 const KIND_ALIASES = { report: 'attachment', attachment: 'attachment', inline: 'email',
   email: 'email', diary: 'diary', entry: 'diary', text: 'sms', sms: 'sms',
   twitter: 'social', tweet: 'social', facebook: 'social', social: 'social',
   slack: 'slack', whatsapp: 'whatsapp', im: 'chat', chat: 'chat', document: 'document',
-  note: 'note', analysis: 'note', foreword: 'note', publisher: 'note' };
+  meta: 'meta', note: 'meta', analysis: 'meta', foreword: 'meta', publisher: 'meta',
+  conclusion: 'meta', summary: 'meta', index: 'meta' };
 const KIND_BY_ID = {};
 KIND_DEFS.forEach(function(k) { KIND_BY_ID[k.id] = k; });
 /** Normalised kind of an entry ("report" -> "attachment", missing -> "diary"). */
@@ -981,6 +1163,38 @@ let kindFilterCounts = {};
 
 function kindFilterEnabled(id) { return !kindFilter || kindFilter[id] !== false; }
 function kindAllowedForEntry(e) { return kindFilterEnabled(entryKind(e)); }
+
+// The timeline legend (one swatch per source+kind "stack") must do more than
+// hide bars on the canvas -- search, the browse window and a timeline click
+// all have to agree a hidden segment is gone too, not just visually absent.
+// Keyed on the SAME seg.key the legend builds (source + '|' + kind), so
+// hiding "Ebola — email" specifically (not every email) stays possible; the
+// Box types dropdown above only ever worked at the coarser kind level.
+const HIDDEN_SEGMENTS_KEY = 'fauciHiddenSegments';
+let hiddenSegments = new Set();
+function loadHiddenSegments() {
+  try {
+    const raw = localStorage.getItem(HIDDEN_SEGMENTS_KEY);
+    hiddenSegments = new Set(raw ? JSON.parse(raw) : []);
+  } catch (e) { hiddenSegments = new Set(); }
+}
+function saveHiddenSegments() {
+  try {
+    if (hiddenSegments.size) localStorage.setItem(HIDDEN_SEGMENTS_KEY, JSON.stringify(Array.from(hiddenSegments)));
+    else localStorage.removeItem(HIDDEN_SEGMENTS_KEY);
+  } catch (e) {}
+}
+/** The one check search, the browse window, the timeline series and a
+ * timeline click all share: both the Box types dropdown (kind-level) AND the
+ * timeline legend (source+kind-level) have to agree an entry is shown.
+ * Release front matter (note/attachment) defaults to OFF here (see
+ * loadKindFilter) so it stays out of the main scrollable list and search by
+ * default -- it always has its own dedicated home in the Complementary tab,
+ * which reads diaryData.entries directly and ignores this filter. */
+function entryVisible(e) {
+  if (!kindAllowedForEntry(e)) return false;
+  return !hiddenSegments.has(e.source + '|' + entryKind(e));
+}
 function availableKinds() {
   var counts = {};
   (diaryData && diaryData.entries ? diaryData.entries : []).forEach(function(e) {
@@ -999,7 +1213,13 @@ function loadKindFilter() {
   var saved = null;
   try { saved = JSON.parse(localStorage.getItem('fauciKindFilter') || 'null'); } catch (e) {}
   kindFilter = {};
-  ids.forEach(function(id) { kindFilter[id] = saved ? saved[id] !== false : true; });
+  ids.forEach(function(id) {
+    // Release front matter (meta/attachment) starts unticked: it has its own
+    // home in the Linked Docs tab, so the default browse list and search
+    // stay to the actual diary/email record. Tick it here to fold it back in.
+    var defaultOn = id !== 'meta' && id !== 'attachment';
+    kindFilter[id] = saved ? saved[id] !== false : defaultOn;
+  });
   return ids;
 }
 function saveKindFilter() {
@@ -1091,7 +1311,7 @@ function applyKindFilter() {
 function firstEnabledEntryIndex() {
   var entries = diaryData ? diaryData.entries : [];
   for (var i = 0; i < entries.length; i++) {
-    if (kindAllowedForEntry(entries[i])) return i;
+    if (entryVisible(entries[i])) return i;
   }
   return -1;
 }
@@ -1112,7 +1332,7 @@ function updateEntryStatsLine() {
   var el = document.getElementById('entryStats');
   if (!el || !diaryData) return;
   var shown = 0;
-  diaryData.entries.forEach(function(e) { if (kindAllowedForEntry(e)) shown++; });
+  diaryData.entries.forEach(function(e) { if (entryVisible(e)) shown++; });
   var base = diaryData.total_entries + ' entries · ' + diaryData.date_range.start + ' to ' + diaryData.date_range.end;
   el.textContent = shown === diaryData.total_entries
     ? base
@@ -1389,28 +1609,32 @@ function loadErrorHelp(err) {
 async function loadData() {
   try {
     // ── Fetch all datasets in parallel ──
-    const [mainResp, preqResp, ebolaResp, missResp] = await Promise.all([
+    const [mainResp, preqResp, ebolaResp, missResp, mpResp] = await Promise.all([
       fetch(SOURCES.main.json),
       fetch(SOURCES.prequel.json),
       fetch(SOURCES.ebola.json),
       fetch(SOURCES.missingyears.json),
+      fetch(SOURCES.missingpages.json),
     ]);
     if (!mainResp.ok) throw new Error('HTTP ' + mainResp.status + ' for ' + SOURCES.main.json);
     if (!preqResp.ok) throw new Error('HTTP ' + preqResp.status + ' for ' + SOURCES.prequel.json);
     if (!ebolaResp.ok) throw new Error('HTTP ' + ebolaResp.status + ' for ' + SOURCES.ebola.json);
     if (!missResp.ok) throw new Error('HTTP ' + missResp.status + ' for ' + SOURCES.missingyears.json);
+    if (!mpResp.ok) throw new Error('HTTP ' + mpResp.status + ' for ' + SOURCES.missingpages.json);
 
     const mainData = await mainResp.json();
     const preqData = await preqResp.json();
     const ebolaData = await ebolaResp.json();
     const missData = await missResp.json();
+    const mpData = await mpResp.json();
 
     // Tag every entry with its source, then merge into one timeline
     mainData.entries.forEach(function(e) { e.source = 'main'; });
     preqData.entries.forEach(function(e) { e.source = 'prequel'; });
     ebolaData.entries.forEach(function(e) { e.source = 'ebola'; });
     missData.entries.forEach(function(e) { e.source = 'missingyears'; });
-    let allEntries = preqData.entries.concat(missData.entries, ebolaData.entries, mainData.entries);
+    mpData.entries.forEach(function(e) { e.source = 'missingpages'; });
+    let allEntries = preqData.entries.concat(missData.entries, mpData.entries, ebolaData.entries, mainData.entries);
 
     // Rebuild thread DOWN-links over the merged timeline. Up-links
     // (reply_to / forwarded_from / attachment_ref) are written per release by
@@ -1442,33 +1666,48 @@ async function loadData() {
 
     timelineSeries = null;          // entries changed: drop the cached series
     loadKindFilter();
+    loadHiddenSegments();
     renderKindFilterPanel();
     updateEntryStatsLine();
     syncJumpDateInputBounds();
     drawTimeline();
 
-    // Run any search the user requested while the data was loading
+    // Run any search the user requested while the data was loading; otherwise
+    // open straight into a browse window of the first boxes, so the results
+    // panel shows real entries on first load instead of an empty placeholder.
     if (pendingSearch) {
       pendingSearch = false;
       doSearch();
+    } else {
+      var firstIdx = firstEnabledEntryIndex();
+      if (firstIdx >= 0) {
+        var initialPack = buildBrowseResultsAroundIndex(firstIdx, BROWSE_RADIUS);
+        if (initialPack && initialPack.results.length) {
+          browseMode = true;
+          displayResults(initialPack.results, '', { autoSelect: false });
+        }
+      }
     }
 
     // ── Fetch all page maps in parallel ──
-    const [pmMainResp, pmPreqResp, pmEbolaResp, pmMissResp] = await Promise.all([
+    const [pmMainResp, pmPreqResp, pmEbolaResp, pmMissResp, pmMpResp] = await Promise.all([
       fetch(SOURCES.main.pageMap),
       fetch(SOURCES.prequel.pageMap),
       fetch(SOURCES.ebola.pageMap),
       fetch(SOURCES.missingyears.pageMap),
+      fetch(SOURCES.missingpages.pageMap),
     ]);
     if (!pmMainResp.ok) throw new Error('HTTP ' + pmMainResp.status + ' for ' + SOURCES.main.pageMap);
     if (!pmPreqResp.ok) throw new Error('HTTP ' + pmPreqResp.status + ' for ' + SOURCES.prequel.pageMap);
     if (!pmEbolaResp.ok) throw new Error('HTTP ' + pmEbolaResp.status + ' for ' + SOURCES.ebola.pageMap);
     if (!pmMissResp.ok) throw new Error('HTTP ' + pmMissResp.status + ' for ' + SOURCES.missingyears.pageMap);
+    if (!pmMpResp.ok) throw new Error('HTTP ' + pmMpResp.status + ' for ' + SOURCES.missingpages.pageMap);
 
     pageMaps.main = await pmMainResp.json();
     pageMaps.prequel = await pmPreqResp.json();
     pageMaps.ebola = await pmEbolaResp.json();
     pageMaps.missingyears = await pmMissResp.json();
+    pageMaps.missingpages = await pmMpResp.json();
 
     // ── Load the default PDF first for immediate display ──
     pdfDocs[DEFAULT_PDF_SOURCE] = await pdfjsLib.getDocument(SOURCES[DEFAULT_PDF_SOURCE].pdf).promise;
@@ -1971,7 +2210,12 @@ function switchLayout() {
   }
 
   // Time axis swaps X↔Y between layouts — never carry zoom across.
-  if (!collapsed) redrawTimelines({ preserveZoom: false });
+  // Deferred one frame: the body class above only takes effect on the
+  // browser's next layout/paint pass, so building the chart in the same
+  // tick had Chart.js measure the OLD (pre-switch) container size -- the
+  // canvas stayed squashed into a sliver until something else (a manual
+  // panel resize) later forced a recalculation.
+  if (!collapsed) requestAnimationFrame(function() { redrawTimelines({ preserveZoom: false }); });
   layoutToolbarInstructions();
 }
 
@@ -2295,7 +2539,7 @@ function doSearch() {
   const results = [];
   for (let i = 0; i < diaryData.entries.length; i++) {
     const entry = diaryData.entries[i];
-    if (!kindAllowedForEntry(entry)) continue;   // box-type filter
+    if (!entryVisible(entry)) continue;   // box-type filter
     const text = entry.content || '';
     const ev = evalQuery(ast, text, caseSensitive);
     if (ev.matched && ev.positions.length > 0) {
@@ -2375,7 +2619,7 @@ function parseLocalISO(iso) {
   return new Date(p[0], p[1] - 1, p[2]);
 }
 
-let timelineSeries = null; // { labels, entryCounts, entryColors, entryDays, totalDays }
+let timelineSeries = null; // { labels, entryCounts, stacks, entryDays, totalDays }
 
 /**
  * The calendar day an entry is PLOTTED on. Almost every entry carries its own
@@ -2391,61 +2635,313 @@ function entryDayKey(e) {
   return null;
 }
 
-function buildTimelineSeries() {
-  const dateCounts = {};
-  for (const e of diaryData.entries) {
-    if (!kindAllowedForEntry(e)) continue;            // box-type filter
-    const day = entryDayKey(e);
-    if (!day) continue;                               // no calendar day (prologue, appendix)
-    dateCounts[day] = (dateCounts[day] || 0) + 1;
+// One hue per box kind, derived from each KIND_DEFS entry's own colour, so a
+// kind's hue means the same thing on the timeline, the legend and anywhere
+// else that colour already shows up (result borders, badges, ...).
+const KIND_HUE = {};
+KIND_DEFS.forEach(function(k) {
+  var m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(k.color || '');
+  if (!m) { KIND_HUE[k.id] = 0; return; }
+  var r = parseInt(m[1], 16) / 255, g = parseInt(m[2], 16) / 255, b = parseInt(m[3], 16) / 255;
+  var max = Math.max(r, g, b), min = Math.min(r, g, b), h = 0;
+  if (max !== min) {
+    var d2 = max - min;
+    if (max === r) h = ((g - b) / d2 + (g < b ? 6 : 0));
+    else if (max === g) h = (b - r) / d2 + 2;
+    else h = (r - g) / d2 + 4;
+    h *= 60;
   }
+  KIND_HUE[k.id] = Math.round(h);
+});
+function kindColor(kind, alpha) {
+  const grey = (kind === 'meta');
+  const hue = grey ? null : (KIND_HUE[kind] != null ? KIND_HUE[kind] : null);
+  if (hue == null) {
+    return alpha != null ? 'hsla(0, 0%, 62%, ' + alpha + ')' : 'hsl(0, 0%, 62%)';
+  }
+  return alpha != null
+    ? 'hsla(' + hue + ', 60%, 52%, ' + alpha + ')'
+    : 'hsl(' + hue + ', 60%, 52%)';
+}
 
-  const yearColors = {
-    '2001': '#ff5e5e',   '2002': '#5eff5e',   '2003': '#ffe14d',
-    '2004': '#5eb5ff',   '2005': '#ff9b3d',   '2006': '#c45eff',
-    '2007': '#5effd9',   '2008': '#ff5ec4',   '2009': '#a8ff5e',
-    '2010': '#5e8fff',   '2011': '#ffd45e',   '2012': '#5effa8',
-    '2013': '#ff7e5e',   '2014': '#9d5eff',   '2015': '#5effe4',
-    '2016': '#ffb35e',   '2017': '#7e5eff',   '2018': '#d4ff5e',
-    '2019': 'rgba(160, 170, 240, 1)',
-    '2020': 'rgba(255, 90, 120, 1)',
-    '2021': 'rgba(110, 235, 195, 1)',
-    '2022': 'rgba(255, 195, 60, 1)',
-  };
-  function colorForYear(yearStr) {
-    return yearColors[yearStr] || 'rgba(100,100,100,0.8)';
-  }
-  const gapColor = 'rgba(80, 80, 80, 0.4)';
+function buildTimelineSeries() {
+  // One stack segment per TOP-LEVEL kind now (colour = kind, no per-release
+  // shading) -- entryVisible (kind AND hiddenSegments/sub-selection both) so
+  // toggling a release sub-checkbox changes the bar counts directly, rather
+  // than hiding a whole separate per-release dataset.
+  const entries = diaryData.entries.filter(function(e) {
+    return entryVisible(e) && entryDayKey(e);
+  });
+  // A second, kind-only pass (NOT hiddenSegments) for the legend's own
+  // per-release sub-counts -- these stay stable reference totals ("Prequel
+  // 1134") whether or not that release is currently ticked on.
+  const kindOnlyEntries = diaryData.entries.filter(function(e) {
+    return kindAllowedForEntry(e) && entryDayKey(e);
+  });
 
   const labels = [];
-  const entryCounts = [];
-  const entryColors = [];
   let d = parseLocalISO(diaryData.date_range.start);
   const end = parseLocalISO(diaryData.date_range.end);
-  let entryDays = 0;
+  while (d <= end) { labels.push(formatLocalISO(d)); d.setDate(d.getDate() + 1); }
+  const dayIndex = {};
+  labels.forEach(function(iso, i) { dayIndex[iso] = i; });
 
-  while (d <= end) {
-    const iso = formatLocalISO(d);
-    const count = dateCounts[iso] || 0;
-    labels.push(iso);
-    entryCounts.push(count);
-    entryColors.push(count > 0 ? colorForYear(iso.slice(0, 4)) : gapColor);
-    if (count > 0) entryDays++;
-    d.setDate(d.getDate() + 1);
-  }
+  const segByKind = {};          // kind -> segment
+  const segOrder = [];
+  entries.forEach(function(e) {
+    const k = entryKind(e);
+    if (!segByKind[k]) {
+      segByKind[k] = { key: k, kind: k, counts: new Array(labels.length).fill(0), total: 0 };
+      segOrder.push(k);
+    }
+  });
+
+  const stacks = segOrder.map(function(key) {
+    const seg = segByKind[key];
+    seg.color = kindColor(seg.kind);
+    seg.label = kindDef(seg.kind).label;
+    return seg;
+  });
+
+  entries.forEach(function(e) {
+    const seg = segByKind[entryKind(e)];
+    const i = dayIndex[entryDayKey(e)];
+    if (seg && i != null) { seg.counts[i]++; seg.total++; }
+  });
+
+  // Per-release sub-totals for each kind's legend group, from the
+  // kind-only (hiddenSegments-blind) pass -- 'source|kind' matches the
+  // existing hiddenSegments key so a sub-row's checkbox toggles the same
+  // Set a legend click always has.
+  const subBySegKind = {};        // kind -> { source -> {source, total} }
+  kindOnlyEntries.forEach(function(e) {
+    const k = entryKind(e);
+    subBySegKind[k] = subBySegKind[k] || {};
+    const s = e.source;
+    if (!subBySegKind[k][s]) subBySegKind[k][s] = { source: s, key: s + '|' + k, total: 0 };
+    subBySegKind[k][s].total++;
+  });
+  stacks.forEach(function(seg) {
+    const bySource = subBySegKind[seg.kind] || {};
+    seg.sources = Object.keys(bySource).map(function(s) { return bySource[s]; })
+      .sort(function(a, b) { return b.total - a.total; });
+  });
+
+  const entryCounts = new Array(labels.length).fill(0);
+  stacks.forEach(function(seg) {
+    for (let i = 0; i < labels.length; i++) entryCounts[i] += seg.counts[i];
+  });
+  const entryDays = entryCounts.reduce(function(a, c) { return a + (c > 0 ? 1 : 0); }, 0);
 
   timelineSeries = {
     labels: labels,
     entryCounts: entryCounts,
-    entryColors: entryColors,
+    stacks: stacks,
     entryDays: entryDays,
     totalDays: labels.length,
   };
   return timelineSeries;
 }
 
+function entryStackDatasets(series) {
+  // One Chart.js dataset per TOP-LEVEL kind; all negative (entries) so they
+  // stack on the left/bottom of the zero line. Colour = kind only, no
+  // per-release shading. Sub-selection (which releases count) and the
+  // kind-level Box types toggle are both baked into seg.counts already
+  // (see buildTimelineSeries), so there is no separate Chart.js-level
+  // `hidden` toggle here -- a toggle anywhere rebuilds the series instead.
+  return (series.stacks || []).map(function(seg) {
+    return {
+      label: seg.label,
+      data: seg.counts.map(function(c) { return -c; }),
+      backgroundColor: seg.color,
+      borderWidth: 0,
+      barPercentage: 1.0,
+      categoryPercentage: 1.0,
+      // No minBarLength: Chart.js applies it even to a true zero-value bar,
+      // drawing a visible stub on days with no entries at all -- on the
+      // now-tightly-fit axis (see rescaleEntryAxis) that stub reads as
+      // real data. entryMarkPlugin already covers the "keep a genuine
+      // sub-pixel entry visible" job, correctly only for counts > 0.
+      order: 2,
+      stack: 'entries',
+    };
+  });
+}
+
+/**
+ * Two-tier legend: one group per top-level kind (Diary, Email, ...), each a
+ * single flat colour with no per-release shading, plus a row of per-release
+ * sub-checkboxes grouped underneath it. The top checkbox is the Box types
+ * kind filter; each sub-checkbox is the existing hiddenSegments Set keyed
+ * 'source|kind' -- both just call applyKindFilter() to rebuild the series,
+ * the browse window and search together, same as toggling Box types already
+ * did. Built from ALL of diaryData.entries (not the filtered series), so
+ * every kind/release keeps its own row and checkbox even while fully
+ * unticked -- the legend is the one place the whole catalogue stays visible.
+ */
+function renderTimelineLegend() {
+  var el = document.getElementById('timelineLegend');
+  if (!el || !diaryData) return;
+
+  var kindTotals = {};
+  var kindSourceTotals = {};
+  diaryData.entries.forEach(function(e) {
+    if (!entryDayKey(e)) return;   // undated entries never reach the chart
+    var k = entryKind(e);
+    kindTotals[k] = (kindTotals[k] || 0) + 1;
+    kindSourceTotals[k] = kindSourceTotals[k] || {};
+    kindSourceTotals[k][e.source] = (kindSourceTotals[k][e.source] || 0) + 1;
+  });
+
+  var kinds = Object.keys(kindTotals).sort(function(a, b) {
+    var ia = KIND_DEFS.findIndex(function(k) { return k.id === a; });
+    var ib = KIND_DEFS.findIndex(function(k) { return k.id === b; });
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+  });
+
+  var html = '';
+  kinds.forEach(function(kind) {
+    var kdef = kindDef(kind);
+    var kindOn = kindFilterEnabled(kind);
+    html += '<div class="lg-group' + (kindOn ? '' : ' off') + '">';
+    html += '<label class="lg-main" title="' + escapeHtml(kindTotals[kind] +
+      (kindTotals[kind] === 1 ? ' entry' : ' entries') +
+      '. Tick to show/hide every ' + kdef.label.toLowerCase() + ' box (search, browse and the chart).') + '">' +
+      '<input type="checkbox" data-lg-main="' + escapeHtml(kind) + '"' + (kindOn ? ' checked' : '') + '>' +
+      '<span class="lg-swatch" style="background:' + kindColor(kind) + '"></span>' +
+      escapeHtml(kdef.label) + ' <b>' + kindTotals[kind] + '</b></label>';
+
+    var sources = Object.keys(kindSourceTotals[kind]).sort(function(a, b) {
+      return kindSourceTotals[kind][b] - kindSourceTotals[kind][a];
+    });
+    if (sources.length > 1) {
+      html += '<div class="lg-subs">';
+      sources.forEach(function(source) {
+        var segKey = source + '|' + kind;
+        var subOn = !hiddenSegments.has(segKey);
+        var src = SOURCES[source] || {};
+        html += '<label class="lg-sub' + (subOn ? '' : ' off') + '">' +
+          '<input type="checkbox" data-lg-sub="' + escapeHtml(segKey) + '"' + (subOn ? ' checked' : '') + '>' +
+          escapeHtml(src.label || source) + ' <b>' + kindSourceTotals[kind][source] + '</b></label>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+  });
+  html += '<span class="lg-hint">colour = box kind · tick a release to show/hide just that one</span>';
+  el.innerHTML = html;
+
+  // Delegated change handler (not a listener per checkbox): the harness that
+  // runs this script's own logic in test_app.mjs stubs querySelector() to
+  // always return null, so a listener attached straight to a just-built
+  // child element never fires there -- one listener on the container,
+  // reading ev.target, works in both the browser and the test harness.
+  el.onchange = function(ev) {
+    var mainCb = ev.target.closest('[data-lg-main]');
+    if (mainCb) {
+      var kind = mainCb.getAttribute('data-lg-main');
+      kindFilter[kind] = mainCb.checked;
+      saveKindFilter();
+      applyKindFilter();
+      return;
+    }
+    var subCb = ev.target.closest('[data-lg-sub]');
+    if (subCb) {
+      var segKey = subCb.getAttribute('data-lg-sub');
+      if (subCb.checked) hiddenSegments.delete(segKey); else hiddenSegments.add(segKey);
+      saveHiddenSegments();
+      applyKindFilter();
+    }
+  };
+}
+
+// Full-span view has ~8000 day-categories (22 years), so a 1-entry day is a
+// sub-pixel sliver — and offset:false clips the first/last bar in half.
+// Redraw those bars with a minimum pixel size so they stay visible without
+// changing the counts.
+var MIN_ENTRY_MARK_PX = 3;
+var entryMarkPlugin = {
+  id: 'entryMarkPlugin',
+  afterDatasetsDraw: function(chart) {
+    var series = getTimelineSeries();
+    if (!series) return;
+    var meta = chart.getDatasetMeta(0);
+    if (!meta || !meta.data) return;
+    var ctx = chart.ctx;
+    var ca = chart.chartArea;
+    var timeAxis = timelineTimeAxisId(chart);
+    // One stack dataset per top-level kind (see buildTimelineSeries()); its
+    // counts already have the kind filter and hiddenSegments baked in (a
+    // toggle anywhere rebuilds the series, there is no separate Chart.js
+    // dataset-level hide to check here) -- anything past nStacks is the
+    // separate "Hits" overlay, not a stack.
+    var nStacks = series.stacks.length;
+    for (var i = 0; i < meta.data.length; i++) {
+      var visible = 0;
+      for (var j = 0; j < nStacks; j++) {
+        var dj = chart.data.datasets[j].data;
+        visible += (dj && dj[i]) || 0;
+      }
+      if (visible <= 0) continue;
+      var el = meta.data[i];
+      if (!el || !el.getProps) continue;
+      var p = el.getProps(['x', 'y', 'base', 'width', 'height'], true);
+      if (!isFinite(p.x) || !isFinite(p.y) || !isFinite(p.base)) continue;
+      ctx.save();
+      ctx.fillStyle = 'rgba(150,150,150,0.55)';
+      if (timeAxis === 'y') {
+        var h = Math.max(Math.abs(p.height) || 0, MIN_ENTRY_MARK_PX);
+        var y = p.y - h / 2;
+        if (y < ca.top) y = ca.top;
+        if (y + h > ca.bottom) y = ca.bottom - h;
+        var x0 = Math.min(p.x, p.base);
+        var w = Math.max(Math.abs(p.x - p.base), MIN_ENTRY_MARK_PX);
+        ctx.fillRect(x0, y, w, h);
+      } else {
+        var w2 = Math.max(Math.abs(p.width) || 0, MIN_ENTRY_MARK_PX);
+        var x = p.x - w2 / 2;
+        if (x < ca.left) x = ca.left;
+        if (x + w2 > ca.right) x = ca.right - w2;
+        var y0 = Math.min(p.y, p.base);
+        var h2 = Math.max(Math.abs(p.y - p.base), MIN_ENTRY_MARK_PX);
+        ctx.fillRect(x, y0, w2, h2);
+      }
+      ctx.restore();
+    }
+  }
+};
+
 function getTimelineSeries() {
   return timelineSeries || buildTimelineSeries();
+}
+
+/** Tallest entry-count within day-index range [lo, hi] (inclusive), at least 1. */
+function visibleMaxEntries(series, lo, hi) {
+  lo = Math.max(0, Math.floor(lo == null ? 0 : lo));
+  hi = Math.min(series.labels.length - 1, Math.ceil(hi == null ? series.labels.length - 1 : hi));
+  var m = 0;
+  for (var i = lo; i <= hi; i++) { if (series.entryCounts[i] > m) m = series.entryCounts[i]; }
+  return Math.max(1, m);
+}
+
+/** Re-fit the entries axis to whatever's actually in view, so the tallest
+ * VISIBLE bar reaches ~90% of the axis instead of an axis sized once for the
+ * single busiest day in the whole dataset -- which made every ordinary day's
+ * bar a sliver, and most of the axis wasted space, the moment that one
+ * outlier day scrolled out of view. Re-run after every zoom/pan. */
+function rescaleEntryAxis(chart) {
+  if (!chart) return;
+  var series = getTimelineSeries();
+  var timeAxisId = timelineTimeAxisId(chart);
+  var valueAxisId = timeAxisId === 'y' ? 'x' : 'y';
+  var timeScale = chart.scales[timeAxisId];
+  if (!timeScale) return;
+  var visMax = visibleMaxEntries(series, timeScale.min, timeScale.max);
+  var newMin = -Math.max(1, Math.ceil(visMax / 0.9));
+  if (chart.options.scales[valueAxisId].min === newMin) return;
+  chart.options.scales[valueAxisId].min = newMin;
+  chart.update('none');
 }
 
 function hitCountsForSeries(results) {
@@ -2575,6 +3071,12 @@ function focusTimelineOnDate(date) {
     console.warn('focusTimelineOnDate zoom failed:', err);
     timelineChart.update('none');
   }
+  // zoomScale() is the same low-level API applyTimelineZoom() uses -- it
+  // does not fire the zoom plugin's own onZoomComplete, so every other path
+  // that moves the visible window this way (a bar click, jump-to-date) has
+  // to rescale explicitly too, or the entries axis keeps whatever bound the
+  // very first (whole-dataset) render set and never actually narrows.
+  rescaleEntryAxis(timelineChart);
 
   var jumpInput = document.getElementById('jumpDateInput');
   if (jumpInput) jumpInput.value = date;
@@ -2590,7 +3092,7 @@ function jumpToDate(date) {
   for (var i = 0; i < diaryData.entries.length; i++) {
     if (diaryData.entries[i].date !== date) continue;
     if (fallbackIdx < 0) { fallbackEntry = diaryData.entries[i]; fallbackIdx = i; }
-    if (kindAllowedForEntry(diaryData.entries[i])) {
+    if (entryVisible(diaryData.entries[i])) {
       foundEntry = diaryData.entries[i];
       foundIdx = i;
       break;
@@ -2649,7 +3151,7 @@ function redrawTimelines(opts) {
   opts = opts || {};
   const series = getTimelineSeries();
   var listed = 0;
-  if (diaryData) diaryData.entries.forEach(function(e) { if (kindAllowedForEntry(e)) listed++; });
+  if (diaryData) diaryData.entries.forEach(function(e) { if (entryVisible(e)) listed++; });
   document.getElementById('timelineStats').textContent =
     series.entryDays + ' entry-days · ' + series.totalDays + ' days' +
     (listed === diaryData.total_entries ? '' : ' · ' + listed.toLocaleString() + ' boxes listed');
@@ -2660,6 +3162,10 @@ function redrawTimelines(opts) {
   const maxEntries = Math.max(1, series.entryCounts.reduce(function(m, v) {
     return v > m ? v : m;
   }, 0));
+  // Fit the axis to the tallest bar (so it reaches ~90%, not a sliver lost
+  // in wasted space) -- on first render that's the whole dataset's peak day;
+  // rescaleEntryAxis() narrows this to just the visible window on zoom/pan.
+  const axisMax = Math.max(1, Math.ceil(maxEntries / 0.9));
 
   if (lastSearchResults && lastSearchResults.length) {
     const totalHits = hitData.reduce(function(a, b) { return a + b; }, 0);
@@ -2716,21 +3222,13 @@ function redrawTimelines(opts) {
     // stacked:true so both series share the full category band (diverging
     // from x=0). Grouped (stacked:false) halves bar thickness and makes
     // hit bars nearly unclickable on a dense day axis.
-    const entryNeg = series.entryCounts.map(function(c) { return -c; });
+    const entryDatasets = entryStackDatasets(series);
     timelineChart = new Chart(ctx, {
       type: 'bar',
       data: {
         labels: series.labels,
         datasets: [
-          {
-            label: 'Entries',
-            data: entryNeg,
-            backgroundColor: series.entryColors,
-            borderWidth: 0,
-            barPercentage: 1.0,
-            categoryPercentage: 1.0,
-            order: 2,
-          },
+          ...entryDatasets,
           {
             label: 'Hits',
             data: hitBarData,
@@ -2739,9 +3237,11 @@ function redrawTimelines(opts) {
             barPercentage: 1.0,
             categoryPercentage: 1.0,
             order: 1,
+            stack: 'hits',
           }
         ]
       },
+      plugins: [entryMarkPlugin],
       options: {
         indexAxis: 'y',
         responsive: true,
@@ -2758,37 +3258,61 @@ function redrawTimelines(opts) {
               title: function(items) { return items[0].label; },
               label: function(item) {
                 const v = Math.abs(item.parsed.x);
-                if (item.dataset.label === 'Entries') {
-                  return v + (v === 1 ? ' entry' : ' entries');
+                if (item.dataset.stack === 'hits') {
+                  var hv = hitData[item.dataIndex] || 0;
+                  return hv + (hv === 1 ? ' hit' : ' hits');
                 }
-                var hv = hitData[item.dataIndex] || 0;
-                return hv + (hv === 1 ? ' hit' : ' hits');
+                return (item.dataset.label || 'entry') + ': ' + v;
               }
             },
+            // Entry bars sit left of the zero line, so Chart.js's own
+            // auto-alignment often opens the box leftward and lands it on
+            // top of the bar it's describing. The zero-to-hitBarMax strip
+            // to the right is almost always empty (hits are sparse), so
+            // force the box to always open that way instead.
+            xAlign: 'left', yAlign: 'center',
             backgroundColor: '#1a1a1a', titleColor: '#e94560',
             bodyColor: '#fff', borderColor: '#333', borderWidth: 1,
           },
           zoom: {
-            // Higher threshold so a normal click is not treated as a pan.
-            pan: { enabled: true, mode: 'y', threshold: 12 },
-            zoom: { wheel: { enabled: true, speed: 0.1 }, pinch: { enabled: true }, mode: 'y' },
-            onDblClick: function(chart) { chart.resetZoom(); }
+            // Plain drag draws a selection band to zoom into (Plotly-style).
+            // Click-drag-to-pan is dropped: it used the same mouse gesture
+            // as the drag-zoom box and chartjs-plugin-zoom always let the
+            // zoom gesture claim it (confirmed empirically -- gating pan
+            // behind a modifier key did not stop the drag from zooming).
+            // Wheel-zoom, double-click, and the reset button still cover
+            // repositioning the view.
+            pan: { enabled: false },
+            zoom: {
+              wheel: { enabled: true, speed: 0.1 },
+              pinch: { enabled: true },
+              drag: { enabled: true, backgroundColor: 'rgba(233,69,96,0.15)', borderColor: 'rgba(233,69,96,0.6)', borderWidth: 1 },
+              mode: 'y',
+              onZoomComplete: function(c) { rescaleEntryAxis(c.chart); }
+            },
+            onDblClick: function(chart) { chart.resetZoom(); rescaleEntryAxis(chart); }
           }
         },
         scales: {
           // Value axis: entries left (negative), fixed-length hit markers right.
-          // No numeric ticks — they only clutter (±1/±2) without adding info.
+          // Ticks show the entries/day scale; rescaleEntryAxis() keeps `min`
+          // fit to whichever window is actually in view (see its own comment).
           x: {
             stacked: true,
-            min: -maxEntries,
+            min: -axisMax,
             max: hitBarMax,
             grace: 0,
-            ticks: { display: false },
+            ticks: {
+              color: 'rgba(255,255,255,0.65)',
+              font: { size: 9 },
+              maxTicksLimit: 6,
+              callback: function(v) { return v <= 0 ? Math.round(Math.abs(v)) : ''; }
+            },
             grid: {
               color: function(c) {
                 return c.tick.value === 0
-                  ? 'rgba(233,69,96,0.45)'
-                  : 'rgba(50,50,50,0.25)';
+                  ? 'rgba(233,69,96,0.55)'
+                  : 'rgba(255,255,255,0.18)';
               },
               lineWidth: function(c) {
                 return c.tick.value === 0 ? 1.5 : 1;
@@ -2798,7 +3322,7 @@ function redrawTimelines(opts) {
           },
           y: {
             reverse: false,
-            offset: false,
+            offset: true,
             ticks: {
               color: '#fff',
               autoSkip: true,
@@ -2809,7 +3333,7 @@ function redrawTimelines(opts) {
             },
             grid: {
               display: true,
-              color: 'rgba(45,45,45,0.3)',
+              color: 'rgba(255,255,255,0.15)',
               drawTicks: false,
             },
             border: { display: false },
@@ -2822,21 +3346,13 @@ function redrawTimelines(opts) {
     // Entries BELOW the zero line, hits ABOVE it (mirrors landscape's
     // left/right split around x=0) so a day with both an entry and a hit
     // doesn't render one bar directly on top of the other.
-    const entryNeg = series.entryCounts.map(function(c) { return -c; });
+    const entryDatasets = entryStackDatasets(series);
     timelineChart = new Chart(ctx, {
       type: 'bar',
       data: {
         labels: series.labels,
         datasets: [
-          {
-            label: 'Entries',
-            data: entryNeg,
-            backgroundColor: series.entryColors,
-            borderWidth: 0,
-            barPercentage: 1.0,
-            categoryPercentage: 1.0,
-            order: 2,
-          },
+          ...entryDatasets,
           {
             label: 'Hits',
             data: hitBarData,
@@ -2845,9 +3361,11 @@ function redrawTimelines(opts) {
             barPercentage: 1.0,
             categoryPercentage: 1.0,
             order: 1,
+            stack: 'hits',
           }
         ]
       },
+      plugins: [entryMarkPlugin],
       options: {
         indexAxis: 'x',
         responsive: true,
@@ -2864,26 +3382,39 @@ function redrawTimelines(opts) {
               title: function(items) { return items[0].label; },
               label: function(item) {
                 const v = Math.abs(item.parsed.y);
-                if (item.dataset.label === 'Entries') {
-                  return v + (v === 1 ? ' entry' : ' entries');
+                if (item.dataset.stack === 'hits') {
+                  var hv = hitData[item.dataIndex] || 0;
+                  return hv + (hv === 1 ? ' hit' : ' hits');
                 }
-                var hv = hitData[item.dataIndex] || 0;
-                return hv + (hv === 1 ? ' hit' : ' hits');
+                return (item.dataset.label || 'entry') + ': ' + v;
               }
             },
             backgroundColor: '#1a1a1a', titleColor: '#e94560',
             bodyColor: '#fff', borderColor: '#333', borderWidth: 1,
           },
           zoom: {
-            pan: { enabled: true, mode: 'x', threshold: 12 },
-            zoom: { wheel: { enabled: true, speed: 0.1 }, pinch: { enabled: true }, mode: 'x' },
-            onDblClick: function(chart) { chart.resetZoom(); }
+            // Plain drag draws a selection band to zoom into (Plotly-style).
+            // Click-drag-to-pan is dropped: it used the same mouse gesture
+            // as the drag-zoom box and chartjs-plugin-zoom always let the
+            // zoom gesture claim it (confirmed empirically -- gating pan
+            // behind a modifier key did not stop the drag from zooming).
+            // Wheel-zoom, double-click, and the reset button still cover
+            // repositioning the view.
+            pan: { enabled: false },
+            zoom: {
+              wheel: { enabled: true, speed: 0.1 },
+              pinch: { enabled: true },
+              drag: { enabled: true, backgroundColor: 'rgba(233,69,96,0.15)', borderColor: 'rgba(233,69,96,0.6)', borderWidth: 1 },
+              mode: 'x',
+              onZoomComplete: function(c) { rescaleEntryAxis(c.chart); }
+            },
+            onDblClick: function(chart) { chart.resetZoom(); rescaleEntryAxis(chart); }
           }
         },
         scales: {
           // TIME left → right
           x: {
-            offset: false,
+            offset: true,
             ticks: {
               color: '#fff',
               maxRotation: 45,
@@ -2895,23 +3426,30 @@ function redrawTimelines(opts) {
             },
             grid: {
               display: true,
-              color: 'rgba(45,45,45,0.3)',
+              color: 'rgba(255,255,255,0.15)',
               drawTicks: false,
             },
             border: { display: false },
           },
-          // Entries down, hits up — no numeric ticks (colour encodes hit intensity)
+          // Entries down, hits up. Ticks show the entries/day scale;
+          // rescaleEntryAxis() keeps `min` fit to whichever window is
+          // actually in view (see its own comment).
           y: {
             stacked: true,
-            min: -maxEntries,
+            min: -axisMax,
             max: hitBarMax,
             grace: 0,
-            ticks: { display: false },
+            ticks: {
+              color: 'rgba(255,255,255,0.65)',
+              font: { size: 9 },
+              maxTicksLimit: 6,
+              callback: function(v) { return v <= 0 ? Math.round(Math.abs(v)) : ''; }
+            },
             grid: {
               color: function(c) {
                 return c.tick.value === 0
-                  ? 'rgba(233,69,96,0.45)'
-                  : 'rgba(50,50,50,0.25)';
+                  ? 'rgba(233,69,96,0.55)'
+                  : 'rgba(255,255,255,0.18)';
               },
               lineWidth: function(c) {
                 return c.tick.value === 0 ? 1.5 : 1;
@@ -2923,6 +3461,8 @@ function redrawTimelines(opts) {
       }
     });
   }
+
+  renderTimelineLegend();
 
   // Re-apply prior zoom after recreate (same layout only).
   applyTimelineZoom(savedZoom);
@@ -2966,13 +3506,18 @@ function applyTimelineZoom(saved) {
     timelineChart.options.scales[axisId].max = max;
     timelineChart.update('none');
   }
+  // A restored zoom bypasses the zoom plugin's own pan/zoom gesture, so its
+  // onPanComplete/onZoomComplete hooks never fire -- rescale explicitly.
+  rescaleEntryAxis(timelineChart);
 }
 
 function drawTimeline() { redrawTimelines(); }
 function drawHitsChart() { redrawTimelines(); }
 
 function resetTimelineZoom() {
-  if (timelineChart) timelineChart.resetZoom();
+  if (!timelineChart) return;
+  timelineChart.resetZoom();
+  rescaleEntryAxis(timelineChart);   // resetZoom() does not fire onZoomComplete
 }
 
 // Track pointer movement so a pan/drag is not treated as a bar click.
@@ -3070,7 +3615,7 @@ function buildBrowseResultsAroundIndex(centerIdx, radius) {
   var focusLocal = 0;
   for (var j = from; j <= to; j++) {
     if (j === centerIdx) focusLocal = results.length;
-    if (!kindAllowedForEntry(entries[j])) continue;   // box-type filter
+    if (!entryVisible(entries[j])) continue;   // box-type filter
     results.push({
       idx: j,
       entry: entries[j],
@@ -3099,19 +3644,28 @@ function browsePackNearest(centerIdx) {
   var entries = diaryData.entries;
   for (var d = 1; d < entries.length; d++) {
     var a = centerIdx - d, b = centerIdx + d;
-    if (a >= 0 && kindAllowedForEntry(entries[a])) return buildBrowseResultsAroundIndex(a, BROWSE_RADIUS);
-    if (b < entries.length && kindAllowedForEntry(entries[b])) return buildBrowseResultsAroundIndex(b, BROWSE_RADIUS);
+    if (a >= 0 && entryVisible(entries[a])) return buildBrowseResultsAroundIndex(a, BROWSE_RADIUS);
+    if (b < entries.length && entryVisible(entries[b])) return buildBrowseResultsAroundIndex(b, BROWSE_RADIUS);
   }
   return null;
 }
 
-function buildBrowseResultsAroundDate(date, radius) {
+/** `preferredKind`: when a day holds more than one kind (e.g. a diary entry
+ * and an email both on 2016-03-10), centre on the one matching the stack
+ * segment actually clicked, not just whichever happens to sit first in the
+ * merged array -- otherwise a click on the email bar could land on that
+ * day's diary box instead. Falls back to the first entry on the date when
+ * nothing of that kind is there (stale kind, or none given). */
+function buildBrowseResultsAroundDate(date, radius, preferredKind) {
   if (!diaryData || !date) return null;
   var entries = diaryData.entries;
-  var center = -1;
+  var center = -1, firstAny = -1;
   for (var i = 0; i < entries.length; i++) {
-    if (entries[i].date === date) { center = i; break; }
+    if (entries[i].date !== date) continue;
+    if (firstAny < 0) firstAny = i;
+    if (preferredKind && entryKind(entries[i]) === preferredKind) { center = i; break; }
   }
+  if (center < 0) center = firstAny;
   if (center < 0) return null;
   return buildBrowseResultsAroundIndex(center, radius);
 }
@@ -3247,7 +3801,7 @@ function onBrowseResultsScroll() {
  * clear any search, show a sliding window of surrounding entries,
  * scroll to the target entry, and open its PDF.
  */
-function openEntryFromRawBar(date) {
+function openEntryFromRawBar(date, preferredKind) {
   if (!date || !diaryData) return;
   var hadSearch = !!(lastSearchResults && lastSearchResults.length);
   if (hadSearch || (document.getElementById('searchInput') || {}).value) {
@@ -3255,7 +3809,7 @@ function openEntryFromRawBar(date) {
     redrawTimelines({ preserveZoom: true });
   }
 
-  var pack = buildBrowseResultsAroundDate(date, BROWSE_RADIUS);
+  var pack = buildBrowseResultsAroundDate(date, BROWSE_RADIUS, preferredKind);
   if (!pack || !pack.results.length) return;
 
   browseMode = true;
@@ -3302,8 +3856,31 @@ function handleTimelineClick(evt) {
   // surrounding entries, scroll to the clicked day, open its PDF.
   var entryIdx = snapToNearestCountedDay(idx, series.entryCounts, -1);
   if (entryIdx >= 0) {
-    openEntryFromRawBar(series.labels[entryIdx]);
+    // Which stack segment the click actually landed in, e.g. the email band
+    // of a day that has both a diary and an email box -- without this, the
+    // window below always centred on whichever entry happened to sit first
+    // in the merged array for that date, regardless of which coloured band
+    // was clicked.
+    var preferredKind = kindAtStackValue(series, entryIdx, mapped.value);
+    openEntryFromRawBar(series.labels[entryIdx], preferredKind);
   }
+}
+
+/** Which stack (top-level kind) a click's cumulative value-axis reading
+ * falls in, for a given day index -- stacks render in series.stacks order,
+ * each one further from zero (all counts negative), so walking them in
+ * order and accumulating finds the first one whose far edge has reached
+ * past the click. */
+function kindAtStackValue(series, dayIdx, value) {
+  if (!series || !series.stacks || dayIdx == null || dayIdx < 0) return null;
+  var cum = 0;
+  for (var i = 0; i < series.stacks.length; i++) {
+    var c = series.stacks[i].counts[dayIdx] || 0;
+    if (c <= 0) continue;
+    cum -= c;
+    if (value >= cum) return series.stacks[i].kind;
+  }
+  return null;
 }
 
 // Double-click resets zoom and cancels any pending single-click navigation.
@@ -3562,10 +4139,57 @@ document.addEventListener('keydown', function(e) {
 })();
 
 // ============================================================
+// Drag the timeline panel edge to resize it
+//   Landscape: right edge → width
+//   Portrait:  bottom edge → height
+// ============================================================
+(function() {
+  const resizer = document.getElementById('chartsResizer');
+  const chartsPanel = document.getElementById('chartsPanel');
+  if (!resizer || !chartsPanel) return;
+  let dragging = false;
+
+  resizer.addEventListener('mousedown', function(e) {
+    dragging = true;
+    resizer.classList.add('dragging');
+    chartsPanel.classList.add('dragging');   // kill the width/height easing
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    const contentRect = document.querySelector('.content-area').getBoundingClientRect();
+    if (currentLayout === 'landscape') {
+      let w = e.clientX - contentRect.left;
+      w = Math.max(90, Math.min(520, w));
+      chartsPanel.style.width = w + 'px';
+      chartsPanel.style.minWidth = '0';
+      chartsPanel.style.maxWidth = 'none';
+      chartsPanel.style.height = '';
+    } else {
+      let h = e.clientY - contentRect.top;
+      h = Math.max(90, Math.min(420, h));
+      chartsPanel.style.height = h + 'px';
+      chartsPanel.style.minHeight = '0';
+      chartsPanel.style.maxHeight = 'none';
+      chartsPanel.style.width = '';
+    }
+  });
+  document.addEventListener('mouseup', function() {
+    if (!dragging) return;
+    dragging = false;
+    resizer.classList.remove('dragging');
+    chartsPanel.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    redrawTimelines({ preserveZoom: true });
+  });
+})();
+
+// ============================================================
 // Highlight helper — wraps each hit in a <mark> with an ID
 // ============================================================
 function highlightWithHits(text, query, resultIdx) {
-  if (!query) return escapeHtml(text);
+  if (!query) return linkifyUrls(escapeHtml(text));
 
   const caseSensitive = isCaseSensitive();
   // Prefer terms that actually matched this result (from boolean eval)
@@ -3581,7 +4205,7 @@ function highlightWithHits(text, query, resultIdx) {
   // Unique, longest first so phrases win over sub-words
   terms = Array.from(new Set(terms)).filter(function(t) { return t && t.length; })
     .sort(function(a, b) { return b.length - a.length; });
-  if (!terms.length) return escapeHtml(text);
+  if (!terms.length) return linkifyUrls(escapeHtml(text));
 
   const parts = terms.map(function(t) {
     if (t.indexOf('*') >= 0) return t.split('*').map(escapeRegex).join('.*');
@@ -3591,19 +4215,86 @@ function highlightWithHits(text, query, resultIdx) {
   try {
     regex = new RegExp('(' + parts.join('|') + ')', caseSensitive ? 'g' : 'gi');
   } catch (e) {
-    return escapeHtml(text);
+    return linkifyUrls(escapeHtml(text));
   }
   let hitCount = 0;
-  return escapeHtml(text).replace(regex, function(match) {
+  const marked = escapeHtml(text).replace(regex, function(match) {
     const id = 'hit-' + resultIdx + '-' + hitCount;
     hitCount++;
     return '<mark id="' + id + '">' + match + '</mark>';
+  });
+  return linkifyUrls(marked);
+}
+
+// A web address inside an entry/email box's text becomes a clickable link.
+// Input is already-escaped HTML, possibly with <mark> tags from search
+// highlighting already inserted -- linkify only touches the plain text RUNS
+// between existing tags (never the tags themselves), so a search hit that
+// happens to land inside a URL just splits it into two linked pieces instead
+// of ever risking a <mark> landing inside an href attribute.
+const RE_BODY_URL = /\bhttps?:\/\/[^\s<>"']+/gi;
+function linkifyUrls(html) {
+  return html.replace(/(<[^>]+>)|([^<]+)/g, function(m, tag, text) {
+    if (tag) return tag;
+    return text.replace(RE_BODY_URL, function(url) {
+      // Trailing sentence punctuation the OCR glued on is never part of the
+      // address itself.
+      let trail = '';
+      const pm = url.match(/([.,;:!?)\]]+)$/);
+      if (pm) { trail = pm[1]; url = url.slice(0, -trail.length); }
+      if (!url) return trail;
+      return '<a href="' + url + '" target="_blank" rel="noopener noreferrer" ' +
+        'class="body-link">' + url + '</a>' + trail;
+    });
   });
 }
 
 function escapeHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/**
+ * Break a long, single-paragraph email body into one line per sentence, for
+ * on-screen readability only -- the stored content and search text are
+ * untouched (this never changes what highlightWithHits matched or what
+ * entryScanText scans). Several entries have no \n\n in the source at all
+ * (the parser doesn't invent paragraph breaks the PDF never had: see
+ * clean_ebola_breaks.py's word-joining heuristic for scan-width wraps),
+ * so a wall of 300+ word prose otherwise shows as one uninterrupted block.
+ * Short paragraphs are left alone. The split is conservative on purpose --
+ * it skips a candidate break right after an initial ("J."), a short
+ * abbreviation (Dr., approx., Mar., etc.) or a digit (so "3.5" or "No. 2"
+ * stay put) -- so it mostly fires on genuine sentence ends, not perfectly.
+ */
+const SENTENCE_ABBR_RE = /^(mr|mrs|ms|dr|prof|sr|jr|st|vs|etc|approx|cf|al|inc|ltd|co|corp|no|u\.s|u\.k|i\.e|e\.g|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)$/i;
+const SENTENCE_BREAK_RE = /[.!?]+[”’"'\)\]]*\s+(?=[A-Z0-9"“'(])/g;
+function sentenceLines(text) {
+  if (!text || text.length < 160) return [text];
+  const lines = [];
+  let start = 0;
+  let m;
+  SENTENCE_BREAK_RE.lastIndex = 0;
+  while ((m = SENTENCE_BREAK_RE.exec(text))) {
+    const before = text.slice(0, m.index);
+    const word = (before.match(/([A-Za-z]+)$/) || [])[1] || '';
+    if (/\d$/.test(before) || word.length === 1 || SENTENCE_ABBR_RE.test(word)) continue;
+    lines.push(text.slice(start, SENTENCE_BREAK_RE.lastIndex).trim());
+    start = SENTENCE_BREAK_RE.lastIndex;
+  }
+  if (start < text.length) lines.push(text.slice(start).trim());
+  return lines.length > 1 ? lines : [text];
+}
+/** Same split, applied only to the plain-text runs of an HTML string --
+ * tags (and whatever they wrap, like a <mark> search hit) pass through
+ * untouched, the same tag/text split linkifyUrls() uses. */
+function addSentenceBreaks(html) {
+  if (!html) return html;
+  if (html.replace(/<[^>]+>/g, '').length < 160) return html;
+  return html.replace(/(<[^>]+>)|([^<]+)/g, function(whole, tag, text) {
+    if (tag) return tag;
+    return sentenceLines(text).join('<br>');
+  });
 }
 
 // ============================================================
@@ -3683,7 +4374,7 @@ function displayResults(results, query, opts) {
     const kdef = kindDef(kind);
     // An attachment's box sits indented under the entry it was attached to
     html += '<div class="result-entry' + (kind === 'attachment' ? ' is-attachment' : '') +
-      (kind === 'note' ? ' is-note' : '') +
+      (kind === 'meta' ? ' is-meta' : '') +
       '" id="result-' + i + '" data-result-idx="' + i + '" data-pdf-page="' + pdfPage + '" data-entry-idx="' + r.idx + '">';
     html += '<div class="result-header">';
     html += '<span><span class="result-date">' + escapeHtml(e.date) + '</span>' +
@@ -3706,15 +4397,19 @@ function displayResults(results, query, opts) {
     // Bookmark toggle: keeps a pointer to this box in the rail; click again to drop it.
     html += '<button type="button" class="bm-toggle" data-bm-toggle="' +
       escapeHtml(diaryBmKey(e)) + '" title="Bookmark this box">🔖</button>';
+    if (e.reply_to || (e.replied_by && e.replied_by.length)) {
+      html += '<button type="button" class="thread-btn" data-thread-key="' +
+        escapeHtml(entryThreadKey(e)) + '" title="Open this conversation in the Thread panel">🧵 Thread</button>';
+    }
     html += '<button type="button" class="expand-btn" data-expand-toggle="' + i + '" hidden title="Show the full text of this entry">⤢ Full text</button>';
     html += '</span>';
     html += '</div>';
 
-    // Publisher material (kind "note"): who wrote it, and what it is
-    if (kind === 'note') {
+    // Publisher material (kind "meta"): who wrote it, and what it is
+    if (kind === 'meta') {
       html += '<div class="att-parent">' +
         (e.author ? '\u2709 ' + escapeHtml(e.author) + ' \u00b7 ' : '') +
-        escapeHtml(e.title || 'Release note') +
+        escapeHtml(e.title || 'Meta document') +
         (e.provenance ? '<div style="margin-top:3px;font-style:italic">' +
           escapeHtml(e.provenance) + '</div>' : '') +
         '</div>';
@@ -3748,16 +4443,23 @@ function displayResults(results, query, opts) {
     html += '<div class="result-content" id="content-' + i + '">';
     if (kind === 'email') {
       // Email layout: From/To/Cc/Subject (+ Sent with local + ET time) block,
-      // a separator rule, then the body that author wrote that day.
+      // a separator rule, then the body that author wrote that day. The
+      // header fields are joined into one block with <br> between them
+      // (not one <p> each) so they sit on tight consecutive lines instead of
+      // each carrying its own paragraph margin.
       let inHead = true;
+      const headLines = [];
       for (const p of paragraphs) {
         if (inHead && p.trim() === '----------') {
           inHead = false;
+          html += '<p class="email-field">' + headLines.join('<br>') + '</p>';
           html += '<hr class="email-sep">';
           continue;
         }
-        html += inHead ? '<p class="email-field">' + p + '</p>' : '<p>' + p + '</p>';
+        if (inHead) { if (p.trim()) headLines.push(p); }
+        else html += '<p>' + addSentenceBreaks(p) + '</p>';
       }
+      if (inHead && headLines.length) html += '<p class="email-field">' + headLines.join('<br>') + '</p>';
     } else {
       for (const p of paragraphs) {
         html += '<p>' + p + '</p>';
@@ -3850,6 +4552,12 @@ function displayResults(results, query, opts) {
       ev.stopPropagation();
       return;
     }
+    // A web address inside the body: let the browser open it (new tab,
+    // target="_blank" already set) without also re-jumping the PDF.
+    if (ev.target.closest('.body-link')) {
+      ev.stopPropagation();
+      return;
+    }
     const entry = ev.target.closest('.result-entry');
     if (!entry || !panel.contains(entry)) return;
     const bmBtn = ev.target.closest('[data-bm-toggle]');
@@ -3871,6 +4579,15 @@ function displayResults(results, query, opts) {
       });
       bmBtn.classList.toggle('on', added);
       bmBtn.title = added ? 'Remove this bookmark' : 'Bookmark this box';
+      return;
+    }
+
+    // 🧵 Thread: open this conversation in the Thread tab.
+    const threadBtn = ev.target.closest('[data-thread-key]');
+    if (threadBtn) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      openThreadTab(threadBtn.getAttribute('data-thread-key'));
       return;
     }
 
@@ -3929,8 +4646,11 @@ function refLinksHtml(list) {
 // Keys may be source-qualified ("ebola|2016-03-10|06:13 ET · ...") - the
 // downward links loadData builds are - or plain, for parser-supplied refs.
 // ============================================================
-function openEntryRef(key) {
-  if (!key || !diaryData) return false;
+/** 'source|date|raw_date' (the source prefix optional) -> index into
+ * diaryData.entries, or -1. Shared by every key-addressed open action
+ * (openEntryRef, openEntryInContent, findEntryByThreadKey's own loop). */
+function findMergedIndexByKey(key) {
+  if (!key || !diaryData) return -1;
   var src = null, rest = key;
   var firstSep = key.indexOf('|');
   if (firstSep > 0) {
@@ -3943,13 +4663,479 @@ function openEntryRef(key) {
   for (var i = 0; i < diaryData.entries.length; i++) {
     var e = diaryData.entries[i];
     if (src && e.source !== src) continue;
-    if ((e.date + '|' + e.raw_date) === rest) {
-      displayResults([{ idx: i, entry: e, hits: 0, hitPositions: [], matchTerms: [] }], '');
-      return true;
+    if ((e.date + '|' + e.raw_date) === rest) return i;
+  }
+  return -1;
+}
+
+function openEntryRef(key) {
+  var idxInMerged = findMergedIndexByKey(key);
+  if (idxInMerged < 0) return false;
+
+  // Release front matter (meta/attachment) lives in the Linked Docs tab,
+  // not the main browse window -- they default to kind-filtered OUT of it
+  // (see loadKindFilter), so a ref pointing at one routes there instead.
+  var targetEntry = diaryData.entries[idxInMerged];
+  var targetKind = entryKind(targetEntry);
+  if (targetKind === 'meta' || targetKind === 'attachment') {
+    openComplementaryTab(entryThreadKey(targetEntry));
+    return true;
+  }
+
+  // Same windowed-open path as a timeline bar / bookmark: the referenced
+  // entry lands in the middle of a scrollable stretch of its neighbours,
+  // not alone, so "Attachment of:" / "In reply to:" clicks match ordinary
+  // browsing instead of dead-ending on a single box.
+  if (lastSearchResults && lastSearchResults.length) {
+    clearSearchStateForBrowse();
+    redrawTimelines({ preserveZoom: true });
+  }
+  var pack = buildBrowseResultsAroundIndex(idxInMerged, BROWSE_RADIUS);
+  if (!pack || !pack.results.length) return false;
+  browseMode = true;
+  displayResults(pack.results, '', { autoSelect: false });
+
+  var k = pack.focusLocal;
+  if (k < 0 || k >= pack.results.length) k = 0;
+  var r = pack.results[k];
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      selectResult(k, pdfPageForResult(r) || 1, r.idx);
+      scrollResultToPanelTop(k);
+    });
+  });
+  return true;
+}
+
+/**
+ * Open any entry -- including a Linked Docs or Thread box (note/attachment
+ * kind, or a kind currently unticked in Box types) -- in the Content panel
+ * (the results list), unconditionally. Unlike openEntryRef(), this never
+ * redirects to Linked Docs: it is the explicit "show me this one, here"
+ * action, so the window is built the same way (±BROWSE_RADIUS neighbours,
+ * respecting the current kind/release filters) but the CENTRE entry itself
+ * is always included even if its own kind is filtered out right now --
+ * an entry you explicitly asked to open should never just not appear.
+ */
+function openEntryInContent(key) {
+  var idxInMerged = findMergedIndexByKey(key);
+  if (idxInMerged < 0) return false;
+
+  if (lastSearchResults && lastSearchResults.length) {
+    clearSearchStateForBrowse();
+    redrawTimelines({ preserveZoom: true });
+  }
+  var pack = buildBrowseResultsAroundIndex(idxInMerged, BROWSE_RADIUS);
+  if (!pack) pack = { results: [], focusLocal: -1, from: idxInMerged, to: idxInMerged };
+  var k = pack.focusLocal;
+  if (k < 0 || !pack.results.length || pack.results[k].idx !== idxInMerged) {
+    // The centre entry itself got filtered out of its own window -- splice
+    // it back in at the right sorted position so it is always shown.
+    var insertAt = pack.results.findIndex(function(r) { return r.idx > idxInMerged; });
+    if (insertAt < 0) insertAt = pack.results.length;
+    pack.results.splice(insertAt, 0, {
+      idx: idxInMerged, entry: diaryData.entries[idxInMerged],
+      hits: 0, hitPositions: [], matchTerms: []
+    });
+    k = insertAt;
+  }
+  browseMode = true;
+  displayResults(pack.results, '', { autoSelect: false });
+
+  var r = pack.results[k];
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      selectResult(k, pdfPageForResult(r) || 1, r.idx);
+      scrollResultToPanelTop(k);
+    });
+  });
+  return true;
+}
+
+// ============================================================
+// Thread tab — Gmail-style rendering of one conversation
+// ============================================================
+function entryThreadKey(e) {
+  return (e.source || '') + '|' + e.date + '|' + (e.raw_date || '');
+}
+
+function findEntryByThreadKey(key) {
+  if (!diaryData || !key) return null;
+  var src = null, rest = key;
+  var firstSep = key.indexOf('|');
+  if (firstSep > 0) {
+    var head = key.slice(0, firstSep);
+    if (Object.prototype.hasOwnProperty.call(SOURCES, head)) {
+      src = head;
+      rest = key.slice(firstSep + 1);
     }
   }
-  return false;
+  for (var i = 0; i < diaryData.entries.length; i++) {
+    var e = diaryData.entries[i];
+    if (src && e.source !== src) continue;
+    if ((e.date + '|' + e.raw_date) === rest) return e;
+  }
+  return null;
 }
+
+function switchReaderTab(tab) {
+  if (tab === readerTab) return;
+  readerTab = tab;
+  ['Timeline', 'Complementary', 'Thread'].forEach(function(name) {
+    const btn = document.getElementById('pdfTab' + name);
+    if (btn) btn.classList.toggle('active', name.toLowerCase() === tab);
+  });
+  // Neither Thread nor Complementary has a PDF of its own -- the
+  // canvas/continuous viewer and its Prev/Next/zoom toolbar (none of which
+  // apply) make way for that tab's own scrolling panel, restored unchanged
+  // when leaving the tab.
+  const isTimeline = tab === 'timeline';
+  const toolbar = document.getElementById('pdfToolbar');
+  const viewer = document.getElementById('pdfViewerContainer');
+  const threadView = document.getElementById('threadView');
+  const complementaryView = document.getElementById('complementaryView');
+  if (toolbar) toolbar.style.display = isTimeline ? '' : 'none';
+  if (viewer) viewer.style.display = isTimeline ? '' : 'none';
+  if (threadView) threadView.style.display = tab === 'thread' ? '' : 'none';
+  if (complementaryView) complementaryView.style.display = tab === 'complementary' ? '' : 'none';
+}
+
+/** Bound to the Timeline tab button -- switching tabs with no specific
+ * document in mind, so (unlike a card's own Thread click) this is the one
+ * caller that does need to restore whatever the viewer last showed. */
+function openTimelineTab() {
+  switchReaderTab('timeline');
+  renderEntryPdf(currentPdfSource, currentPage);
+}
+
+// ============================================================
+// Complementary tab (Linked Docs) -- each release's own front matter (kind
+// 'meta': a prequel-style preface, a conclusion, a summary, an index -- any
+// analysis/organisational material produced about the release rather than
+// part of the original record) and attachments (kind 'attachment': an
+// original document that travelled with a message). These default OFF in
+// Box types (see loadKindFilter) so they stay out of the main scrollable
+// list and search; this tab reads diaryData.entries directly, ignoring that
+// filter entirely, so they are always reachable here regardless of what Box
+// types has ticked.
+// ============================================================
+let complementaryFocusKey = null;  // last entry opened, expanded inline
+
+function complementaryEntries() {
+  if (!diaryData) return [];
+  return diaryData.entries.filter(function(e) {
+    var k = entryKind(e);
+    return k === 'meta' || k === 'attachment';
+  });
+}
+
+function complementaryItemHtml(e) {
+  const kind = entryKind(e);
+  const kdef = kindDef(kind);
+  const key = entryThreadKey(e);
+  const isOpen = key === complementaryFocusKey;
+  const title = kind === 'meta'
+    ? (e.title || 'Meta document')
+    : (e.title || e.attachment_label || 'Attachment');
+  let html = '<div class="comp-item">';
+  html += '<div class="comp-item-head">';
+  html += '<span class="comp-item-title">' + escapeHtml(title) + '</span>';
+  if (e.source && SOURCES[e.source]) {
+    html += '<span class="comp-item-badge" title="From the ' + escapeHtml(SOURCES[e.source].badgeTitle) +
+      ' release">' + SOURCES[e.source].badge + '</span>';
+  }
+  html += '<span class="comp-item-kind" style="color:' + kdef.color + '">' + kdef.icon + ' ' +
+    escapeHtml(kdef.label.toLowerCase()) + '</span>';
+  html += '</div>';
+  if (kind === 'meta' && e.author) {
+    html += '<div class="comp-item-meta">✉ ' + escapeHtml(e.author) +
+      (e.provenance ? ' · ' + escapeHtml(e.provenance) : '') + '</div>';
+  } else if (kind === 'attachment' && e.attached_to) {
+    html += '<div class="comp-item-meta">📎 Attachment of: ' +
+      escapeHtml(e.attached_to_label || e.attached_to) + '</div>';
+  }
+  if (isOpen) {
+    html += '<div class="comp-item-body">' + escapeHtml(e.content || '') + '</div>';
+  }
+  html += '<a class="comp-item-open" data-comp-toggle="' + escapeHtml(key) + '">' +
+    (isOpen ? 'Hide text' : 'Read full text') + '</a> ';
+  html += '<a class="comp-item-open" data-comp-jump="' + escapeHtml(key) + '">📄 Open in Main Docs</a> ';
+  html += '<a class="comp-item-open" data-comp-content="' + escapeHtml(key) + '">📄 Open in Content</a>';
+  html += '</div>';
+  return html;
+}
+
+function renderComplementaryPanel() {
+  const host = document.getElementById('complementaryViewInner');
+  if (!host) return;
+  const items = complementaryEntries();
+  if (!items.length) {
+    host.innerHTML = '<div class="complementary-empty">No meta documents or attachments in this diary.</div>';
+    return;
+  }
+  let html = '<div class="comp-section-label">Meta documents &amp; attachments</div>';
+  items.forEach(function(e) { html += complementaryItemHtml(e); });
+  host.innerHTML = html;
+}
+
+/** Bound to the Complementary tab button, and to a ref link (attachment
+ * chip, "Attached by message", etc.) that points at a note/attachment-kind
+ * entry -- those live here instead of the main browse window. */
+function openComplementaryTab(key) {
+  if (key) complementaryFocusKey = key;
+  switchReaderTab('complementary');
+  renderComplementaryPanel();
+  if (key) {
+    requestAnimationFrame(function() {
+      const el = document.querySelector('[data-comp-toggle="' + CSS.escape(key) + '"]');
+      if (el) el.closest('.comp-item').scrollIntoView({ block: 'center' });
+    });
+  }
+}
+
+document.getElementById('complementaryViewInner').addEventListener('click', function(ev) {
+  const toggle = ev.target.closest('[data-comp-toggle]');
+  if (toggle) {
+    const key = toggle.getAttribute('data-comp-toggle');
+    complementaryFocusKey = (complementaryFocusKey === key) ? null : key;
+    renderComplementaryPanel();
+    return;
+  }
+  const jump = ev.target.closest('[data-comp-jump]');
+  if (jump) {
+    const e = findEntryByThreadKey(jump.getAttribute('data-comp-jump'));
+    if (!e) return;
+    switchReaderTab('timeline');
+    renderEntryPdf(e.source, pdfPageForResult({ entry: e }));
+    return;
+  }
+  const contentBtn = ev.target.closest('[data-comp-content]');
+  if (contentBtn) {
+    openEntryInContent(contentBtn.getAttribute('data-comp-content'));
+  }
+});
+
+let threadFocusKey = null;   // last entry the Thread panel was centered on
+// Branch keys the user has clicked "⬇ Downstream" on, for the CURRENTLY
+// focused thread -- reset whenever the focus moves to a different root
+// message (openThreadTab), so an old expansion doesn't linger into an
+// unrelated conversation.
+let threadExpandedDownstream = new Set();
+
+/** Open the Thread tab, centered on `key` (an entry's thread key) if given,
+ * or whatever it was last centered on otherwise -- so the bare tab button
+ * returns to the last-opened conversation rather than going blank. */
+function openThreadTab(key) {
+  if (key && key !== threadFocusKey) threadExpandedDownstream = new Set();
+  if (key) threadFocusKey = key;
+  switchReaderTab('thread');
+  renderThreadPanel(threadFocusKey);
+}
+
+/** Walk reply_to upward from `e` to the root of its conversation (oldest
+ * first). Guarded against a cyclical reply_to (a data bug, not something
+ * the parser should ever produce, but a UI render loop is the wrong place
+ * to find that out) rather than trusting the chain is finite. */
+function threadUpstreamChain(e) {
+  const chain = [e];
+  let cur = e;
+  let guard = 0;
+  while (cur && cur.reply_to && guard++ < 50) {
+    const parent = findEntryByThreadKey(cur.reply_to);
+    if (!parent || chain.indexOf(parent) !== -1) break;
+    chain.unshift(parent);
+    cur = parent;
+  }
+  return chain;
+}
+
+function threadMsgHtml(e, opts) {
+  opts = opts || {};
+  const cls = 'thread-msg' + (opts.current ? ' current' : '') + (opts.downstream ? ' downstream' : '');
+  const kind = entryKind(e);
+  const kd = kindDef(kind);
+  let html = '<div class="' + cls + '"' +
+    (opts.current ? '' : ' data-thread-open="' + escapeHtml(entryThreadKey(e)) + '" title="Open this message’s own conversation"') + '>';
+  html += '<div class="thread-msg-head">';
+  html += '<span class="thread-msg-date">' + escapeHtml(e.date) + '</span>';
+  html += '<span class="thread-msg-raw">' + escapeHtml(e.raw_date || '') + '</span>';
+  if (e.source && SOURCES[e.source]) {
+    html += '<span class="thread-msg-badge" title="From the ' + escapeHtml(SOURCES[e.source].badgeTitle) +
+      ' release">' + escapeHtml(SOURCES[e.source].badge) + '</span>';
+  }
+  html += '<span class="thread-msg-kind" style="color:' + kd.color + '">' + kd.icon + ' ' + escapeHtml(kd.label) + '</span>';
+  html += '<a class="comp-item-open" data-thread-jump="' + escapeHtml(entryThreadKey(e)) +
+    '" title="Open this message’s scanned page in the Main Docs tab">📄 Open in Main Docs</a>';
+  html += '<a class="comp-item-open" data-thread-content="' + escapeHtml(entryThreadKey(e)) +
+    '" title="Open this message in the Content panel’s browse list">📄 Open in Content</a>';
+  html += '</div>';
+  if (e.date_note) {
+    html += '<div class="result-note">⚠ ' + escapeHtml(e.date_note) + '</div>';
+  }
+  // The full header block (From/To/Cc/Subject/Sent, whichever were
+  // recovered) -- the same fields the main result card shows, not a
+  // condensed one-liner. Fields are blank-line separated in the source
+  // (one paragraph each); joined with a single line break here, same as
+  // the main result card, instead of dumping the raw text (with its blank
+  // lines intact) into a white-space:pre-wrap block.
+  const parts = (e.content || '').split('----------');
+  const headerBlock = parts.length > 1 && parts[0] ? parts[0].trim() : '';
+  if (headerBlock) {
+    const fieldLines = headerBlock.split(/\n\n+/).map(function(s) { return s.trim(); }).filter(Boolean);
+    html += '<div class="thread-msg-fields">' + fieldLines.map(escapeHtml).join('\n') + '</div>';
+  }
+  const body = (parts.length > 1 ? parts.slice(1).join('----------') : (e.content || '')).trim();
+  const bodyHtml = kind === 'email' ? addSentenceBreaks(escapeHtml(body)) : escapeHtml(body);
+  html += '<div class="thread-msg-body">' + bodyHtml + '</div>';
+  html += '</div>';
+  return html;
+}
+
+function renderThreadPanel(key) {
+  const container = document.getElementById('threadViewInner');
+  if (!container) return;
+  const e = findEntryByThreadKey(key);
+  if (!e) {
+    container.innerHTML = '<div class="thread-empty">Click 🧵 Thread on an email box ' +
+      'to see its conversation here.</div>';
+    return;
+  }
+  const chain = threadUpstreamChain(e);
+  let html = '';
+  if (chain.length > 1) {
+    html += '<div class="thread-section-label">Upstream — the conversation so far</div>';
+  }
+  chain.forEach(function(msg, i) {
+    if (i > 0) html += '<div class="thread-chain-arrow">↓</div>';
+    html += threadMsgHtml(msg, { current: msg === e });
+  });
+  const downstreamHtml = threadDownstreamHtml(e, 0);
+  if (downstreamHtml) {
+    html += '<div class="thread-section-label">Downstream</div>' + downstreamHtml;
+  }
+  container.innerHTML = html;
+}
+
+/** Render one message's downstream conversation. Indentation and the left
+ * lineage line are reserved strictly for an actual FORK -- two or more
+ * people replying or forwarding directly to the SAME message (one could
+ * answer within the hour, another forward it on years later; both still
+ * count and both still show, ordered by when, but neither "comes after"
+ * the other the way an ordinary reply chain does, which is what the indent
+ * is for signalling). A plain, unbranching reply chain -- the common case
+ * -- stays FLAT, stacked with the same "↓" connector the upstream chain
+ * above the current message already uses, at the SAME indent level the
+ * whole way down, however many messages long. forkDepth only increments
+ * when actually crossing a fork boundary, so a fork nested inside one
+ * already-expanded branch indents one further step than its parent fork,
+ * not one further step per message.
+ *
+ * At a fork, each branch collapses behind its own "⬇ Downstream" button
+ * instead of auto-expanding, so a heavily-forked thread can't render an
+ * enormous tree in one shot; clicking a branch's button (see
+ * initThreadPanelClicks()) applies this exact same rule from that branch
+ * on, so the user can still walk arbitrarily deep into any ONE branch they
+ * actually want, one click at a time. threadExpandedDownstream remembers
+ * which branches have already been opened this focus, so re-rendering
+ * after a click doesn't collapse everything back down.
+ *
+ * Upstream never needs this: reply_to is single-valued by the data model
+ * (one message answers exactly one other), so it's always a plain chain,
+ * never a fork.
+ */
+function threadDownstreamHtml(e, forkDepth) {
+  const replies = (e.replied_by || []).slice().sort(function(a, b) {
+    const ea = findEntryByThreadKey(a.key), eb = findEntryByThreadKey(b.key);
+    const ka = ea ? (ea.date || '') + (ea.time || '') : '';
+    const kb = eb ? (eb.date || '') + (eb.time || '') : '';
+    return ka < kb ? -1 : (ka > kb ? 1 : 0);
+  });
+  if (!replies.length) return '';
+  let html = '';
+  if (replies.length === 1) {
+    // Not a fork -- continue the flat stack at the SAME indent, no lineage
+    // line, exactly like the upstream chain's own "↓" connector.
+    const re = findEntryByThreadKey(replies[0].key);
+    if (!re) return '';
+    html += '<div class="thread-chain-arrow">↓</div>';
+    html += threadMsgHtml(re, { downstream: true });
+    html += threadDownstreamHtml(re, forkDepth);
+    return html;
+  }
+  // A genuine fork: indent each branch one step deeper than this fork's
+  // own level, with its own lineage line back to the message that forked.
+  replies.forEach(function(r) {
+    const re = findEntryByThreadKey(r.key);
+    if (!re) return;
+    html += '<div class="thread-down" style="margin-left:' + ((forkDepth + 1) * 18) + 'px">';
+    if (threadExpandedDownstream.has(r.key)) {
+      html += threadMsgHtml(re, { downstream: true });
+      html += threadDownstreamHtml(re, forkDepth + 1);
+    } else {
+      html += '<div class="thread-collapsed">' +
+        '<span class="thread-collapsed-label">' + escapeHtml(re.raw_date || re.date || '') + '</span>' +
+        '<button type="button" class="thread-downstream-btn" data-thread-downstream="' +
+        escapeHtml(r.key) + '" title="Expand this reply and follow its own conversation">' +
+        '⬇ Downstream</button></div>';
+    }
+    html += '</div>';
+  });
+  return html;
+}
+
+/** Clicking any non-current message in the panel re-centers the thread on
+ * it, AND moves the underlying Timeline/PDF state to its page -- without
+ * actually leaving the Thread tab -- so switching to Timeline afterward
+ * shows the right page rather than wherever it was left before. */
+(function initThreadPanelClicks() {
+  const inner = document.getElementById('threadViewInner');
+  if (!inner) return;
+  inner.addEventListener('click', function(ev) {
+    // "⬇ Downstream": expand this ONE branch in place (and remember it's
+    // open), re-rendering around the same focused message -- never shifts
+    // focus itself, unlike clicking a message card.
+    const dsBtn = ev.target.closest('[data-thread-downstream]');
+    if (dsBtn) {
+      threadExpandedDownstream.add(dsBtn.getAttribute('data-thread-downstream'));
+      renderThreadPanel(threadFocusKey);
+      return;
+    }
+    // "Open in Main Docs": jump straight to this message's scanned page
+    // without touching the thread's own focus -- unlike clicking the card
+    // itself, which re-centers the conversation on that message instead.
+    const jumpBtn = ev.target.closest('[data-thread-jump]');
+    if (jumpBtn) {
+      ev.stopPropagation();
+      const je = findEntryByThreadKey(jumpBtn.getAttribute('data-thread-jump'));
+      if (je) {
+        switchReaderTab('timeline');
+        renderEntryPdf(je.source, pdfPageForResult({ entry: je }));
+      }
+      return;
+    }
+    // "Open in Content": show this message as a box in the Content panel
+    // (the main browse/search list), independent of whichever reader tab
+    // (Main Docs / Linked Docs / Thread) is currently active.
+    const contentBtn = ev.target.closest('[data-thread-content]');
+    if (contentBtn) {
+      ev.stopPropagation();
+      openEntryInContent(contentBtn.getAttribute('data-thread-content'));
+      return;
+    }
+    const el = ev.target.closest('[data-thread-open]');
+    if (!el) return;
+    const key = el.getAttribute('data-thread-open');
+    const e = findEntryByThreadKey(key);
+    if (e) {
+      const mapVal = pageMapValueForResult({ entry: e });
+      const page = pageForContentOffset(mapVal, 0);
+      currentPdfSource = e.source;
+      currentPage = page;
+      renderEntryPdf(e.source, page);   // pre-fetch; a no-op on canvas while off the Timeline tab
+    }
+    openThreadTab(key);
+  });
+})();
 
 // ============================================================
 // Select result + jump to PDF page
@@ -4248,8 +5434,27 @@ function refreshBookmarkToggles() {
 function openBookmark(bmKey) {
   const b = bmFind(bmKey);
   if (!b) return;
-  if (b.app === 'fauci-diary' && openEntryByBmKey(b.key, b.page)) return;
+  if (b.app === 'fauci-diary') {
+    if (openEntryByBmKey(b.key, b.page)) return;
+    showBmNotice('Couldn’t find this bookmark’s entry — the data may have ' +
+      'changed since it was saved. Remove it and bookmark the box again.');
+    return;
+  }
   if (b.url) window.open(b.url, '_blank', 'noopener');
+}
+
+// A small transient notice in the bookmarks rail -- not a blocking alert(),
+// and not a new generic toast system just for this one case.
+function showBmNotice(text) {
+  const list = document.getElementById('bmList');
+  if (!list) return;
+  const existing = list.querySelector('.bm-notice');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.className = 'bm-notice';
+  el.textContent = text;
+  list.insertBefore(el, list.firstChild);
+  setTimeout(function() { el.remove(); }, 6000);
 }
 
 // Resolve a bookmark key back to an entry, then reuse the normal open path so a

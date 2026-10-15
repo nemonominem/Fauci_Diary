@@ -30,6 +30,11 @@ python3 regen_missingyears_page_map.py
 echo "Cleaning missing-years JSON line breaks..."
 python3 clean_missingyears_breaks.py
 
+echo "Regenerating missing-pages page map..."
+python3 regen_missingpages_page_map.py
+echo "Cleaning missing-pages JSON line breaks..."
+python3 clean_missingpages_breaks.py
+
 # Kill any existing instance
 pkill -f "python3 serve.py" 2>/dev/null
 sleep 1

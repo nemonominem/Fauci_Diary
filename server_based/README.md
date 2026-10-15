@@ -51,6 +51,18 @@ python3 merge_missingyears_duplicates.py # fold same-date diary entries (kind-aw
 python3 regen_missingyears_page_map.py   # rebuild page map (imports the parser; asserts content equality)
 ```
 
+### Missing Pages (Dec 2021–May 2022)
+```bash
+python3 reparse_missingpages.py          # native text layer → fixed JSON (125 diary + publisher note)
+python3 clean_missingpages_breaks.py     # collapse PDF line-breaks
+python3 regen_missingpages_page_map.py   # rebuild page map (imports the parser; asserts content equality)
+```
+Fills the gap INSIDE the main diary's own date range (it jumps from Nov 2021
+straight to a stray May 31, 2022 entry); duplicate folding happens inside the
+parser itself (`fold_text_order_fragments` + a second sorted-order
+`fold_exact_date_duplicates` pass for cross-month article-byline collisions),
+so there is no separate `merge_missingpages_duplicates.py`.
+
 ### After ANY page-map or content change (all releases)
 ```bash
 python3 fix_page_map_offsets.py   # clamp/verify all four maps against the loaded text
@@ -108,3 +120,9 @@ Testable standards: **[`../SPEC.md`](../SPEC.md)**.
 | `missingyears_page_map.json` | Missing years: date\|raw_date → PDF page |
 | `missingyears_publisher_analysis.txt` | Vision OCR of the p.1 scan (the publisher's cover + analysis); read by `reparse_missingyears.py` |
 | `diary-missingyears.pdf` | Local copy of the Missing Years Congressional PDF (short name) |
+| `2026.10.07_Missing-Pages-Diary_Full-Package.txt` | Missing-pages OCR source text |
+| `2026.10.07_Missing-Pages-Diary_Full-Package_fixed.json` | Missing-pages parsed entries (pre-clean) |
+| `2026.10.07_Missing-Pages-Diary_Full-Package.json` | Missing-pages app load file (cleaned) |
+| `missingpages_page_map.json` | Missing pages: date\|raw_date → PDF page |
+| `missingpages_publisher_analysis.txt` | Vision OCR of the p.1 scan (the publisher's cover + analysis); read by `reparse_missingpages.py` |
+| `diary-missingpages.pdf` | Local copy of the Missing Pages Congressional PDF (short name) |
