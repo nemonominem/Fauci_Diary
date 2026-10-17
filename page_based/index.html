@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="midnight">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,32 +8,232 @@
 <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>
+/* Apply the saved theme before first paint. Midnight is the default. */
+(function () {
+  var t = 'midnight';
+  try { t = localStorage.getItem('fauci-diary-theme') || t; } catch (e) {}
+  if (['midnight', 'slate', 'paper', 'day'].indexOf(t) < 0) t = 'midnight';
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 /* ── Custom scrollbars — wider, better contrast ── */
 ::-webkit-scrollbar { width: 20px; height: 20px; }
 ::-webkit-scrollbar-track { background: var(--panel-2); }
-::-webkit-scrollbar-thumb { background: #555; border-radius: 10px; border: 4px solid var(--panel-2); }
-::-webkit-scrollbar-thumb:hover { background: #6c9ff2; }
+::-webkit-scrollbar-thumb { background: var(--grip); border-radius: 10px; border: 4px solid var(--panel-2); }
+::-webkit-scrollbar-thumb:hover { background: var(--grip-bar); }
 ::-webkit-scrollbar-corner { background: var(--panel-2); }
-html { scrollbar-width: auto; scrollbar-color: #555 var(--panel-2); }
-:root {
-  --bg:        #0d0d0d;
-  --panel:     #1a1a1a;
-  --panel-2:   #222;
-  --border:    #2a2a2a;
-  --border-2:  #333;
-  --input:     #222;
-  --text:      #ffffff;
-  --muted:     #6c9ff2;
-  --muted-2:   #6c9ff2;
-  --accent:    #e94560;
-  --green:     #4ecca3;
-  --orange:    #ffaa00;
-  --blue:      #6c9ff2;
-  --mark-bg:   #ffcc00;
-  --mark-tx:   #000;
+html { scrollbar-width: auto; scrollbar-color: var(--grip) var(--panel-2); }
+:root, html[data-theme="midnight"] {
+  color-scheme: dark;
+  --bg: #0d0d0d;
+  --panel: #1a1a1a;
+  --panel-2: #222222;
+  --border: #2a2a2a;
+  --border-2: #333333;
+  --input: #222222;
+  --text: #ffffff;
+  --muted: #6c9ff2;
+  --muted-2: #6c9ff2;
+  --accent: #e94560;
+  --accent-hover: #c81e4a;
+  --green: #4ecca3;
+  --orange: #ffaa00;
+  --blue: #6c9ff2;
+  --link: #6cb6ff;
+  --link-hover: #ffffff;
+  --mark-bg: #ffcc00;
+  --mark-tx: #000000;
+  --on-accent: #ffffff;
+  --hover: #444444;
+  --header-hover: #2a2a2a;
+  --scroll: #555555;
+  --scroll-hover: #6c9ff2;
+  --grip: #555555;
+  --grip-bar: #6c9ff2;
+  --on-grip: #ffffff;
+  --paper: #ffffff;
+  --btn-bg: #2b2b2e;
+  --btn-border: #55565c;
+  --btn-text: #f2f2f2;
+  --kind-violet: #d2a8ff;
+  --kind-amber: #ffd479;
+  --kind-orange: #ff9a3c;
+  --attach: #f5a623;
+  --meta: #b98cff;
+  --body-soft: #c8c8c8;
+  --silver: #3c3f44;
+  --code-bg: #111111;
+  --fill-faint: rgba(255,255,255,0.02);
+  --fill-soft: rgba(255,255,255,0.05);
+  --fill-line: rgba(255,255,255,0.08);
+  --chart-tick: #ffffff;
+  --chart-tick-dim: rgba(255,255,255,0.65);
+  --chart-grid: rgba(255,255,255,0.15);
+  --chart-grid-strong: rgba(255,255,255,0.18);
+  --chart-zero: rgba(233,69,96,0.55);
+  --chart-miss: rgba(60,60,60,0.15);
+  --zoom-fill: rgba(233,69,96,0.15);
+  --zoom-line: rgba(233,69,96,0.6);
+}
+html[data-theme="slate"] {
+  color-scheme: dark;
+  --bg: #10161e;
+  --panel: #182230;
+  --panel-2: #213044;
+  --border: #2c3d54;
+  --border-2: #3a4f6a;
+  --input: #141c28;
+  --text: #e7eef8;
+  --muted: #9ec4f5;
+  --muted-2: #9ec4f5;
+  --accent: #ff5d78;
+  --accent-hover: #e94560;
+  --green: #5ee0b4;
+  --orange: #ffaa00;
+  --blue: #9ec4f5;
+  --link: #d7ecff;
+  --link-hover: #ffffff;
+  --mark-bg: #ffcc00;
+  --mark-tx: #1a1400;
+  --on-accent: #ffffff;
+  --hover: #3a4f6a;
+  --header-hover: #2a3c54;
+  --scroll: #6d84a3;
+  --scroll-hover: #9ec4f5;
+  --grip: #6d84a3;
+  --grip-bar: #b9d7ff;
+  --on-grip: #ffffff;
+  --paper: #ffffff;
+  --btn-bg: #213044;
+  --btn-border: #3a4f6a;
+  --btn-text: #e7eef8;
+  --kind-violet: #c9a6ff;
+  --kind-amber: #ffd479;
+  --kind-orange: #ffa55c;
+  --attach: #ffb84d;
+  --meta: #c7a9ff;
+  --body-soft: #c5d2e4;
+  --silver: #2c3d54;
+  --code-bg: #141c28;
+  --fill-faint: rgba(231,238,248,0.02);
+  --fill-soft: rgba(231,238,248,0.05);
+  --fill-line: rgba(231,238,248,0.08);
+  --chart-tick: #e7eef8;
+  --chart-tick-dim: rgba(231,238,248,0.7);
+  --chart-grid: rgba(231,238,248,0.16);
+  --chart-grid-strong: rgba(231,238,248,0.22);
+  --chart-zero: rgba(255,93,120,0.6);
+  --chart-miss: rgba(231,238,248,0.08);
+  --zoom-fill: rgba(255,93,120,0.16);
+  --zoom-line: rgba(255,93,120,0.65);
+}
+html[data-theme="paper"] {
+  color-scheme: light;
+  --bg: #f4efe4;
+  --panel: #fffaf2;
+  --panel-2: #efe4d2;
+  --border: #e2d3ba;
+  --border-2: #cbbda3;
+  --input: #ffffff;
+  --text: #1c160f;
+  --muted: #1a4e8c;
+  --muted-2: #1a4e8c;
+  --accent: #c41e42;
+  --accent-hover: #9c1734;
+  --green: #0c6b4d;
+  --orange: #e69500;
+  --blue: #1a4e8c;
+  --link: #0b4fbf;
+  --link-hover: #08398a;
+  --mark-bg: #ffd84a;
+  --mark-tx: #1a1400;
+  --on-accent: #ffffff;
+  --hover: #ddd0b8;
+  --header-hover: #e7dcc8;
+  --scroll: #a89478;
+  --scroll-hover: #1a4e8c;
+  --grip: #a89478;
+  --grip-bar: #1a4e8c;
+  --on-grip: #ffffff;
+  --paper: #ffffff;
+  --btn-bg: #efe4d2;
+  --btn-border: #cbbda3;
+  --btn-text: #1c160f;
+  --kind-violet: #7a3fc4;
+  --kind-amber: #8a5a00;
+  --kind-orange: #b45309;
+  --attach: #9a5b00;
+  --meta: #6b3fc0;
+  --body-soft: #3a3228;
+  --silver: #e7dcc8;
+  --code-bg: #efe4d2;
+  --fill-faint: rgba(28,22,15,0.02);
+  --fill-soft: rgba(28,22,15,0.05);
+  --fill-line: rgba(28,22,15,0.08);
+  --chart-tick: #1c160f;
+  --chart-tick-dim: rgba(28,22,15,0.68);
+  --chart-grid: rgba(28,22,15,0.12);
+  --chart-grid-strong: rgba(28,22,15,0.18);
+  --chart-zero: rgba(196,30,66,0.55);
+  --chart-miss: rgba(28,22,15,0.06);
+  --zoom-fill: rgba(196,30,66,0.12);
+  --zoom-line: rgba(196,30,66,0.55);
+}
+html[data-theme="day"] {
+  color-scheme: light;
+  --bg: #f3f6fb;
+  --panel: #ffffff;
+  --panel-2: #e7eef8;
+  --border: #d4deeb;
+  --border-2: #c0cde0;
+  --input: #ffffff;
+  --text: #122033;
+  --muted: #184a96;
+  --muted-2: #184a96;
+  --accent: #c42145;
+  --accent-hover: #9b1834;
+  --green: #0b6e52;
+  --orange: #e69500;
+  --blue: #184a96;
+  --link: #0a4cad;
+  --link-hover: #083888;
+  --mark-bg: #ffe14a;
+  --mark-tx: #1a1400;
+  --on-accent: #ffffff;
+  --hover: #d5e0ee;
+  --header-hover: #dce6f3;
+  --scroll: #8fa3bd;
+  --scroll-hover: #184a96;
+  --grip: #8fa3bd;
+  --grip-bar: #184a96;
+  --on-grip: #ffffff;
+  --paper: #ffffff;
+  --btn-bg: #e7eef8;
+  --btn-border: #c0cde0;
+  --btn-text: #122033;
+  --kind-violet: #6a3fb5;
+  --kind-amber: #7a5000;
+  --kind-orange: #a84a00;
+  --attach: #9a5b00;
+  --meta: #6b3fc0;
+  --body-soft: #24364c;
+  --silver: #dce6f3;
+  --code-bg: #e7eef8;
+  --fill-faint: rgba(18,32,51,0.02);
+  --fill-soft: rgba(18,32,51,0.05);
+  --fill-line: rgba(18,32,51,0.08);
+  --chart-tick: #122033;
+  --chart-tick-dim: rgba(18,32,51,0.68);
+  --chart-grid: rgba(18,32,51,0.12);
+  --chart-grid-strong: rgba(18,32,51,0.18);
+  --chart-zero: rgba(196,33,69,0.55);
+  --chart-miss: rgba(18,32,51,0.06);
+  --zoom-fill: rgba(196,33,69,0.12);
+  --zoom-line: rgba(196,33,69,0.55);
 }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -47,8 +247,9 @@ body {
 }
 .title-block { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
 .header h1 { font-size: 26px; color: var(--accent); white-space: nowrap; line-height: 1.15; }
-.header .subtitle { font-size: 12px; color: #fff; white-space: nowrap; }
-.header .subtitle a { color: #fff; text-decoration: underline; }
+.header .subtitle { font-size: 12px; color: var(--text); white-space: nowrap; }
+.header .subtitle a { color: var(--text); text-decoration: underline; }
+.header .subtitle-stats { font-size: 11px; color: var(--muted); white-space: nowrap; }
 .toolbar {
   background: var(--panel-2); padding: 8px 16px; border-bottom: 2px solid var(--border);
   display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: nowrap;
@@ -72,17 +273,17 @@ body {
 .search-bar { flex: 1; display: flex; gap: 8px; max-width: 720px; align-items: center; flex-wrap: wrap; margin: 0; }
 #searchInput {
   flex: 1; min-width: 160px; padding: 8px 12px; background: var(--input); border: 1px solid var(--border-2);
-  color: #fff; border-radius: 4px; font-size: 14px; outline: none;
+  color: var(--text); border-radius: 4px; font-size: 14px; outline: none;
 }
 #searchInput:focus { border-color: var(--accent); }
 #searchBtn, #clearBtn {
   padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;
   font-size: 13px; font-weight: 600;
 }
-#searchBtn { background: var(--accent); color: #fff; }
-#searchBtn:hover { background: #c81e4a; }
+#searchBtn { background: var(--accent); color: var(--on-accent); }
+#searchBtn:hover { background: var(--accent-hover); }
 #clearBtn { background: var(--border-2); color: var(--text); }
-#clearBtn:hover { background: #444; }
+#clearBtn:hover { background: var(--hover); }
 .case-toggle {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 11px; color: var(--muted); white-space: nowrap; cursor: pointer;
@@ -101,15 +302,15 @@ body {
 .jump-date-bar label { font-weight: 600; color: var(--text); font-size: 11px; }
 .jump-date-bar input[type="date"],
 .jump-date-bar input[type="text"] {
-  background: var(--input); color: #fff; border: 1px solid var(--border-2);
+  background: var(--input); color: var(--text); border: 1px solid var(--border-2);
   border-radius: 4px; padding: 4px 8px; font-size: 12px; color-scheme: dark;
 }
 .jump-date-bar input[type="date"] { min-width: 9.5em; }
 .jump-date-bar button {
-  background: var(--accent); color: #fff; border: none; border-radius: 4px;
+  background: var(--accent); color: var(--on-accent); border: none; border-radius: 4px;
   padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
 }
-.jump-date-bar button:hover { background: #c81e4a; }
+.jump-date-bar button:hover { background: var(--accent-hover); }
 .layout-toggle {
   background: var(--panel-2); color: var(--text); border: 1px solid var(--border-2);
   padding: 5px 12px; border-radius: 4px; cursor: pointer; font-weight: 600;
@@ -147,7 +348,7 @@ body {
   background: none; border: none; color: var(--muted); font-size: 16px;
   cursor: pointer; padding: 0 4px; line-height: 1; flex-shrink: 0;
 }
-.panel-header:hover { background: #2a2a2a; }
+.panel-header:hover { background: var(--header-hover); }
 .panel-header:hover .collapse-btn { color: var(--accent); }
 .charts-content {
   padding: 6px 8px 8px; overflow: hidden;
@@ -170,7 +371,7 @@ body {
   flex: 0 0 1px; align-self: stretch; background: var(--border-2); margin: 0 2px;
 }
 .chart-title-main { font-size: 11px; font-weight: 600; color: var(--text); }
-.chart-block-stats { font-size: 10px; color: #fff; }
+.chart-block-stats { font-size: 10px; color: var(--text); }
 .chart-canvas-wrap {
   /* min-height is a real floor, not 0: .timeline-legend below is
      flex-shrink:0 (it never yields space), so without this the canvas was
@@ -191,7 +392,7 @@ body {
 .timeline-legend .lg-group {
   display: inline-flex; flex-direction: column; gap: 2px;
   border: 1px solid var(--border-2); border-radius: 6px; padding: 3px 6px;
-  background: rgba(255,255,255,0.02);
+  background: var(--fill-faint);
 }
 .timeline-legend .lg-group.off { opacity: 0.45; }
 .timeline-legend .lg-main {
@@ -278,14 +479,14 @@ body.layout-landscape .pdf-panel {
 }
 body.layout-landscape .panel-resizer {
   display: block; width: 10px; flex-shrink: 0; cursor: col-resize;
-  background: #555; position: relative;
+  background: var(--grip); position: relative;
 }
 body.layout-landscape .panel-resizer::before {
   content: '';
   position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
   width: 3px; height: 32px;
-  background: #6c9ff2; border-radius: 2px;
+  background: var(--grip-bar); border-radius: 2px;
   transition: background 0.15s;
 }
 body.layout-landscape .panel-resizer:hover,
@@ -294,7 +495,7 @@ body.layout-landscape .panel-resizer.dragging {
 }
 body.layout-landscape .panel-resizer:hover::before,
 body.layout-landscape .panel-resizer.dragging::before {
-  background: #fff;
+  background: var(--on-grip);
 }
 
 /* ── Layout: Portrait (panels stacked beside a vertical bookmark rail) ─ */
@@ -333,14 +534,14 @@ body.layout-portrait .results-panel-wrap {
 /* Horizontal drag handle between results and PDF */
 body.layout-portrait .panel-resizer {
   display: block; width: 100%; height: 10px; flex-shrink: 0; cursor: row-resize;
-  background: #555; position: relative;
+  background: var(--grip); position: relative;
 }
 body.layout-portrait .panel-resizer::before {
   content: '';
   position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
   width: 32px; height: 3px;
-  background: #6c9ff2; border-radius: 2px;
+  background: var(--grip-bar); border-radius: 2px;
   transition: background 0.15s;
 }
 body.layout-portrait .panel-resizer:hover,
@@ -349,7 +550,7 @@ body.layout-portrait .panel-resizer.dragging {
 }
 body.layout-portrait .panel-resizer:hover::before,
 body.layout-portrait .panel-resizer.dragging::before {
-  background: #fff;
+  background: var(--on-grip);
 }
 body.layout-portrait .pdf-panel {
   width: 100%; min-width: 0; height: 45%; min-height: 140px;
@@ -377,7 +578,7 @@ body.layout-portrait .pdf-panel {
   display: flex; align-items: center; gap: 8px;
   cursor: pointer; user-select: none; flex-shrink: 0;
 }
-.bm-head:hover { background: #2a2a2a; }
+.bm-head:hover { background: var(--header-hover); }
 .bm-head:hover .collapse-btn { color: var(--accent); }
 .bm-head h3 { margin: 0; font-size: 13px; color: var(--text); white-space: nowrap; }
 .bm-head .collapse-btn {
@@ -402,7 +603,7 @@ body.layout-portrait .pdf-panel {
   background: none; border: none; color: var(--muted); cursor: pointer;
   font-size: 11px; line-height: 1; padding: 5px 0; width: 100%;
 }
-.bm-scroll-btns button:hover:not(:disabled) { color: var(--accent); background: #2a2a2a; }
+.bm-scroll-btns button:hover:not(:disabled) { color: var(--accent); background: var(--header-hover); }
 .bm-scroll-btns button:disabled { opacity: 0.3; cursor: default; }
 .bm-list { flex: 1; overflow-y: auto; padding: 6px; min-height: 0; }
 .bm-list::-webkit-scrollbar { width: 8px; }
@@ -432,8 +633,8 @@ body.layout-portrait .pdf-panel {
   background: var(--panel-2); flex-shrink: 0; align-items: stretch;
 }
 .bm-file-bar button {
-  flex: none; width: 100%; background: #2b2b2e; color: #f2f2f2;
-  border: 1px solid #55565c; border-radius: 6px; padding: 7px 8px;
+  flex: none; width: 100%; background: var(--btn-bg); color: var(--btn-text);
+  border: 1px solid var(--btn-border); border-radius: 6px; padding: 7px 8px;
   font-size: 12px; font-weight: 600; line-height: 1; letter-spacing: 0.01em;
   cursor: pointer; gap: 8px;
   display: flex; align-items: center; justify-content: center;
@@ -476,7 +677,7 @@ body.layout-portrait .bm-list {
 }
 body.layout-portrait .bm-file-bar { border-top: 1px solid var(--border-2); border-left: none; }
 /* DRASTIC mark, top right of the header. */
-.header-brand { margin-left: auto; display: flex; align-items: center; }
+.header-brand { margin-left: 0; display: flex; align-items: center; }
 .header-brand a { display: block; line-height: 0; border-radius: 4px; opacity: 0.92; }
 .header-brand a:hover { opacity: 1; }
 .header-brand img { display: block; height: 40px; width: auto; }
@@ -537,23 +738,23 @@ body.layout-portrait .bm-file-bar { border-top: 1px solid var(--border-2); borde
   background: var(--panel-2); border: 1px solid var(--border-2); color: var(--text);
   max-width: 100%;
 }
-.attach-chip.clickable { cursor: pointer; border-color: #f5a623; color: #f5a623; }
+.attach-chip.clickable { cursor: pointer; border-color: var(--attach); color: var(--attach); }
 .attach-chip.clickable:hover { background: rgba(245,166,35,0.15); }
 .attach-chip.unresolved { color: var(--muted); border-style: dashed; cursor: default; }
 .attach-chip .att-note { color: var(--muted); font-size: 10px; white-space: nowrap; }
 .attach-chip .att-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* An attachment's own box, shown directly under the email it belongs to */
-.result-entry.is-attachment { margin-left: 26px; border-left: 3px solid #f5a623; }
-.result-entry.is-attachment .result-date { color: #f5a623; }
+.result-entry.is-attachment { margin-left: 26px; border-left: 3px solid var(--attach); }
+.result-entry.is-attachment .result-date { color: var(--attach); }
 .att-parent {
   padding: 5px 14px; font-size: 11.5px; color: var(--muted);
   border-bottom: 1px solid var(--border-2); background: rgba(245,166,35,0.07);
 }
-.att-parent a { color: #f5a623; text-decoration: underline; cursor: pointer; }
-.result-entry.is-meta { border-left: 3px solid #b98cff; }
-.result-entry.is-meta .result-date { color: #b98cff; }
+.att-parent a { color: var(--attach); text-decoration: underline; cursor: pointer; }
+.result-entry.is-meta { border-left: 3px solid var(--meta); }
+.result-entry.is-meta .result-date { color: var(--meta); }
 .result-entry.is-meta .att-parent { background: rgba(185,140,255,0.08); }
-.body-link { color: #6cb6ff; text-decoration: underline; word-break: break-all; }
+.body-link { color: var(--link); text-decoration: underline; word-break: break-all; }
 .body-link:hover { color: var(--accent); }
 .att-parent a:hover { color: var(--accent); }
 .reply-ref {
@@ -579,9 +780,14 @@ hr.email-sep {
   background: var(--border-2); color: var(--text); border: none; padding: 3px 10px;
   border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;
 }
-.hit-nav-btn:hover { background: #444; }
+.hit-nav-btn:hover { background: var(--hover); }
 .hit-nav-btn:disabled { opacity: 0.4; cursor: default; }
 .hit-nav-label { color: var(--green); font-weight: 600; white-space: nowrap; }
+.hit-step-btn {
+  background: var(--border-2); color: var(--text); border: none; border-radius: 4px;
+  padding: 8px 12px; font-size: 14px; font-weight: 600; cursor: pointer; line-height: 1;
+}
+.hit-step-btn:hover { background: var(--hover); }
 
 .result-content-wrap { position: relative; }
 .result-content {
@@ -601,7 +807,7 @@ hr.email-sep {
 /* Custom scrollbar for the entry box: drag the thumb, click the track to page */
 .box-scrollbar {
   position: absolute; top: 3px; right: 3px; bottom: 3px; width: 11px;
-  background: rgba(255,255,255,0.05); border-radius: 6px; cursor: pointer;
+  background: var(--fill-soft); border-radius: 6px; cursor: pointer;
 }
 .box-scrollbar.no-scroll { display: none; }
 .box-thumb {
@@ -656,7 +862,7 @@ mark {
   font-weight: 600;
 }
 mark.hit-current {
-  background: var(--orange); color: #000; outline: 2px solid var(--accent);
+  background: var(--orange); color: var(--mark-tx); outline: 2px solid var(--accent);
 }
 
 /* ── PDF panel ─────────────────────────────────────────────────────── */
@@ -674,7 +880,7 @@ mark.hit-current {
 }
 .pdf-tab:hover { color: var(--text); background: var(--border-2); }
 .pdf-tab.active { background: var(--bg); color: var(--text); border-color: var(--border); }
-.thread-view { flex: 1; overflow: auto; background: #1a1a1a; padding: 16px; }
+.thread-view { flex: 1; overflow: auto; background: var(--panel); padding: 16px; }
 .thread-view-inner { max-width: 780px; margin: 0 auto; }
 .thread-empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; }
 .thread-msg {
@@ -682,7 +888,7 @@ mark.hit-current {
   margin-bottom: 10px; background: var(--panel-2); cursor: pointer;
 }
 .thread-msg:hover { border-color: var(--accent); }
-.thread-msg.current { border-color: #4ecca3; border-width: 2px; cursor: default; }
+.thread-msg.current { border-color: var(--green); border-width: 2px; cursor: default; }
 .thread-msg.downstream { border-style: dashed; }
 .thread-msg-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
 .thread-msg-date { font-weight: 700; color: var(--accent); font-size: 13px; }
@@ -718,14 +924,14 @@ mark.hit-current {
   background: var(--panel); color: var(--text); border: 1px solid var(--border-2);
   padding: 3px 9px; border-radius: 4px; cursor: pointer; font-size: 11px; white-space: nowrap;
 }
-.thread-downstream-btn:hover { border-color: #4ecca3; color: #4ecca3; }
+.thread-downstream-btn:hover { border-color: var(--green); color: var(--green); }
 .thread-btn {
   background: var(--panel); color: var(--text); border: 1px solid var(--border-2);
   padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 8px;
   white-space: nowrap;
 }
-.thread-btn:hover { border-color: #4ecca3; color: #4ecca3; }
-.complementary-view { flex: 1; overflow: auto; background: #1a1a1a; padding: 16px; }
+.thread-btn:hover { border-color: var(--green); color: var(--green); }
+.complementary-view { flex: 1; overflow: auto; background: var(--panel); padding: 16px; }
 .complementary-view-inner { max-width: 780px; margin: 0 auto; }
 .complementary-empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; }
 .comp-section-label {
@@ -759,19 +965,19 @@ mark.hit-current {
   display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap;
 }
 .pdf-toolbar button {
-  background: var(--panel-2); color: #fff; border: 1px solid var(--border-2); padding: 6px 12px;
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border-2); padding: 6px 12px;
   border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600;
 }
 .pdf-toolbar button:hover { background: var(--border-2); }
 .pdf-toolbar button:disabled { opacity: 0.4; cursor: default; }
 .pdf-page-input {
-  width: 60px; text-align: center; background: var(--input); color: #fff;
+  width: 60px; text-align: center; background: var(--input); color: var(--text);
   border: 1px solid var(--border-2); border-radius: 4px; padding: 5px; font-size: 14px;
 }
 .pdf-page-label { font-size: 13px; color: var(--muted); }
 .pdf-zoom-label { font-size: 12px; color: var(--muted); margin-left: auto; }
 .pdf-view-mode {
-  background: var(--input); color: #fff; border: 1px solid var(--border-2);
+  background: var(--input); color: var(--text); border: 1px solid var(--border-2);
   border-radius: 4px; padding: 5px 8px; font-size: 12px; font-weight: 600;
   cursor: pointer; max-width: 150px;
 }
@@ -779,7 +985,7 @@ mark.hit-current {
 
 .pdf-viewer-container {
   flex: 1; overflow: auto; display: flex; justify-content: center; align-items: flex-start;
-  padding: 12px; background: #1a1a1a;
+  padding: 12px; background: var(--panel);
 }
 .pdf-viewer-container.pdf-mode-continuous {
   display: block; /* stack pages full-width of scroller */
@@ -793,7 +999,7 @@ mark.hit-current {
 .pdf-page-view canvas,
 .pdf-continuous-view canvas {
   box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-  background: #fff;
+  background: var(--paper);
   display: block;
 }
 .pdf-continuous-view {
@@ -826,19 +1032,54 @@ mark.hit-current {
 
 /* ── Placeholder ───────────────────────────────────────────────────── */
 .placeholder {
-  text-align: center; padding: 60px 20px; color: #fff;
+  text-align: center; padding: 60px 20px; color: var(--text);
 }
-.placeholder h2 { font-size: 18px; margin-bottom: 10px; color: #fff; }
+.placeholder h2 { font-size: 18px; margin-bottom: 10px; color: var(--text); }
 .placeholder p { font-size: 13px; line-height: 1.8; max-width: 400px; margin: 0 auto; }
-.placeholder .stats { margin-top: 20px; font-size: 14px; color: #fff; }
+.placeholder .stats { margin-top: 20px; font-size: 14px; color: var(--text); }
+/* Colour theme picker (same control as the Daszak calendar) */
+.theme-picker {
+  display: inline-flex; align-items: center; gap: 8px; margin-left: auto;
+  font-size: 12px; font-weight: 600; color: var(--text); flex-shrink: 0; white-space: nowrap;
+}
+.theme-picker select {
+  background: var(--input); color: var(--text); border: 1px solid var(--border-2);
+  border-radius: 4px; padding: 7px 10px; font-size: 13px; font-weight: 600;
+  cursor: pointer; outline: none;
+}
+.theme-picker select:hover, .theme-picker select:focus { border-color: var(--accent); }
 </style>
+<script>
+function themeColor(name, fallback) {
+  var v = getComputedStyle(document.documentElement).getPropertyValue(name);
+  v = v ? v.trim() : '';
+  return v || fallback;
+}
+var THEME_IDS = ['midnight', 'slate', 'paper', 'day'];
+function applyTheme(name, persist) {
+  if (THEME_IDS.indexOf(name) < 0) name = 'midnight';
+  document.documentElement.setAttribute('data-theme', name);
+  var sel = document.getElementById('themeSelect');
+  if (sel && sel.value !== name) sel.value = name;
+  if (persist) {
+    try { localStorage.setItem('fauci-diary-theme', name); } catch (e) {}
+  }
+  if (typeof redrawTimelines === 'function') redrawTimelines({ preserveZoom: true });
+}
+document.addEventListener('DOMContentLoaded', function () {
+  var sel = document.getElementById('themeSelect');
+  applyTheme(document.documentElement.getAttribute('data-theme') || 'midnight', false);
+  if (sel) sel.addEventListener('change', function () { applyTheme(sel.value, true); });
+});
+</script>
 </head>
 <body class="layout-landscape">
 
 <div class="header">
   <div class="title-block">
     <h1>📖 Tony's Diary Search</h1>
-    <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a> &middot; 2,839 entries &middot; Jan 2001 &ndash; Dec 2022</span>
+    <span class="subtitle"><a href="https://www.paul.senate.gov/readingroom/" target="_blank">Rand Paul's release of Fauci's Diary</a></span>
+    <span class="subtitle-stats">2,839 entries &middot; Jan 2001 &ndash; Dec 2022</span>
   </div>
   <form class="search-bar" id="searchForm" onsubmit="doSearch(); return false;">
     <label class="case-toggle" title="Off = match any capitalization (default). On = exact capitalization only.">
@@ -849,9 +1090,20 @@ mark.hit-current {
     <input type="text" id="searchInput" enterkeyhint="search" autocomplete="off" placeholder='Phrase: "blue car" · words: happy bunny · help: ?'>
     <button type="submit" id="searchBtn">Search</button>
     <button type="button" id="clearBtn" onclick="clearSearch()">Clear</button>
+    <button type="button" class="hit-step-btn" onclick="hitStep(-1)" title="Previous match, in any box">&larr;</button>
+    <button type="button" class="hit-step-btn" onclick="hitStep(1)" title="Next match, in any box">&rarr;</button>
   </form>
     <!-- DRASTIC mark, top right. Links to the manual/release notes page, which
          opens in a new tab so the search state here is never lost. -->
+    <label class="theme-picker" title="Color theme">
+      Theme
+      <select id="themeSelect" aria-label="Color theme">
+        <option value="midnight">Midnight — dark</option>
+        <option value="slate">Slate — dark</option>
+        <option value="paper">Paper — light</option>
+        <option value="day">Day — light</option>
+      </select>
+    </label>
     <div class="header-brand">
       <a href="help.html" target="_blank" rel="noopener" title="Open the manual &amp; release notes in a new tab">
         <img src="drastic-logo.png" alt="DRASTIC Research" width="155" height="40">
@@ -885,10 +1137,10 @@ mark.hit-current {
   <!-- Bookmarks rail: saved pointers into the record. Vertical in
        landscape and portrait alike (vertical column down the side in every layout).
        Open on load, like the timeline. -->
-  <div class="bm-rail" id="bmRail">
+  <div class="bm-rail collapsed" id="bmRail">
     <div class="bm-head" onclick="toggleBmRail()" title="Collapse / expand the bookmarks">
       <h3>🔖 Bookmarks</h3>
-      <button type="button" class="collapse-btn" id="bmToggleBtn" title="Collapse bookmarks">◀</button>
+      <button type="button" class="collapse-btn" id="bmToggleBtn" title="Expand bookmarks">▶</button>
     </div>
     <div class="bm-body">
       <div class="bm-scroll-btns">
@@ -1586,7 +1838,7 @@ function loadErrorHelp(err) {
     help =
       'Browsers block loading JSON/PDF from <code>file://</code> URLs.<br>' +
       'Serve this folder over HTTP, then open the http URL:<br>' +
-      '<code style="display:block;margin-top:6px;padding:6px 8px;background:#111;border-radius:4px">' +
+      '<code style="display:block;margin-top:6px;padding:6px 8px;background:var(--code-bg);border-radius:4px">' +
       'cd page_based && python3 -m http.server 8080</code>' +
       '→ <code>http://localhost:8080</code><br>' +
       'Or use the local app: <code>cd server_based && bash start_search.sh</code>';
@@ -3185,7 +3437,7 @@ function redrawTimelines(opts) {
   // Fixed-height hit bars; color encodes intensity (yellow→red gradient)
   const hitBarData = hitData.map(function(v) { return v > 0 ? hitBarMax : 0; });
   const hitColors = hitData.map(function(v) {
-    if (v <= 0) return 'rgba(60, 60, 60, 0.15)';
+    if (v <= 0) return themeColor('--chart-miss', 'rgba(60, 60, 60, 0.15)');
     if (peakHits <= 1) return 'hsl(60, 100%, 50%)';
     var ratio = (v - 1) / (peakHits - 1);
     var hue = 60 * (1 - ratio);
@@ -3271,8 +3523,8 @@ function redrawTimelines(opts) {
             // to the right is almost always empty (hits are sparse), so
             // force the box to always open that way instead.
             xAlign: 'left', yAlign: 'center',
-            backgroundColor: '#1a1a1a', titleColor: '#e94560',
-            bodyColor: '#fff', borderColor: '#333', borderWidth: 1,
+            backgroundColor: themeColor('--panel', '#1a1a1a'), titleColor: themeColor('--accent', '#e94560'),
+            bodyColor: themeColor('--text', '#fff'), borderColor: themeColor('--border-2', '#333'), borderWidth: 1,
           },
           zoom: {
             // Plain drag draws a selection band to zoom into (Plotly-style).
@@ -3286,7 +3538,7 @@ function redrawTimelines(opts) {
             zoom: {
               wheel: { enabled: true, speed: 0.1 },
               pinch: { enabled: true },
-              drag: { enabled: true, backgroundColor: 'rgba(233,69,96,0.15)', borderColor: 'rgba(233,69,96,0.6)', borderWidth: 1 },
+              drag: { enabled: true, backgroundColor: themeColor('--zoom-fill', 'rgba(233,69,96,0.15)'), borderColor: themeColor('--zoom-line', 'rgba(233,69,96,0.6)'), borderWidth: 1 },
               mode: 'y',
               onZoomComplete: function(c) { rescaleEntryAxis(c.chart); }
             },
@@ -3303,7 +3555,7 @@ function redrawTimelines(opts) {
             max: hitBarMax,
             grace: 0,
             ticks: {
-              color: 'rgba(255,255,255,0.65)',
+              color: themeColor('--chart-tick-dim', 'rgba(255,255,255,0.65)'),
               font: { size: 9 },
               maxTicksLimit: 6,
               callback: function(v) { return v <= 0 ? Math.round(Math.abs(v)) : ''; }
@@ -3311,8 +3563,8 @@ function redrawTimelines(opts) {
             grid: {
               color: function(c) {
                 return c.tick.value === 0
-                  ? 'rgba(233,69,96,0.55)'
-                  : 'rgba(255,255,255,0.18)';
+                  ? themeColor('--chart-zero', 'rgba(233,69,96,0.55)')
+                  : themeColor('--chart-grid-strong', 'rgba(255,255,255,0.18)');
               },
               lineWidth: function(c) {
                 return c.tick.value === 0 ? 1.5 : 1;
@@ -3324,7 +3576,7 @@ function redrawTimelines(opts) {
             reverse: false,
             offset: true,
             ticks: {
-              color: '#fff',
+              color: themeColor('--chart-tick', '#fff'),
               autoSkip: true,
               autoSkipPadding: 4,
               maxTicksLimit: 40,
@@ -3333,7 +3585,7 @@ function redrawTimelines(opts) {
             },
             grid: {
               display: true,
-              color: 'rgba(255,255,255,0.15)',
+              color: themeColor('--chart-grid', 'rgba(255,255,255,0.15)'),
               drawTicks: false,
             },
             border: { display: false },
@@ -3389,8 +3641,8 @@ function redrawTimelines(opts) {
                 return (item.dataset.label || 'entry') + ': ' + v;
               }
             },
-            backgroundColor: '#1a1a1a', titleColor: '#e94560',
-            bodyColor: '#fff', borderColor: '#333', borderWidth: 1,
+            backgroundColor: themeColor('--panel', '#1a1a1a'), titleColor: themeColor('--accent', '#e94560'),
+            bodyColor: themeColor('--text', '#fff'), borderColor: themeColor('--border-2', '#333'), borderWidth: 1,
           },
           zoom: {
             // Plain drag draws a selection band to zoom into (Plotly-style).
@@ -3404,7 +3656,7 @@ function redrawTimelines(opts) {
             zoom: {
               wheel: { enabled: true, speed: 0.1 },
               pinch: { enabled: true },
-              drag: { enabled: true, backgroundColor: 'rgba(233,69,96,0.15)', borderColor: 'rgba(233,69,96,0.6)', borderWidth: 1 },
+              drag: { enabled: true, backgroundColor: themeColor('--zoom-fill', 'rgba(233,69,96,0.15)'), borderColor: themeColor('--zoom-line', 'rgba(233,69,96,0.6)'), borderWidth: 1 },
               mode: 'x',
               onZoomComplete: function(c) { rescaleEntryAxis(c.chart); }
             },
@@ -3416,7 +3668,7 @@ function redrawTimelines(opts) {
           x: {
             offset: true,
             ticks: {
-              color: '#fff',
+              color: themeColor('--chart-tick', '#fff'),
               maxRotation: 45,
               autoSkip: true,
               autoSkipPadding: 6,
@@ -3426,7 +3678,7 @@ function redrawTimelines(opts) {
             },
             grid: {
               display: true,
-              color: 'rgba(255,255,255,0.15)',
+              color: themeColor('--chart-grid', 'rgba(255,255,255,0.15)'),
               drawTicks: false,
             },
             border: { display: false },
@@ -3440,7 +3692,7 @@ function redrawTimelines(opts) {
             max: hitBarMax,
             grace: 0,
             ticks: {
-              color: 'rgba(255,255,255,0.65)',
+              color: themeColor('--chart-tick-dim', 'rgba(255,255,255,0.65)'),
               font: { size: 9 },
               maxTicksLimit: 6,
               callback: function(v) { return v <= 0 ? Math.round(Math.abs(v)) : ''; }
@@ -3448,8 +3700,8 @@ function redrawTimelines(opts) {
             grid: {
               color: function(c) {
                 return c.tick.value === 0
-                  ? 'rgba(233,69,96,0.55)'
-                  : 'rgba(255,255,255,0.18)';
+                  ? themeColor('--chart-zero', 'rgba(233,69,96,0.55)')
+                  : themeColor('--chart-grid-strong', 'rgba(255,255,255,0.18)');
               },
               lineWidth: function(c) {
                 return c.tick.value === 0 ? 1.5 : 1;
@@ -4337,6 +4589,7 @@ function pdfPageLabel(r) {
 }
 
 function displayResults(results, query, opts) {
+  window._hitCursor = null;
   opts = opts || {};
   // autoSelect (default true): open first result / jump PDF. Set false when
   // the caller will select a specific result itself (avoids a PDF flash).
@@ -5167,6 +5420,66 @@ function selectResult(resultIdx, pdfPage, entryIdx) {
 // ============================================================
 // Navigate between hits within an entry (text highlight + PDF page)
 // ============================================================
+// ── Step through every match in every box (← / →) ───────────────────────────
+// The cursor is the (result, hit) pair last shown. Stepping past the last hit
+// of a box moves to the first hit of the next box that has one, wrapping at
+// the ends. Boxes that are not drawn yet are rendered on the way.
+window._hitCursor = null;
+function ensureCardRendered(k) {
+  while (!document.getElementById('result-' + k) && typeof renderState !== 'undefined' &&
+         renderState && renderState.rendered < renderState.results.length) {
+    renderMoreCards();
+  }
+}
+function hitCountFor(k) {
+  const p = currentHitPositions[k];
+  return p ? p.length : 0;
+}
+function firstHitFrom(from) {
+  const res = window._searchResults || [];
+  for (let k = from; k < res.length; k++) {
+    ensureCardRendered(k);
+    if (hitCountFor(k) > 0) return { r: k, h: 0 };
+  }
+  return null;
+}
+function lastHitTo(to) {
+  const res = window._searchResults || [];
+  for (let k = to; k >= 0; k--) {
+    ensureCardRendered(k);
+    const n = hitCountFor(k);
+    if (n > 0) return { r: k, h: n - 1 };
+  }
+  return null;
+}
+function hitStep(dir) {
+  const res = window._searchResults || [];
+  if (!res.length) return;
+  const cur = window._hitCursor;
+  let next;
+  if (!cur || !res[cur.r]) {
+    next = dir > 0 ? firstHitFrom(0) : lastHitTo(res.length - 1);
+  } else if (dir > 0) {
+    next = (cur.h + 1 < hitCountFor(cur.r)) ? { r: cur.r, h: cur.h + 1 }
+         : (firstHitFrom(cur.r + 1) || firstHitFrom(0));
+  } else {
+    next = (cur.h > 0) ? { r: cur.r, h: cur.h - 1 }
+         : (lastHitTo(cur.r - 1) || lastHitTo(res.length - 1));
+  }
+  if (!next) return;
+  window._hitCursor = next;
+  ensureCardRendered(next.r);
+  currentHitIdx[next.r] = next.h;
+  navigateHit(next.r, 0);
+  // Bring the box and the match into view, scrolling the box itself if needed
+  requestAnimationFrame(function() {
+    const card = document.getElementById('result-' + next.r);
+    if (card) card.scrollIntoView({ block: 'nearest' });
+    const mark = document.getElementById('hit-' + next.r + '-' + next.h);
+    if (mark) mark.scrollIntoView({ block: 'nearest' });
+  });
+}
+
 function navigateHit(resultIdx, direction) {
   const positions = currentHitPositions[resultIdx];
   if (!positions || positions.length === 0) return;
@@ -5614,7 +5927,7 @@ loadData();
       “not in these releases”. <b>⤢ Full text</b> shows a whole entry, and its box scrolls on its own.
     </p>
     <p style="margin-top:10px;font-size:12px;color:var(--muted);">Click a hit to open its PDF page; use HIT Prev/Next to step through matches. <b>↑/↓</b> move between boxes; <b>←/→</b> turn PDF pages.</p>
-    <button onclick="hideHelp()" style="margin-top:12px;background:var(--accent);color:#fff;border:none;padding:8px 24px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">Got it</button>
+    <button onclick="hideHelp()" style="margin-top:12px;background:var(--accent);color:var(--on-accent);border:none;padding:8px 24px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">Got it</button>
   </div>
 </div>
 
